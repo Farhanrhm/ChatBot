@@ -76,7 +76,7 @@ sequenceDiagram
 - **Response Sukses (HTTP 200)**:
   ```json
   {
-    "result": "Siap, laptop kentang bukan halangan buat dapat game seru! 🎮\n\n**Vampire Survivors** (2022, poncle)\n- **Genre & tag utama:** Roguelite, Action, Pixel Art\n- **Kenapa cocok:** Grafis 2D ringan tapi gameplay adiktif.\n- **Spek & budget:** Sangat ramah laptop kentang, di bawah Rp100 ribu.\n\nKamu lebih suka yang aksi cepat atau yang santai?"
+    "result": "Siap, laptop kentang bukan halangan buat dapat game seru!\n\n**Vampire Survivors** (2022, poncle)\n- **Genre & tag utama:** Roguelite, Action, Pixel Art\n- **Kenapa cocok:** Grafis 2D ringan tapi gameplay adiktif.\n- **Spek & budget:** Sangat ramah laptop kentang, di bawah Rp100 ribu.\n\nKamu lebih suka yang aksi cepat atau yang santai?"
   }
   ```
 - **Response Error (HTTP 400 / 429 / 500 / 504)**:
