@@ -83,3 +83,16 @@ test('STEAM_RECOMMENDER_SCHEMA: memvalidasi struktur skema output terstruktur', 
     'specsAndBudget',
   ]);
 });
+
+test('getSteamGameDetails: menangani input judul kosong atau invalid secara aman', async () => {
+  const { getSteamGameDetails } = await import('../services/steamStore.js');
+  const emptyRes = await getSteamGameDetails('');
+  assert.equal(emptyRes.appId, null);
+  assert.equal(emptyRes.headerImage, null);
+  assert.equal(emptyRes.storeUrl, 'https://store.steampowered.com/');
+
+  const nullRes = await getSteamGameDetails(null);
+  assert.equal(nullRes.appId, null);
+  assert.equal(nullRes.headerImage, null);
+});
+

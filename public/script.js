@@ -237,7 +237,14 @@ function formatBotContent(raw) {
         const year = g.year ? escapeHtml(g.year) : "";
         const dev = g.developer ? escapeHtml(g.developer) : "";
         const metaStr = [year, dev].filter(Boolean).join(" • ");
-        const searchUrl = `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || "")}`;
+        const storeUrl = g.storeUrl || `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || "")}`;
+        const headerImg = g.headerImage ? escapeHtml(g.headerImage) : null;
+
+        const bannerHtml = headerImg
+          ? `<div class="game-card-banner">
+              <img src="${headerImg}" alt="Poster resmi ${title}" loading="lazy" onerror="this.parentElement.style.display='none'">
+            </div>`
+          : "";
 
         const tagsHtml = Array.isArray(g.genres) && g.genres.length > 0
           ? `<div class="game-card-tags">${g.genres.map((t) => `<span class="game-tag">${escapeHtml(t)}</span>`).join("")}</div>`
@@ -245,22 +252,25 @@ function formatBotContent(raw) {
 
         html += `
           <div class="game-card">
-            <div class="game-card-head">
-              <h4 class="game-card-title">${title}</h4>
-              ${metaStr ? `<span class="game-card-meta">${metaStr}</span>` : ""}
-            </div>
-            ${tagsHtml}
-            <div class="game-card-body">
-              ${g.whyFit ? `<p class="game-card-desc"><strong>Kenapa cocok:</strong> ${inline(g.whyFit)}</p>` : ""}
-              ${g.specsAndBudget ? `<p class="game-card-specs"><strong>Spek & budget:</strong> ${inline(g.specsAndBudget)}</p>` : ""}
-            </div>
-            <div class="game-card-actions">
-              <a href="${searchUrl}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="Cari ${title} di Steam">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                  <path d="M12 2a10 10 0 0 0-9.95 9l5.65 2.33a2.89 2.89 0 0 1 1.76-.6c.23 0 .45.03.66.08l2.67-3.87A4.27 4.27 0 0 1 12.5 8a4.5 4.5 0 1 1 0 9c-.27 0-.53-.02-.79-.07l-2.73 3.96c-.22.06-.46.11-.71.11a3.25 3.25 0 0 1-3.23-3l-3.08-1.28A10 10 0 1 0 12 2z"/>
-                </svg>
-                Cari di Steam
-              </a>
+            ${bannerHtml}
+            <div class="game-card-inner">
+              <div class="game-card-head">
+                <h4 class="game-card-title">${title}</h4>
+                ${metaStr ? `<span class="game-card-meta">${metaStr}</span>` : ""}
+              </div>
+              ${tagsHtml}
+              <div class="game-card-body">
+                ${g.whyFit ? `<p class="game-card-desc"><strong>Kenapa cocok:</strong> ${inline(g.whyFit)}</p>` : ""}
+                ${g.specsAndBudget ? `<p class="game-card-specs"><strong>Spek & budget:</strong> ${inline(g.specsAndBudget)}</p>` : ""}
+              </div>
+              <div class="game-card-actions">
+                <a href="${storeUrl}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="Buka ${title} di Steam">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2a10 10 0 0 0-9.95 9l5.65 2.33a2.89 2.89 0 0 1 1.76-.6c.23 0 .45.03.66.08l2.67-3.87A4.27 4.27 0 0 1 12.5 8a4.5 4.5 0 1 1 0 9c-.27 0-.53-.02-.79-.07l-2.73 3.96c-.22.06-.46.11-.71.11a3.25 3.25 0 0 1-3.23-3l-3.08-1.28A10 10 0 1 0 12 2z"/>
+                  </svg>
+                  Buka di Steam Store
+                </a>
+              </div>
             </div>
           </div>
         `;
@@ -349,31 +359,82 @@ async function requestReply() {
   const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildRequestBody(history)),
-      signal: controller.signal,
-    });
+    // Coba streaming via SSE terlebih dahulu (/api/chat/stream)
+    let finalData = null;
+    let streamSuccess = false;
 
-    clearTimeout(timeoutId);
+    try {
+      const streamRes = await fetch("/api/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildRequestBody(history)),
+        signal: controller.signal,
+      });
 
-    const data = await res.json().catch(() => null);
+      if (streamRes.ok && streamRes.body) {
+        clearTimeout(timeoutId);
+        const reader = streamRes.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
 
-    if (!res.ok) {
-      const serverErrMsg = data?.error || `Server membalas dengan status ${res.status}.`;
-      throw new Error(serverErrMsg);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop();
+
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const payload = JSON.parse(line.slice(6));
+              if (payload.error) throw new Error(payload.error);
+              if (payload.done && payload.data) {
+                finalData = payload.data;
+                streamSuccess = true;
+              }
+            } catch (parseErr) {
+              if (parseErr.message && !parseErr.message.includes("JSON")) throw parseErr;
+            }
+          }
+        }
+      }
+    } catch {
+      // Jika streaming gagal, fallback ke endpoint reguler
+      streamSuccess = false;
     }
 
-    const reply = extractReply(data);
-    if (!reply) {
-      throw new Error("Balasan dari server kosong.");
+    // Fallback ke endpoint biasa jika SSE tidak selesai
+    if (!streamSuccess || !finalData) {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildRequestBody(history)),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const serverErrMsg = data?.error || `Server membalas dengan status ${res.status}.`;
+        throw new Error(serverErrMsg);
+      }
+
+      finalData = data?.data || data?.result;
     }
 
     typing.remove();
-    history.push({ role: "model", text: reply });
+    if (!finalData) {
+      throw new Error("Balasan dari server kosong.");
+    }
+
+    const savedText = typeof finalData === "object" ? JSON.stringify(finalData) : finalData;
+    history.push({ role: "model", text: savedText });
     saveHistoryToStorage();
-    addMessage("bot", reply);
+    addMessage("bot", finalData);
   } catch (err) {
     clearTimeout(timeoutId);
     typing.remove();

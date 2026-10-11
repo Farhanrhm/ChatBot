@@ -206,8 +206,8 @@ final_project/
 
 - [x] **Tombol "Cari di Steam" per Game**: Tautan pencarian langsung ke toko resmi Steam per rekomendasi game.
 - [x] **Structured JSON Output (Response Schema)**: Memanfaatkan `responseSchema` Gemini agar menghasilkan objek data terstruktur (`intro`, `games`, `followUp`) yang dirender ke dalam kartu game interaktif.
-- [ ] **Verifikasi Storefront Steam / Grounding**: Cek judul game ke Steam Storefront API untuk menampilkan cover art resmi, harga diskon terkini, dan link halaman resmi.
-- [ ] **Real-time Streaming (SSE)**: Mengirim balasan teks bertahap menggunakan Server-Sent Events (`generateContentStream`) agar respon muncul seperti sedang diketik.
+- [x] **Verifikasi Storefront Steam / Grounding**: Cek judul game ke Steam Storefront API untuk menampilkan cover art resmi, harga diskon terkini, dan link halaman resmi.
+- [x] **Real-time Streaming (SSE)**: Mengirim balasan respon melalui Server-Sent Events (`/api/chat/stream`) agar proses pembuatan rekomendasi lebih responsif dan interaktif.
 
 ---
 
