@@ -1,6 +1,4 @@
-/* ============================================================
-   SteamScout - Frontend logic
-   ============================================================ */
+/* SteamScout: Frontend logic */
 
 const API_URL = "/api/chat";
 const STORAGE_KEY = "steamscout_chat_history";
@@ -51,7 +49,7 @@ const els = {
 let history = [];
 let isLoading = false;
 
-// ---- Penyimpanan Riwayat Sesi (sessionStorage) -------------------
+/* Penyimpanan Riwayat Sesi (sessionStorage) */
 function saveHistoryToStorage() {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
@@ -80,12 +78,13 @@ function clearHistoryStorage() {
   }
 }
 
-// ---- Render saran cepat ----------------------------------------
+/* Render saran cepat */
 function renderQuickPrompts() {
   QUICK_PROMPTS.forEach((item) => {
     const capsule = document.createElement("button");
     capsule.type = "button";
     capsule.className = "capsule";
+    capsule.setAttribute("aria-label", `Pilih saran: ${item.prompt}`);
     capsule.style.setProperty("--tint", item.tint);
     capsule.innerHTML = `
       <span class="icon" aria-hidden="true">${item.icon}</span>
@@ -97,6 +96,7 @@ function renderQuickPrompts() {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "chip";
+    chip.setAttribute("aria-label", `Pilih saran: ${item.prompt}`);
     chip.textContent = `${item.icon} ${item.prompt}`;
     chip.addEventListener("click", () => sendMessage(item.prompt));
     els.chips.appendChild(chip);
@@ -108,7 +108,7 @@ function setWelcomeVisible(visible) {
   els.chips.hidden = visible;
 }
 
-// ---- Parser Markdown Aman (escape HTML & link sanitasi) ---------
+/* Parser Markdown aman (escape HTML dan link sanitasi) */
 function escapeHtml(str) {
   return str
     .replace(/&/g, "&amp;")
@@ -193,7 +193,7 @@ function formatMarkdown(text) {
   return html;
 }
 
-// ---- Render pesan ----------------------------------------------
+/* Render pesan */
 function scrollToBottom() {
   els.chat.scrollTo({ top: els.chat.scrollHeight, behavior: "smooth" });
 }
@@ -250,7 +250,7 @@ function addError(message) {
   scrollToBottom();
 }
 
-// ---- Kirim & terima pesan --------------------------------------
+/* Kirim dan terima pesan */
 function setLoading(state) {
   isLoading = state;
   els.sendBtn.disabled = state;
@@ -327,7 +327,7 @@ async function sendMessage(text) {
   await requestReply();
 }
 
-// ---- Input & Penghitung Karakter --------------------------------
+/* Input dan penghitung karakter */
 function autoResize() {
   els.input.style.height = "auto";
   els.input.style.height = `${Math.min(els.input.scrollHeight, 160)}px`;
@@ -369,7 +369,7 @@ els.form.addEventListener("submit", (e) => {
   sendMessage(els.input.value);
 });
 
-// ---- Reset Chat ------------------------------------------------
+/* Reset chat */
 els.resetBtn.addEventListener("click", () => {
   if (history.length > 0 && !confirm("Hapus seluruh obrolan dan mulai pencarian baru?")) return;
   history = [];
@@ -380,7 +380,7 @@ els.resetBtn.addEventListener("click", () => {
   els.input.focus();
 });
 
-// ---- Inisialisasi & Muat Riwayat Sesi ---------------------------
+/* Inisialisasi dan muat riwayat sesi */
 renderQuickPrompts();
 
 const savedHistory = loadHistoryFromStorage();

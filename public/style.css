@@ -1,6 +1,4 @@
-/* ============================================================
-   SteamScout - Steam Dark Theme
-   ============================================================ */
+/* SteamScout: Steam Dark Theme */
 
 :root {
   --bg-0: #171a21;          /* Steam Dark Slate */
@@ -47,7 +45,7 @@ button, textarea { font: inherit; color: inherit; }
   outline-offset: 2px;
 }
 
-/* ---------- Layout ---------- */
+/* Layout */
 .app {
   display: grid;
   grid-template-columns: 288px minmax(0, 1fr);
@@ -55,7 +53,7 @@ button, textarea { font: inherit; color: inherit; }
   height: 100dvh;
 }
 
-/* ---------- Sidebar ---------- */
+/* Sidebar */
 .rail {
   background: var(--bg-0);
   border-right: 1px solid #0e1218;
@@ -121,7 +119,7 @@ button, textarea { font: inherit; color: inherit; }
 .tips li strong { display: block; font-weight: 600; color: var(--text-strong); font-size: 15px; }
 .tips li small { display: block; color: var(--muted); font-size: 13px; line-height: 1.35; }
 
-/* ---------- Stage ---------- */
+/* Stage */
 .stage {
   display: flex;
   flex-direction: column;
@@ -182,7 +180,7 @@ button, textarea { font: inherit; color: inherit; }
 }
 .btn-ghost:hover { background: rgba(102, 192, 244, 0.1); border-color: var(--accent); color: var(--accent); }
 
-/* ---------- Chat area ---------- */
+/* Chat area */
 .chat {
   flex: 1;
   min-height: 0;
@@ -198,7 +196,7 @@ button, textarea { font: inherit; color: inherit; }
 
 .chat-inner { max-width: 840px; margin: 0 auto; }
 
-/* ---------- Welcome ---------- */
+/* Welcome */
 .welcome { padding: 4vh 0 12px; }
 
 .welcome h2 {
@@ -249,9 +247,10 @@ button, textarea { font: inherit; color: inherit; }
   font-size: 20px;
   color: var(--text-strong);
 }
-.capsule .hint { font-size: 14px; color: var(--muted); }
+/* Kontras >= 4.5:1 terhadap seluruh area gradasi kartu */
+.capsule .hint { font-size: 14px; color: var(--text); }
 
-/* ---------- Messages ---------- */
+/* Messages */
 .msg { display: flex; gap: 12px; margin-bottom: 20px; animation: enter 0.18s ease-out; }
 .msg.user { justify-content: flex-end; }
 
@@ -333,6 +332,10 @@ button, textarea { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .retry:hover { background: rgba(229, 115, 115, 0.2); }
+.retry:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
 
 /* Typing indicator */
 .typing { display: inline-flex; gap: 5px; padding: 6px 2px; }
@@ -354,7 +357,7 @@ button, textarea { font: inherit; color: inherit; }
   to { opacity: 1; transform: none; }
 }
 
-/* ---------- Composer ---------- */
+/* Composer */
 .composer {
   padding: 8px 28px 18px;
   background: linear-gradient(180deg, transparent, rgba(23, 26, 33, 0.7) 30%);
@@ -420,7 +423,7 @@ button, textarea { font: inherit; color: inherit; }
   color: var(--text-strong);
   line-height: 1.45;
 }
-#user-input::placeholder { color: #6d7b88; }
+#user-input::placeholder { color: #8f98a0; }
 
 .char-counter {
   font-size: 11px;
@@ -460,9 +463,9 @@ button, textarea { font: inherit; color: inherit; }
 }
 
 .hint { margin: 0; font-size: 12.5px; color: var(--muted); }
-.disclaimer { margin: 0; font-size: 12px; color: #72818f; font-style: italic; }
+.disclaimer { margin: 0; font-size: 12px; color: var(--muted); font-style: italic; }
 
-/* ---------- Responsive ---------- */
+/* Responsive */
 @media (max-width: 860px) {
   .app { grid-template-columns: minmax(0, 1fr); }
   .rail { display: none; }
@@ -476,9 +479,27 @@ button, textarea { font: inherit; color: inherit; }
 
 @media (max-width: 520px) {
   .capsules { grid-template-columns: minmax(0, 1fr); }
-  .btn-ghost { padding: 8px 10px; font-size: 0; gap: 0; }
+  .btn-ghost {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 0;
+    gap: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
   .btn-ghost svg { width: 18px; height: 18px; }
-  .btn-send { padding: 0 14px; font-size: 0; gap: 0; }
+  .btn-send {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: 0;
+    gap: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
   .btn-send svg { width: 18px; height: 18px; }
   .avatar { width: 32px; height: 32px; }
 }
