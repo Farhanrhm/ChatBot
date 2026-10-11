@@ -1,5 +1,8 @@
 # SteamScout: Your Personal Game Curator
 
+[![CI Test Suite](https://github.com/Farhanrhm/ChatBot/actions/workflows/ci.yml/badge.svg)](https://github.com/Farhanrhm/ChatBot/actions/workflows/ci.yml)
+[![Demo](https://img.shields.io/badge/demo-online-blue)](https://steamscout.netlify.app/)
+
 SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. Menggunakan persona kurator game berbahasa Indonesia santai khas gamer, SteamScout membantu pemain menemukan 2-3 game yang relevan berdasarkan genre, spesifikasi perangkat (laptop kentang atau PC gaming), mode bermain (single-player atau co-op), budget, dan suasana hati.
 
 ---
@@ -13,22 +16,25 @@ SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. M
 ## Fitur Utama
 
 1. **Persona Kurator Steam Khusus**: Memberikan rekomendasi terstruktur (Judul, Genre/Tag, Alasan Cocok, Spek & Budget) dengan batas maksimal 2-3 game per balasan agar tidak membebani pengguna.
-2. **Memori Percakapan Bertingkat (Multi-turn)**: Mengingat konteks dan preferensi pengguna selama sesi obrolan berlangsung (misalnya: *"yang di bawah 100 ribu aja"* atau *"ada versi pixel art-nya?"*).
-3. **Kartu dan Chip Saran Cepat (Quick Prompts)**: Tombol interaktif untuk memulai pencarian instan seperti Laptop kentang, Co-op santai, Menantang (Souls-like), dan Cozy.
-4. **Desain Steam Dark Theme**: Palet warna ekosistem Steam (`#171a21`, `#1b2838`, aksen cyan `#66c0f4`) dengan tipografi Barlow.
-5. **Parser Markdown Aman**: Merender format tebal, miring, list, dan link dengan sanitasi HTML ketat untuk mencegah serangan XSS.
-6. **Ketahanan Sesi (sessionStorage)**: Percakapan tidak hilang saat halaman dimuat ulang (refresh), dan dapat dikosongkan dengan tombol Reset chat.
-7. **Indikator Responsif dan Penanganan Error**: Animasi typing indicator, penghitung karakter input (maksimal 1000 karakter), serta bubble error interaktif dengan tombol Coba lagi.
+2. **Tombol "Cari di Steam" per Game**: Tautan instan pencarian toko resmi Steam (`https://store.steampowered.com/search/?term=...`) yang otomatis terpasang pada setiap judul game yang direkomendasikan.
+3. **Memori Percakapan Bertingkat (Multi-turn)**: Mengingat konteks dan preferensi pengguna selama sesi obrolan berlangsung (misalnya: *"yang di bawah 100 ribu aja"* atau *"ada versi pixel art-nya?"*).
+4. **Kartu dan Chip Saran Cepat (Quick Prompts)**: Tombol interaktif untuk memulai pencarian instan seperti Laptop kentang, Co-op santai, Menantang (Souls-like), dan Cozy.
+5. **Desain Steam Dark Theme**: Palet warna autentik ekosistem Steam (`#171a21`, `#1b2838`, aksen cyan `#66c0f4`) dengan tipografi Barlow.
+6. **Aksesibilitas Teruji (Lighthouse 100/100)**: Memenuhi standar aksesibilitas web dengan kontras warna teks (WCAG AA), ukuran target sentuh tombol minimal 44x44px, navigasi keyboard (`:focus-visible`), dan penamaan label ARIA yang selaras.
+7. **Parser Markdown Aman**: Merender format tebal, miring, list, dan link dengan sanitasi HTML ketat untuk mencegah serangan XSS.
+8. **Ketahanan Sesi (sessionStorage)**: Percakapan tidak hilang saat halaman dimuat ulang (refresh), dan dapat dikosongkan dengan tombol Reset chat.
+9. **Indikator Responsif dan Penanganan Error**: Animasi typing indicator, penghitung karakter input (maksimal 1000 karakter), serta bubble error interaktif dengan tombol Coba lagi.
 
 ---
 
 ## Teknologi yang Digunakan
 
 - **Backend**: Node.js, Express.js (ES Modules)
-- **AI SDK**: `@google/genai` (Google Gemini API)
+- **AI SDK**: `@google/genai` (Google Gemini API, model `gemini-2.5-flash`)
 - **Keamanan & Middleware**: `helmet`, `express-rate-limit`, `dotenv`
 - **Frontend**: Vanilla HTML5, Vanilla CSS3 (CSS Variables, Flexbox, CSS Grid), Vanilla JavaScript (tanpa framework, tanpa build step)
 - **Testing**: Node.js built-in test runner (`node:test`, `node:assert`)
+- **CI/CD**: GitHub Actions (otomatisasi pengujian `npm test` pada branch `main`)
 
 ---
 
@@ -47,12 +53,12 @@ sequenceDiagram
     Gamer->>UI: Ketik preferensi atau klik Quick Capsule
     UI->>UI: Simpan ke sessionStorage & tampilkan pesan user
     UI->>Express: POST /api/chat { conversation: [...] }
-    Note over Express: Rate limiting & validasi toContents()
+    Note over Express: Rate limiting, trust proxy & validasi toContents()
     Express->>Gemini: generateContent({ model, contents, systemInstruction })
     alt Respon Berhasil
         Gemini-->>Express: 200 OK (Teks rekomendasi)
         Express-->>UI: 200 OK { result: "..." }
-        UI->>UI: Render Markdown & simpan ke riwayat
+        UI->>UI: Render Markdown + tombol "Cari di Steam" & simpan ke riwayat
     else Layanan Sibuk (503)
         Express->>Gemini: Retry otomatis hingga 2x (exponential backoff)
     else Terjadi Kesalahan / Timeout
@@ -100,23 +106,27 @@ sequenceDiagram
 
 ```text
 final_project/
+├── .github/
+│   └── workflows/
+│       └── ci.yml            # Otomatisasi pengujian CI via GitHub Actions
 ├── .env.example              # Template variabel lingkungan
 ├── .gitignore                # Daftar pengecualian Git
 ├── AGENTS.md                 # Konfigurasi pointer antislop
-├── index.js                  # Entry point server Express & integrasi Gemini API
+├── index.js                  # Server Express, middleware keamanan & integrasi Gemini API
 ├── package.json              # Konfigurasi dependensi dan skrip proyek
 ├── package-lock.json
 ├── prompts/
 │   └── systemPrompt.js       # Definisi terisolasi System Instruction SteamScout
 ├── public/                   # Frontend statis disajikan dari satu origin
 │   ├── index.html            # Struktur antarmuka SteamScout
-│   ├── script.js             # Logika interaktif, sanitasi, dan manajemen sesi
+│   ├── script.js             # Logika interaktif, parser, dan manajemen sesi
 │   └── style.css             # Tema Steam Dark dan tata letak responsif
 ├── test/
 │   └── validation.test.js    # Unit testing validasi input toContents()
 └── docs/
-    ├── TEST_RESULTS.md       # Matriks skenario pengujian kualitas & cURL
-    └── screenshots/          # Folder aset tangkapan layar antarmuka
+    ├── TEST_RESULTS.md       # Matriks 13 skenario pengujian kualitas & cURL
+    ├── lighthouse-a11y.json  # Laporan hasil audit aksesibilitas Google Lighthouse (100/100)
+    └── screenshots/          # Tangkapan layar antarmuka aplikasi
 ```
 
 ---
@@ -125,7 +135,7 @@ final_project/
 
 ### 1. Prasyarat
 - Node.js versi 18.0.0 atau lebih tinggi.
-- Kunci API Google Gemini (dapat diperoleh di [Google AI Studio](https://aistudio.google.com/)).
+- Kunci API Google Gemini (dapat diperoleh gratis di [Google AI Studio](https://aistudio.google.com/)).
 
 ### 2. Langkah Pemasangan
 1. Kloning repositori dan masuk ke folder proyek:
@@ -172,14 +182,15 @@ final_project/
 
 ## Langkah Keamanan & Hardening
 
-1. **Perlindungan Kredensial**: File `.env` masuk ke `.gitignore` sehingga API key tidak terunggah ke repositori publik. Server membatalkan proses startup jika API key belum dikonfigurasi.
+1. **Perlindungan Kredensial**: File `.env` masuk ke `.gitignore` sehingga API key tidak terunggah ke repositori publik. Server membatalkan proses startup jika API key belum dikonfigurasi saat mode produksi.
 2. **Validasi Anti-Injeksi (`toContents`)**: Riwayat percakapan dari browser divalidasi ketat (maksimal 20 turn terakhir, membuang role selain `user` dan `model`, memangkas pesan user > 1000 karakter, dan menolak urutan ilegal).
 3. **Pencegahan Denial of Service (DoS)**:
-   - Pembatasan ukuran payload JSON dibatasi maksimum `10kb`.
-   - Penerapan `express-rate-limit` (20 request per menit per IP) untuk mencegah eksploitasi kuota API.
+   - Pembatasan ukuran payload JSON dinaikkan ke batas aman `100kb` untuk mengakomodasi riwayat multi-turn hingga 20 turn tanpa memicu error 413.
+   - Penerapan `express-rate-limit` (20 request per menit per IP) dan `trust proxy` untuk mencegah eksploitasi kuota API di lingkungan cloud hosting.
 4. **Header Keamanan (Helmet)**: Menerapkan Content Security Policy (CSP) ketat yang hanya mengizinkan resource lokal serta Google Fonts resmi.
 5. **Ketahanan Koneksi (Resilience)**: Panggilan Gemini dilengkapi batas timeout 30 detik serta mekanisme retry otomatis 2x dengan exponential backoff jika server Google mengalami status 503.
 6. **Penyajian Single Origin**: Frontend disajikan langsung dari folder `./public/` oleh server Express sehingga tidak memerlukan konfigurasi CORS yang berisiko.
+7. **Graceful Shutdown**: Server Express menangani sinyal `SIGINT` dan `SIGTERM` dengan batas waktu paksa 10 detik agar koneksi tertutup bersih saat proses dihentikan.
 
 ---
 
@@ -187,14 +198,16 @@ final_project/
 
 - **Akurasi AI**: Rekomendasi dihasilkan oleh LLM dan dapat sewaktu-waktu mengalami ketidakakuratan data mengenai detail tahun rilis atau developer game indie tertentu.
 - **Dinamika Toko Steam**: Informasi harga game, event diskon (Steam Sale), dan status Early Access dapat berubah sewaktu-waktu. Pengguna disarankan untuk memeriksa halaman toko resmi Steam sebelum membeli game.
+- **Waktu Bangun Hosting Gratis (Cold Start)**: Jika di-deploy pada layanan gratis cloud yang menerapkan penonaktifan sementara saat tidak ada lalu lintas, permintaan pertama mungkin membutuhkan waktu beberapa detik lebih lama untuk merespons.
 
 ---
 
 ## Rencana Pengembangan Selanjutnya (Fase 3)
 
-- [ ] **Opsi A: Structured JSON Output & Tombol "Cari di Steam"**: Memanfaatkan `responseSchema` Gemini agar menghasilkan data terstruktur (`intro`, daftar `games`, `followUp`) yang dirender menjadi kartu game konsisten dengan tautan langsung pencarian di Steam (`https://store.steampowered.com/search/?term=...`).
-- [ ] **Opsi B: Verifikasi Storefront Steam / Grounding**: Cek judul game ke Steam Storefront API untuk menampilkan cover art resmi, harga diskon terkini, dan link halaman resmi.
-- [ ] **Opsi C: Real-time Streaming (SSE)**: Mengirim balasan teks bertahap menggunakan Server-Sent Events (`generateContentStream`) agar respon muncul seperti sedang diketik.
+- [x] **Tombol "Cari di Steam" per Game**: Tautan pencarian langsung ke toko resmi Steam per rekomendasi game.
+- [ ] **Structured JSON Output (Response Schema)**: Memanfaatkan `responseSchema` Gemini agar menghasilkan objek data terstruktur (`intro`, `games`, `followUp`) untuk dirender ke dalam kartu UI khusus.
+- [ ] **Verifikasi Storefront Steam / Grounding**: Cek judul game ke Steam Storefront API untuk menampilkan cover art resmi, harga diskon terkini, dan link halaman resmi.
+- [ ] **Real-time Streaming (SSE)**: Mengirim balasan teks bertahap menggunakan Server-Sent Events (`generateContentStream`) agar respon muncul seperti sedang diketik.
 
 ---
 
