@@ -1,32 +1,28 @@
-# 🎮 SteamScout: Your Personal Game Curator
+# SteamScout: Your Personal Game Curator
 
-SteamScout adalah asisten chatbot cerdas berbasis AI yang dirancang khusus untuk merekomendasikan game PC di platform Steam. Menggunakan persona kurator game yang ramah, antusias, dan berbahasa Indonesia santai khas gamer, SteamScout membantu pemain menemukan 2–3 game terbaik sesuai genre, spesifikasi perangkat (laptop kentang vs PC gaming), mode bermain (single-player vs co-op), budget, dan suasana hati.
-
----
-
-## 📸 Antarmuka Aplikasi
-
-> *Tangkapan layar antarmuka SteamScout dapat ditempatkan pada direktori [./docs/screenshots/](./docs/screenshots/)*
-
-| Tampilan Desktop | Tampilan Mobile |
-|:---:|:---:|
-| ![SteamScout Desktop Preview](./docs/screenshots/desktop-preview.png) *(Placeholder)* | ![SteamScout Mobile Preview](./docs/screenshots/mobile-preview.png) *(Placeholder)* |
+SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. Menggunakan persona kurator game berbahasa Indonesia santai khas gamer, SteamScout membantu pemain menemukan 2-3 game yang relevan berdasarkan genre, spesifikasi perangkat (laptop kentang atau PC gaming), mode bermain (single-player atau co-op), budget, dan suasana hati.
 
 ---
 
-## ✨ Fitur Utama
+## Antarmuka Aplikasi
 
-1. **Persona Kurator Steam Khusus**: Memberikan rekomendasi terstruktur (Judul, Genre/Tag, Alasan Cocok, Spek & Budget) dengan batas maksimal 2–3 game per balasan agar tidak membebani pengguna.
-2. **Memori Percakapan Bertingkat (Multi-turn)**: Mengingat preferensi pengguna selama sesi obrolan berlangsung (misalnya: *"yang di bawah 100 ribu aja"* atau *"ada versi pixel art-nya?"*).
-3. **Kartu & Chip Saran Cepat (Quick Prompts)**: Tombol interaktif untuk memulai pencarian instan seperti *"Laptop kentang"*, *"Co-op santai"*, *"Menantang (Souls-like)"*, dan *"Cozy"*.
-4. **Desain Khas Steam Dark Theme**: Palet warna autentik ekosistem Steam (`#171a21`, `#1b2838`, aksen cyan `#66c0f4`) dengan font *Barlow*.
+> Simpan tangkapan layar antarmuka di direktori `./docs/screenshots/` untuk ditampilkan pada bagian ini.
+
+---
+
+## Fitur Utama
+
+1. **Persona Kurator Steam Khusus**: Memberikan rekomendasi terstruktur (Judul, Genre/Tag, Alasan Cocok, Spek & Budget) dengan batas maksimal 2-3 game per balasan agar tidak membebani pengguna.
+2. **Memori Percakapan Bertingkat (Multi-turn)**: Mengingat konteks dan preferensi pengguna selama sesi obrolan berlangsung (misalnya: *"yang di bawah 100 ribu aja"* atau *"ada versi pixel art-nya?"*).
+3. **Kartu dan Chip Saran Cepat (Quick Prompts)**: Tombol interaktif untuk memulai pencarian instan seperti Laptop kentang, Co-op santai, Menantang (Souls-like), dan Cozy.
+4. **Desain Steam Dark Theme**: Palet warna ekosistem Steam (`#171a21`, `#1b2838`, aksen cyan `#66c0f4`) dengan tipografi Barlow.
 5. **Parser Markdown Aman**: Merender format tebal, miring, list, dan link dengan sanitasi HTML ketat untuk mencegah serangan XSS.
-6. **Ketahanan Sesi (sessionStorage)**: Percakapan tidak hilang saat halaman di-refresh, dan dapat dibersihkan dengan tombol *"Reset chat"*.
-7. **Indikator Responsif & Penanganan Error**: Animasi *typing indicator*, penghitung karakter input (maks 1000), serta bubble error interaktif dengan tombol *"Coba lagi"*.
+6. **Ketahanan Sesi (sessionStorage)**: Percakapan tidak hilang saat halaman dimuat ulang (refresh), dan dapat dikosongkan dengan tombol Reset chat.
+7. **Indikator Responsif dan Penanganan Error**: Animasi typing indicator, penghitung karakter input (maksimal 1000 karakter), serta bubble error interaktif dengan tombol Coba lagi.
 
 ---
 
-## 🛠️ Teknologi yang Digunakan
+## Teknologi yang Digunakan
 
 - **Backend**: Node.js, Express.js (ES Modules)
 - **AI SDK**: `@google/genai` (Google Gemini API)
@@ -36,7 +32,7 @@ SteamScout adalah asisten chatbot cerdas berbasis AI yang dirancang khusus untuk
 
 ---
 
-## 🏗️ Arsitektur & Kontrak API
+## Arsitektur & Kontrak API
 
 ### Diagram Alur Komunikasi
 
@@ -61,7 +57,7 @@ sequenceDiagram
         Express->>Gemini: Retry otomatis hingga 2x (exponential backoff)
     else Terjadi Kesalahan / Timeout
         Express-->>UI: HTTP Error { error: "Pesan ramah" }
-        UI->>UI: Tampilkan error bubble + tombol "Coba lagi"
+        UI->>UI: Tampilkan error bubble + tombol Coba lagi
     end
 ```
 
@@ -100,13 +96,13 @@ sequenceDiagram
 
 ---
 
-## 📁 Struktur Direktori
+## Struktur Direktori
 
 ```text
 final_project/
 ├── .env.example              # Template variabel lingkungan
-├── .gitignore                # Daftar pengecualian Git (melindungi file rahasia)
-├── AGENTS.md                 # Konfigurasi pointer skill antislop
+├── .gitignore                # Daftar pengecualian Git
+├── AGENTS.md                 # Konfigurasi pointer antislop
 ├── index.js                  # Entry point server Express & integrasi Gemini API
 ├── package.json              # Konfigurasi dependensi dan skrip proyek
 ├── package-lock.json
@@ -125,11 +121,11 @@ final_project/
 
 ---
 
-## 🚀 Cara Instalasi & Menjalankan
+## Cara Instalasi & Menjalankan
 
 ### 1. Prasyarat
 - Node.js versi 18.0.0 atau lebih tinggi.
-- Kunci API Google Gemini (dapat diperoleh gratis di [Google AI Studio](https://aistudio.google.com/)).
+- Kunci API Google Gemini (dapat diperoleh di [Google AI Studio](https://aistudio.google.com/)).
 
 ### 2. Langkah Pemasangan
 1. Kloning repositori dan masuk ke folder proyek:
@@ -153,14 +149,14 @@ final_project/
    ```bash
    npm run dev
    ```
-6. Buka browser Anda di alamat:
+6. Buka browser di alamat:
    ```text
    http://localhost:3000
    ```
 
 ---
 
-## ⚙️ Penjelasan Variabel Lingkungan (`.env`)
+## Penjelasan Variabel Lingkungan (`.env`)
 
 | Variabel | Deskripsi | Default |
 |---|---|---|
@@ -174,27 +170,27 @@ final_project/
 
 ---
 
-## 🔒 Langkah Keamanan & Hardening
+## Langkah Keamanan & Hardening
 
-1. **Perlindungan Kredensial**: File `.env` masuk ke `.gitignore` sehingga API key tidak pernah terunggah ke repositori publik. Server membatalkan proses startup jika API key belum dikonfigurasi.
+1. **Perlindungan Kredensial**: File `.env` masuk ke `.gitignore` sehingga API key tidak terunggah ke repositori publik. Server membatalkan proses startup jika API key belum dikonfigurasi.
 2. **Validasi Anti-Injeksi (`toContents`)**: Riwayat percakapan dari browser divalidasi ketat (maksimal 20 turn terakhir, membuang role selain `user` dan `model`, memangkas pesan user > 1000 karakter, dan menolak urutan ilegal).
 3. **Pencegahan Denial of Service (DoS)**:
    - Pembatasan ukuran payload JSON dibatasi maksimum `10kb`.
-   - Penerapan `express-rate-limit` (20 request/menit per IP) untuk mencegah eksploitasi kuota API.
+   - Penerapan `express-rate-limit` (20 request per menit per IP) untuk mencegah eksploitasi kuota API.
 4. **Header Keamanan (Helmet)**: Menerapkan Content Security Policy (CSP) ketat yang hanya mengizinkan resource lokal serta Google Fonts resmi.
-5. **Ketahanan Koneksi (Resilience)**: Panggilan Gemini dilengkapi batas *timeout* 30 detik serta mekanisme *retry otomatis 2x* dengan *exponential backoff* jika server Google mengalami status 503.
+5. **Ketahanan Koneksi (Resilience)**: Panggilan Gemini dilengkapi batas timeout 30 detik serta mekanisme retry otomatis 2x dengan exponential backoff jika server Google mengalami status 503.
 6. **Penyajian Single Origin**: Frontend disajikan langsung dari folder `./public/` oleh server Express sehingga tidak memerlukan konfigurasi CORS yang berisiko.
 
 ---
 
-## ⚠️ Keterbatasan Sistem
+## Keterbatasan Sistem
 
-- **Akurasi AI**: Rekomendasi dihasilkan oleh LLM dan dapat sewaktu-waktu mengalami ketidakakuratan data kecil mengenai detail tahun rilis atau developer game indie.
-- **Dinamika Toko Steam**: Informasi harga game, event diskon (Steam Sale), dan status Early Access dapat berubah sewaktu-waktu. Pengguna selalu disarankan untuk memeriksa halaman toko resmi Steam sebelum membeli game.
+- **Akurasi AI**: Rekomendasi dihasilkan oleh LLM dan dapat sewaktu-waktu mengalami ketidakakuratan data mengenai detail tahun rilis atau developer game indie tertentu.
+- **Dinamika Toko Steam**: Informasi harga game, event diskon (Steam Sale), dan status Early Access dapat berubah sewaktu-waktu. Pengguna disarankan untuk memeriksa halaman toko resmi Steam sebelum membeli game.
 
 ---
 
-## 🔮 Rencana Pengembangan Selanjutnya (Fase 3)
+## Rencana Pengembangan Selanjutnya (Fase 3)
 
 - [ ] **Opsi A: Structured JSON Output & Tombol "Cari di Steam"**: Memanfaatkan `responseSchema` Gemini agar menghasilkan data terstruktur (`intro`, daftar `games`, `followUp`) yang dirender menjadi kartu game konsisten dengan tautan langsung pencarian di Steam (`https://store.steampowered.com/search/?term=...`).
 - [ ] **Opsi B: Verifikasi Storefront Steam / Grounding**: Cek judul game ke Steam Storefront API untuk menampilkan cover art resmi, harga diskon terkini, dan link halaman resmi.
@@ -202,6 +198,6 @@ final_project/
 
 ---
 
-## ⚖️ Disclaimer
+## Disclaimer
 
 Proyek ini dibuat untuk tujuan edukasi dan portofolio. Aplikasi ini **tidak berafiliasi, disponsori, atau didukung secara resmi oleh Valve Corporation maupun platform Steam**. Semua nama game, merek dagang, dan materi berhak cipta merupakan milik pemiliknya masing-masing.
