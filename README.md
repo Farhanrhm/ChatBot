@@ -6,7 +6,7 @@ SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. M
 
 ## Antarmuka Aplikasi
 
-> Simpan tangkapan layar antarmuka di direktori `./docs/screenshots/` untuk ditampilkan pada bagian ini.
+![Tampilan Antarmuka SteamScout](./docs/screenshots/image.png)
 
 ---
 
