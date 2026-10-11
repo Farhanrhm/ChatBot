@@ -70,3 +70,16 @@ test('toContents: membatasi maksimal 20 giliran terakhir dan memformat parts', (
   assert.equal(result[result.length - 1].role, 'user');
   assert.ok(Array.isArray(result[0].parts));
 });
+
+test('STEAM_RECOMMENDER_SCHEMA: memvalidasi struktur skema output terstruktur', async () => {
+  const { STEAM_RECOMMENDER_SCHEMA } = await import('../index.js');
+  assert.equal(STEAM_RECOMMENDER_SCHEMA.type, 'object');
+  assert.deepEqual(STEAM_RECOMMENDER_SCHEMA.required, ['intro', 'games', 'followUp']);
+  assert.equal(STEAM_RECOMMENDER_SCHEMA.properties.games.type, 'array');
+  assert.deepEqual(STEAM_RECOMMENDER_SCHEMA.properties.games.items.required, [
+    'title',
+    'genres',
+    'whyFit',
+    'specsAndBudget',
+  ]);
+});
