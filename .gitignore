@@ -19,6 +19,7 @@ lerna-debug.log*
 .DS_Store
 Thumbs.db
 __MACOSX/
+anti-slop
 
 # Editor directories and files
 .vscode/

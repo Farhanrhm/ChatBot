@@ -30,7 +30,7 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-// 1. Keamanan Header via Helmet (mengizinkan Google Fonts untuk tema SteamScout)
+// Keamanan header via Helmet (mengizinkan Google Fonts untuk tema SteamScout)
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -46,13 +46,13 @@ app.use(
   })
 );
 
-// 2. Pembatasan ukuran payload JSON
+// Pembatasan ukuran payload JSON
 app.use(express.json({ limit: '10kb' }));
 
-// 3. Sajikan frontend dari satu origin (folder public)
+// Sajikan frontend dari satu origin (folder public)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 4. Rate Limiter untuk endpoint chat (default: 20 request per menit per IP)
+// Rate limiter untuk endpoint chat (default: 20 request per menit per IP)
 const chatRateLimiter = rateLimit({
   windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60 * 1000,
   max: Number(process.env.RATE_LIMIT_MAX) || 20,
