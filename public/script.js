@@ -209,6 +209,75 @@ function scrollToBottom() {
   els.chat.scrollTo({ top: els.chat.scrollHeight, behavior: "smooth" });
 }
 
+/* Render balasan bot (mendukung Structured JSON Output dan fallback Markdown) */
+function formatBotContent(raw) {
+  let structured = null;
+
+  if (typeof raw === "object" && raw !== null) {
+    structured = raw;
+  } else if (typeof raw === "string" && raw.trim().startsWith("{")) {
+    try {
+      structured = JSON.parse(raw);
+    } catch {
+      structured = null;
+    }
+  }
+
+  // Jika response adalah objek terstruktur kurasi game
+  if (structured && typeof structured === "object" && (structured.intro || Array.isArray(structured.games))) {
+    let html = "";
+    if (structured.intro) {
+      html += `<p class="bot-intro">${inline(structured.intro)}</p>`;
+    }
+
+    if (Array.isArray(structured.games) && structured.games.length > 0) {
+      html += `<div class="game-cards">`;
+      structured.games.forEach((g) => {
+        const title = escapeHtml(g.title || "Game Steam");
+        const year = g.year ? escapeHtml(g.year) : "";
+        const dev = g.developer ? escapeHtml(g.developer) : "";
+        const metaStr = [year, dev].filter(Boolean).join(" • ");
+        const searchUrl = `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || "")}`;
+
+        const tagsHtml = Array.isArray(g.genres) && g.genres.length > 0
+          ? `<div class="game-card-tags">${g.genres.map((t) => `<span class="game-tag">${escapeHtml(t)}</span>`).join("")}</div>`
+          : "";
+
+        html += `
+          <div class="game-card">
+            <div class="game-card-head">
+              <h4 class="game-card-title">${title}</h4>
+              ${metaStr ? `<span class="game-card-meta">${metaStr}</span>` : ""}
+            </div>
+            ${tagsHtml}
+            <div class="game-card-body">
+              ${g.whyFit ? `<p class="game-card-desc"><strong>Kenapa cocok:</strong> ${inline(g.whyFit)}</p>` : ""}
+              ${g.specsAndBudget ? `<p class="game-card-specs"><strong>Spek & budget:</strong> ${inline(g.specsAndBudget)}</p>` : ""}
+            </div>
+            <div class="game-card-actions">
+              <a href="${searchUrl}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="Cari ${title} di Steam">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2a10 10 0 0 0-9.95 9l5.65 2.33a2.89 2.89 0 0 1 1.76-.6c.23 0 .45.03.66.08l2.67-3.87A4.27 4.27 0 0 1 12.5 8a4.5 4.5 0 1 1 0 9c-.27 0-.53-.02-.79-.07l-2.73 3.96c-.22.06-.46.11-.71.11a3.25 3.25 0 0 1-3.23-3l-3.08-1.28A10 10 0 1 0 12 2z"/>
+                </svg>
+                Cari di Steam
+              </a>
+            </div>
+          </div>
+        `;
+      });
+      html += `</div>`;
+    }
+
+    if (structured.followUp) {
+      html += `<p class="bot-followup">${inline(structured.followUp)}</p>`;
+    }
+    return html;
+  }
+
+  // Fallback markdown biasa
+  return formatMarkdown(typeof raw === "string" ? raw : JSON.stringify(raw));
+}
+
 function addMessage(role, text) {
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
@@ -222,7 +291,7 @@ function addMessage(role, text) {
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  if (role === "bot") bubble.innerHTML = formatMarkdown(text);
+  if (role === "bot") bubble.innerHTML = formatBotContent(text);
   else bubble.textContent = text;
   wrap.appendChild(bubble);
 

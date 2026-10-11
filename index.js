@@ -127,6 +127,44 @@ export function toContents(conversation) {
 }
 
 /**
+ * Skema JSON terstruktur untuk kurasi game SteamScout
+ */
+export const STEAM_RECOMMENDER_SCHEMA = {
+  type: 'object',
+  properties: {
+    intro: {
+      type: 'string',
+      description: 'Kalimat pembuka santai khas kurator gamer SteamScout (1-2 kalimat).',
+    },
+    games: {
+      type: 'array',
+      description: 'Daftar maksimal 2-3 game rekomendasi, atau array kosong jika pertanyaan pengguna di luar topik game PC/Steam.',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Judul resmi game di Steam' },
+          year: { type: 'string', description: 'Tahun rilis game' },
+          developer: { type: 'string', description: 'Developer atau publisher game' },
+          genres: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Genre dan tag utama game'
+          },
+          whyFit: { type: 'string', description: 'Alasan spesifik game ini cocok dengan preferensi pengguna' },
+          specsAndBudget: { type: 'string', description: 'Catatan spesifikasi dan kisaran harga/budget' },
+        },
+        required: ['title', 'genres', 'whyFit', 'specsAndBudget'],
+      },
+    },
+    followUp: {
+      type: 'string',
+      description: 'Pertanyaan penutup santai untuk mempersempit rekomendasi game berikutnya.',
+    },
+  },
+  required: ['intro', 'games', 'followUp'],
+};
+
+/**
  * Memanggil Gemini API dengan batas timeout 30 detik dan retry 2x untuk status 503.
  *
  * @param {Array} contents
@@ -147,6 +185,8 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 1000) {
         config: {
           temperature: GEMINI_TEMPERATURE,
           systemInstruction: SYSTEM_INSTRUCTION,
+          responseMimeType: 'application/json',
+          responseSchema: STEAM_RECOMMENDER_SCHEMA,
         },
       });
 
@@ -192,7 +232,14 @@ app.post('/api/chat', chatRateLimiter, async (req, res) => {
     // Dapatkan balasan AI dari Gemini
     const result = await callGeminiWithRetry(contents);
 
-    res.status(200).json({ result });
+    let data;
+    try {
+      data = JSON.parse(result);
+    } catch {
+      data = { intro: result, games: [], followUp: '' };
+    }
+
+    res.status(200).json({ result, data });
   } catch (err) {
     // 1. Error validasi input dari toContents
     if (err?.status === 400) {

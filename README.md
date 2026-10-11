@@ -205,7 +205,7 @@ final_project/
 ## Rencana Pengembangan Selanjutnya (Fase 3)
 
 - [x] **Tombol "Cari di Steam" per Game**: Tautan pencarian langsung ke toko resmi Steam per rekomendasi game.
-- [ ] **Structured JSON Output (Response Schema)**: Memanfaatkan `responseSchema` Gemini agar menghasilkan objek data terstruktur (`intro`, `games`, `followUp`) untuk dirender ke dalam kartu UI khusus.
+- [x] **Structured JSON Output (Response Schema)**: Memanfaatkan `responseSchema` Gemini agar menghasilkan objek data terstruktur (`intro`, `games`, `followUp`) yang dirender ke dalam kartu game interaktif.
 - [ ] **Verifikasi Storefront Steam / Grounding**: Cek judul game ke Steam Storefront API untuk menampilkan cover art resmi, harga diskon terkini, dan link halaman resmi.
 - [ ] **Real-time Streaming (SSE)**: Mengirim balasan teks bertahap menggunakan Server-Sent Events (`generateContentStream`) agar respon muncul seperti sedang diketik.
 
@@ -214,3 +214,4 @@ final_project/
 ## Disclaimer
 
 Proyek ini dibuat untuk tujuan edukasi dan portofolio. Aplikasi ini **tidak berafiliasi, disponsori, atau didukung secara resmi oleh Valve Corporation maupun platform Steam**. Semua nama game, merek dagang, dan materi berhak cipta merupakan milik pemiliknya masing-masing.
+
