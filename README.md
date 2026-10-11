@@ -161,7 +161,7 @@ final_project/
 | Variabel | Deskripsi | Default |
 |---|---|---|
 | `GEMINI_API_KEY` | Kunci autentikasi Google Gemini API | *(Wajib diisi)* |
-| `GEMINI_MODEL` | Nama model AI yang digunakan | `gemini-2.0-flash` |
+| `GEMINI_MODEL` | Nama model AI yang digunakan | `gemini-2.5-flash` |
 | `GEMINI_TEMPERATURE` | Tingkat kreativitas variasi jawaban AI | `0.75` |
 | `PORT` | Port server lokal Express | `3000` |
 | `NODE_ENV` | Mode lingkungan aplikasi | `development` |

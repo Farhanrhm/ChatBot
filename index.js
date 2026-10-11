@@ -21,7 +21,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Konfigurasi model dan parameter dari environment
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GEMINI_TEMPERATURE = Number(process.env.GEMINI_TEMPERATURE) || 0.75;
 const PORT = process.env.PORT || 3000;
 
@@ -225,7 +225,12 @@ app.post('/api/chat', chatRateLimiter, async (req, res) => {
   }
 });
 
-if (process.env.NODE_ENV !== 'test') {
+const isTestMode =
+  process.env.NODE_ENV === 'test' ||
+  process.execArgv.includes('--test') ||
+  process.argv.some((arg) => arg.includes('test'));
+
+if (!isTestMode) {
   app.listen(PORT, () => {
     console.log(`SteamScout server ready on http://localhost:${PORT}`);
   });
