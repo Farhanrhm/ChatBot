@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SteamScout: Your Personal Game Curator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar (desktop) -->
+    <aside class="rail">
+      <div class="brand">
+        <span class="logo-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8h12a4 4 0 0 1 4 4v2.5a3 3 0 0 1-5.3 1.9L15 14.5H9l-1.7 1.9A3 3 0 0 1 2 14.5V12a4 4 0 0 1 4-4z" />
+            <path d="M8 10.5v3M6.5 12h3" />
+            <circle cx="15.5" cy="11.5" r=".6" fill="currentColor" />
+            <circle cx="17.5" cy="13" r=".6" fill="currentColor" />
+          </svg>
+        </span>
+        <div>
+          <div class="brand-name">SteamScout</div>
+          <div class="brand-tag">Kurator game Steam pribadimu</div>
+        </div>
+      </div>
+
+      <section class="tips" aria-labelledby="tips-title">
+        <h2 id="tips-title">Biar rekomendasinya pas, ceritakan:</h2>
+        <ul>
+          <li><span aria-hidden="true">🎯</span><div><strong>Genre</strong><small>Roguelike, farming, horror, strategi...</small></div></li>
+          <li><span aria-hidden="true">💻</span><div><strong>Spek PC</strong><small>Laptop kentang atau PC gaming</small></div></li>
+          <li><span aria-hidden="true">👥</span><div><strong>Mode main</strong><small>Single-player, co-op, multiplayer</small></div></li>
+          <li><span aria-hidden="true">💸</span><div><strong>Budget</strong><small>Gratis, di bawah 100 ribu, bebas</small></div></li>
+          <li><span aria-hidden="true">🌤️</span><div><strong>Mood</strong><small>Santai, menantang, pengin cerita seru</small></div></li>
+        </ul>
+      </section>
+    </aside>
+
+    <!-- Area chat -->
+    <main class="stage">
+      <header class="topbar">
+        <div class="topbar-title">
+          <span class="logo-mark mini" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 8h12a4 4 0 0 1 4 4v2.5a3 3 0 0 1-5.3 1.9L15 14.5H9l-1.7 1.9A3 3 0 0 1 2 14.5V12a4 4 0 0 1 4-4z" />
+              <path d="M8 10.5v3M6.5 12h3" />
+            </svg>
+          </span>
+          <div>
+            <h1>SteamScout</h1>
+            <p>Your Personal Game Curator</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <span class="status"><i aria-hidden="true"></i>Online</span>
+          <button type="button" id="reset-btn" class="btn-ghost" title="Hapus obrolan dan mulai pencarian baru" aria-label="Reset obrolan">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" />
+            </svg>
+            Reset chat
+          </button>
+        </div>
+      </header>
+
+      <section id="chat" class="chat" aria-label="Percakapan dengan SteamScout">
+        <div class="chat-inner">
+          <div id="welcome" class="welcome">
+            <h2>Mau main apa hari ini?</h2>
+            <p>
+              Ceritakan genre, spek PC, mode main, budget, atau mood kamu.
+              SteamScout carikan 2-3 game di Steam yang paling pas.
+            </p>
+            <div id="capsules" class="capsules"></div>
+          </div>
+          <div id="messages" role="log" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <footer class="composer">
+        <div class="composer-inner">
+          <div id="chips" class="chips" hidden aria-label="Saran cepat"></div>
+          <form id="chat-form" autocomplete="off">
+            <div class="input-wrap">
+              <textarea
+                id="user-input"
+                rows="1"
+                maxlength="1000"
+                placeholder="Contoh: game roguelike yang ringan buat laptop kentang, di bawah 100 ribu"
+                aria-label="Pesan untuk SteamScout"
+              ></textarea>
+              <span id="char-counter" class="char-counter" aria-live="polite" hidden>0/1000</span>
+            </div>
+            <button type="submit" id="send-btn" class="btn-send" aria-label="Kirim pesan">
+              Kirim
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" />
+              </svg>
+            </button>
+          </form>
+          <div class="meta-hints">
+            <p class="hint">Harga dan diskon bisa berubah. Cek halaman Steam sebelum membeli.</p>
+            <p class="disclaimer">Proyek edukasi, tidak berafiliasi dengan Valve atau Steam.</p>
+          </div>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
