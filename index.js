@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { SYSTEM_INSTRUCTION } from './prompts/systemPrompt.js';
+import { getSteamGameDetails } from './services/steamStore.js';
 
 // Deteksi mode pengujian unit agar tidak memblokir CI saat tanpa API key
 const isTestMode =
@@ -49,7 +50,13 @@ app.use(
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
         scriptSrc: ["'self'"],
         connectSrc: ["'self'"],
-        imgSrc: ["'self'", 'data:'],
+        imgSrc: [
+          "'self'",
+          'data:',
+          'https://shared.fastly.steamstatic.com',
+          'https://shared.akamai.steamstatic.com',
+          'https://cdn.akamai.steamstatic.com',
+        ],
       },
     },
   })
@@ -239,6 +246,21 @@ app.post('/api/chat', chatRateLimiter, async (req, res) => {
       data = { intro: result, games: [], followUp: '' };
     }
 
+    // Perkaya data game dengan cover art resmi dan URL toko langsung dari Steam Storefront API
+    if (Array.isArray(data.games) && data.games.length > 0) {
+      data.games = await Promise.all(
+        data.games.map(async (game) => {
+          const steamDetails = await getSteamGameDetails(game.title);
+          return {
+            ...game,
+            appId: steamDetails.appId,
+            headerImage: steamDetails.headerImage,
+            storeUrl: steamDetails.storeUrl || `https://store.steampowered.com/search/?term=${encodeURIComponent(game.title)}`,
+          };
+        })
+      );
+    }
+
     res.status(200).json({ result, data });
   } catch (err) {
     // 1. Error validasi input dari toContents
@@ -278,6 +300,71 @@ app.post('/api/chat', chatRateLimiter, async (req, res) => {
     res.status(500).json({
       error: 'Terjadi kesalahan pada server saat memproses rekomendasi. Silakan coba lagi nanti.',
     });
+  }
+});
+
+// Endpoint chat streaming via Server-Sent Events (SSE) (Fase 3 Opsi C)
+app.post('/api/chat/stream', chatRateLimiter, async (req, res) => {
+  try {
+    const { conversation } = req.body || {};
+    const contents = toContents(conversation);
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+
+    const stream = await ai.models.generateContentStream({
+      model: GEMINI_MODEL,
+      contents,
+      config: {
+        temperature: GEMINI_TEMPERATURE,
+        systemInstruction: SYSTEM_INSTRUCTION,
+        responseMimeType: 'application/json',
+        responseSchema: STEAM_RECOMMENDER_SCHEMA,
+      },
+    });
+
+    let fullText = '';
+    for await (const chunk of stream) {
+      const textChunk = chunk.text;
+      if (textChunk) {
+        fullText += textChunk;
+        res.write(`data: ${JSON.stringify({ chunk: textChunk })}\n\n`);
+      }
+    }
+
+    let data;
+    try {
+      data = JSON.parse(fullText);
+    } catch {
+      data = { intro: fullText, games: [], followUp: '' };
+    }
+
+    if (Array.isArray(data.games) && data.games.length > 0) {
+      data.games = await Promise.all(
+        data.games.map(async (game) => {
+          const steamDetails = await getSteamGameDetails(game.title);
+          return {
+            ...game,
+            appId: steamDetails.appId,
+            headerImage: steamDetails.headerImage,
+            storeUrl: steamDetails.storeUrl || `https://store.steampowered.com/search/?term=${encodeURIComponent(game.title)}`,
+          };
+        })
+      );
+    }
+
+    res.write(`data: ${JSON.stringify({ done: true, data, result: fullText })}\n\n`);
+    res.end();
+  } catch (err) {
+    if (err?.status === 400) {
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      return res.end();
+    }
+    console.error('[SteamScout Stream Error]', err?.name || 'Error', err?.message || err);
+    res.write(`data: ${JSON.stringify({ error: 'Terjadi kesalahan saat memproses streaming rekomendasi.' })}\n\n`);
+    res.end();
   }
 });
 

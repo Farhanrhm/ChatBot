@@ -379,7 +379,7 @@ button, textarea { font: inherit; color: inherit; }
   border: 1px solid rgba(102, 192, 244, 0.25);
   border-left: 3px solid var(--accent);
   border-radius: 8px;
-  padding: 14px 16px;
+  overflow: hidden;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
@@ -387,6 +387,26 @@ button, textarea { font: inherit; color: inherit; }
   border-color: rgba(102, 192, 244, 0.55);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   transform: translateY(-1px);
+}
+
+.game-card-banner {
+  width: 100%;
+  overflow: hidden;
+  background: #0e1a24;
+  border-bottom: 1px solid rgba(102, 192, 244, 0.15);
+}
+
+.game-card-banner img {
+  width: 100%;
+  height: auto;
+  max-height: 180px;
+  object-fit: cover;
+  display: block;
+  aspect-ratio: 460 / 215;
+}
+
+.game-card-inner {
+  padding: 14px 16px;
 }
 
 .game-card-head {
