@@ -314,6 +314,45 @@ button, textarea { font: inherit; color: inherit; }
 }
 .bubble a { color: var(--accent); }
 
+/* Tombol pencarian Steam pada rekomendasi game */
+.game-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px !important;
+  margin-bottom: 6px !important;
+}
+
+.steam-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(102, 192, 244, 0.12);
+  border: 1px solid rgba(102, 192, 244, 0.35);
+  border-radius: 4px;
+  padding: 4px 10px;
+  min-height: 28px;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.steam-btn:hover {
+  background: rgba(102, 192, 244, 0.25);
+  border-color: var(--accent);
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.steam-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* Error */
 .msg.error .bubble {
   background: rgba(229, 115, 115, 0.1);

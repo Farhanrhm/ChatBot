@@ -84,7 +84,7 @@ function renderQuickPrompts() {
     const capsule = document.createElement("button");
     capsule.type = "button";
     capsule.className = "capsule";
-    capsule.setAttribute("aria-label", `Pilih saran: ${item.prompt}`);
+    capsule.setAttribute("aria-label", `${item.label} - ${item.hint}`);
     capsule.style.setProperty("--tint", item.tint);
     capsule.innerHTML = `
       <span class="icon" aria-hidden="true">${item.icon}</span>
@@ -186,6 +186,17 @@ function formatMarkdown(text) {
     }
 
     closeList();
+
+    // Deteksi judul rekomendasi game: diawali **Nama Game** dan diikuti kurung (tahun, developer)
+    const gameMatch = line.match(/^(?:\s*(?:\d+[.)]|[-*•])\s*)?\*\*([^*:]+?)\*\*\s*(\(.*)$/);
+    if (gameMatch) {
+      const gameTitle = gameMatch[1].trim();
+      const details = gameMatch[2].trim();
+      const steamUrl = `https://store.steampowered.com/search/?term=${encodeURIComponent(gameTitle)}`;
+      html += `<p class="game-heading"><strong>${escapeHtml(gameTitle)}</strong> ${inline(details)} <a href="${steamUrl}" target="_blank" rel="noopener noreferrer" class="steam-btn" aria-label="Cari ${escapeHtml(gameTitle)} di Steam">Cari di Steam</a></p>`;
+      continue;
+    }
+
     html += `<p>${inline(line)}</p>`;
   }
 

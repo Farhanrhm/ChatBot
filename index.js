@@ -7,8 +7,14 @@ import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { SYSTEM_INSTRUCTION } from './prompts/systemPrompt.js';
 
-// Verifikasi ketersediaan GEMINI_API_KEY saat startup
-if (!process.env.GEMINI_API_KEY) {
+// Deteksi mode pengujian unit agar tidak memblokir CI saat tanpa API key
+const isTestMode =
+  process.env.NODE_ENV === 'test' ||
+  process.execArgv.includes('--test') ||
+  process.argv.some((arg) => arg.includes('test'));
+
+// Verifikasi ketersediaan GEMINI_API_KEY saat startup (dilewati saat unit testing)
+if (!isTestMode && !process.env.GEMINI_API_KEY) {
   console.error('FATAL: Variabel lingkungan GEMINI_API_KEY belum disetel di file .env.');
   console.error('Silakan salin .env.example menjadi .env dan masukkan API key Anda.');
   process.exit(1);
@@ -20,6 +26,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// Percayakan reverse proxy (Render, Railway, Heroku, Nginx) agar rate limiter membaca IP asli
+app.set('trust proxy', 1);
+
 // Konfigurasi model dan parameter dari environment
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GEMINI_TEMPERATURE = Number(process.env.GEMINI_TEMPERATURE) || 0.75;
@@ -27,7 +36,7 @@ const PORT = process.env.PORT || 3000;
 
 // Inisialisasi client Google GenAI
 const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
+  apiKey: process.env.GEMINI_API_KEY || 'TEST_DUMMY_KEY',
 });
 
 // Keamanan header via Helmet (mengizinkan Google Fonts untuk tema SteamScout)
@@ -46,8 +55,8 @@ app.use(
   })
 );
 
-// Pembatasan ukuran payload JSON
-app.use(express.json({ limit: '10kb' }));
+// Pembatasan ukuran payload JSON dinaikkan ke 100kb untuk mendukung riwayat hingga 20 turn
+app.use(express.json({ limit: '100kb' }));
 
 // Sajikan frontend dari satu origin (folder public)
 app.use(express.static(path.join(__dirname, 'public')));
@@ -225,13 +234,25 @@ app.post('/api/chat', chatRateLimiter, async (req, res) => {
   }
 });
 
-const isTestMode =
-  process.env.NODE_ENV === 'test' ||
-  process.execArgv.includes('--test') ||
-  process.argv.some((arg) => arg.includes('test'));
-
 if (!isTestMode) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`SteamScout server ready on http://localhost:${PORT}`);
   });
+
+  // Penanganan Graceful Shutdown dengan batas waktu paksa 10 detik
+  const handleShutdown = (signal) => {
+    console.log(`[SteamScout] Menerima sinyal ${signal}. Menutup server secara aman...`);
+    setTimeout(() => {
+      console.error('[SteamScout] Batas waktu shutdown tercapai (10 detik). Memaksa keluar.');
+      process.exit(1);
+    }, 10000).unref();
+
+    server.close(() => {
+      console.log('[SteamScout] Server Express ditutup bersih. Tidak ada koneksi tertinggal.');
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 }
