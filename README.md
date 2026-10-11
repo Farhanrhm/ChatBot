@@ -196,9 +196,9 @@ final_project/
 
 ## 🔮 Rencana Pengembangan Selanjutnya (Fase 3)
 
-- [ ] **Structured JSON Output**: Memanfaatkan `responseSchema` Gemini agar menghasilkan data terstruktur (nama, banner, rating) yang dapat langsung dirender menjadi kartu game visual interaktif.
-- [ ] **Verifikasi Storefront Steam**: Integrasi dengan API publik Steam Storefront untuk menarik thumbnail resmi game, harga terkini, dan status review *"Overwhelmingly Positive"*.
-- [ ] **Server-Sent Events (SSE) Streaming**: Menampilkan teks balasan Gemini secara bertahap (*typing effect*) secara real-time.
+- [ ] **Opsi A: Structured JSON Output & Tombol "Cari di Steam"**: Memanfaatkan `responseSchema` Gemini agar menghasilkan data terstruktur (`intro`, daftar `games`, `followUp`) yang dirender menjadi kartu game konsisten dengan tautan langsung pencarian di Steam (`https://store.steampowered.com/search/?term=...`).
+- [ ] **Opsi B: Verifikasi Storefront Steam / Grounding**: Cek judul game ke Steam Storefront API untuk menampilkan cover art resmi, harga diskon terkini, dan link halaman resmi.
+- [ ] **Opsi C: Real-time Streaming (SSE)**: Mengirim balasan teks bertahap menggunakan Server-Sent Events (`generateContentStream`) agar respon muncul seperti sedang diketik.
 
 ---
 
