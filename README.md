@@ -25,6 +25,7 @@ SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. M
 8. **Ketahanan Sesi (sessionStorage)**: Percakapan tidak hilang saat halaman dimuat ulang (refresh), dan dapat dikosongkan dengan tombol Reset chat.
 9. **Indikator Responsif dan Penanganan Error**: Animasi typing indicator, penghitung karakter input (maksimal 1000 karakter), serta bubble error interaktif dengan tombol Coba lagi.
 10. **Wishlist Lokal (Browser Storage)**: Simpan game favorit langsung dari kartu ke daftar pribadi pengguna (maksimal 50 game), dilengkapi tombol drawer di topbar, navigasi keyboard lengkap (`Esc`, focus trap), tombol "Salin daftar", dan ketahanan data saat chat di-reset.
+11. **Filter Preferensi Cepat (Quick Filter Bar)**: Tombol toggle chip di atas area input (Spek: Kentang / Gaming, Budget: Gratis / < 100rb, Mode: Single / Co-op) yang dikirim terpisah melalui field `preferences`, divalidasi server, dirakit ke prompt note tanpa merusak riwayat, dan menerapkan aturan konflik (permintaan teks pengguna menang).
 
 ---
 
@@ -70,16 +71,26 @@ sequenceDiagram
 
 ### Kontrak Endpoint API
 
-#### 1. `POST /api/chat`
+#### 1. `POST /api/chat` dan `POST /api/chat/stream`
 - **Request Headers**: `Content-Type: application/json`
 - **Request Body**:
   ```json
   {
     "conversation": [
-      { "role": "user", "text": "Game seru untuk laptop kentang" }
-    ]
+      { "role": "user", "text": "Game santai yang seru" }
+    ],
+    "preferences": {
+      "spec": "potato",
+      "budget": "free",
+      "mode": "coop"
+    }
   }
   ```
+  *Keterangan Field `preferences` (Opsional)*:
+  - `spec`: `"any"` | `"potato"` (laptop kentang) | `"gaming"` (PC gaming)
+  - `budget`: `"any"` | `"free"` (gratis / F2P) | `"under100k"` (di bawah Rp100 ribu)
+  - `mode`: `"any"` | `"single"` (single-player) | `"coop"` (co-op / mabar)
+  - Field tidak dikenal atau tipe data selain string menghasilkan respons `HTTP 400 Bad Request`. Filter dirakit ke catatan permintaan Gemini di server tanpa memutasi riwayat percakapan.
 - **Response Sukses (HTTP 200)**:
   ```json
   {
@@ -270,7 +281,7 @@ SteamScout memverifikasi judul rekomendasi ke API publik Steam Storefront untuk 
 - [x] **Real-time Streaming (SSE)**: Mengirim balasan respon melalui Server-Sent Events (`/api/chat/stream`) agar proses pembuatan rekomendasi responsif.
 - [x] **Informasi Harga & Deteksi Diskon Steam Sale**: Menampilkan badge diskon hijau, harga asli dicoret, status Free to Play, dan Segera Hadir.
 - [x] **Opsi B: Fitur Wishlist & Backlog Lokal**: Menyimpan game rekomendasi favorit ke penyimpanan lokal browser (`localStorage`) dan mengekspor daftar game.
-- [ ] **Opsi C: Quick Preference Filter Bar**: Preset toggle cepat di atas area input (misal: "Laptop Kentang", "Di Bawah Rp100k", "Co-op / Mabar").
+- [x] **Opsi C: Quick Preference Filter Bar**: Preset toggle cepat di atas area input (misal: "Laptop Kentang", "Di Bawah Rp100k", "Co-op / Mabar").
 
 ---
 
