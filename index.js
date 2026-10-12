@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { SYSTEM_INSTRUCTION } from './prompts/systemPrompt.js';
-import { getSteamGameDetails } from './services/steamStore.js';
+import { getSteamGameDetails, enrichGamesWithSteam } from './services/steamStore.js';
 
 // Deteksi mode pengujian unit agar tidak memblokir CI saat tanpa API key
 const isTestMode =
@@ -64,6 +64,16 @@ app.use(
 
 // Pembatasan ukuran payload JSON dinaikkan ke 100kb untuk mendukung riwayat hingga 20 turn
 app.use(express.json({ limit: '100kb' }));
+
+// Penanganan error payload terlalu besar (HTTP 413) secara ramah
+app.use((err, req, res, next) => {
+  if (err?.type === 'entity.too.large' || err?.status === 413) {
+    return res.status(413).json({
+      error: 'Ukuran data percakapan melebihi batas maksimal server (100kb). Silakan mulai percakapan baru.',
+    });
+  }
+  next(err);
+});
 
 // Sajikan frontend dari satu origin (folder public)
 app.use(express.static(path.join(__dirname, 'public')));
@@ -246,19 +256,9 @@ app.post('/api/chat', chatRateLimiter, async (req, res) => {
       data = { intro: result, games: [], followUp: '' };
     }
 
-    // Perkaya data game dengan cover art resmi dan URL toko langsung dari Steam Storefront API
+    // Perkaya data game dengan cover art, info harga, dan direct link via enrichGamesWithSteam
     if (Array.isArray(data.games) && data.games.length > 0) {
-      data.games = await Promise.all(
-        data.games.map(async (game) => {
-          const steamDetails = await getSteamGameDetails(game.title);
-          return {
-            ...game,
-            appId: steamDetails.appId,
-            headerImage: steamDetails.headerImage,
-            storeUrl: steamDetails.storeUrl || `https://store.steampowered.com/search/?term=${encodeURIComponent(game.title)}`,
-          };
-        })
-      );
+      data.games = await enrichGamesWithSteam(data.games, { totalTimeoutMs: 6000 });
     }
 
     res.status(200).json({ result, data });
@@ -342,17 +342,7 @@ app.post('/api/chat/stream', chatRateLimiter, async (req, res) => {
     }
 
     if (Array.isArray(data.games) && data.games.length > 0) {
-      data.games = await Promise.all(
-        data.games.map(async (game) => {
-          const steamDetails = await getSteamGameDetails(game.title);
-          return {
-            ...game,
-            appId: steamDetails.appId,
-            headerImage: steamDetails.headerImage,
-            storeUrl: steamDetails.storeUrl || `https://store.steampowered.com/search/?term=${encodeURIComponent(game.title)}`,
-          };
-        })
-      );
+      data.games = await enrichGamesWithSteam(data.games, { totalTimeoutMs: 6000 });
     }
 
     res.write(`data: ${JSON.stringify({ done: true, data, result: fullText })}\n\n`);

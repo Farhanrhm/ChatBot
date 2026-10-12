@@ -1,0 +1,96 @@
+{
+  "388860": {
+    "success": true,
+    "data": {
+      "type": "game",
+      "name": "Judas",
+      "steam_appid": 388860,
+      "required_age": 0,
+      "is_free": false,
+      "supported_languages": "Bhs. Inggris<strong>*</strong><br><strong>*</strong>bahasa dengan dukungan audio penuh",
+      "header_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/388860/93e7815cd551e5e796310ae2a8c6efd980b463dc/header.jpg?t=1775684480",
+      "capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/388860/5b69d02005995a12ebd62a7cec68e74f49ff3a7a/capsule_231x87.jpg?t=1775684480",
+      "capsule_imagev5": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/388860/5b69d02005995a12ebd62a7cec68e74f49ff3a7a/capsule_184x69.jpg?t=1775684480",
+      "website": "https://www.ghoststorygames.com/",
+      "pc_requirements": {
+        "minimum": "<strong>Minimum:</strong><br><ul class=\"bb_ul\"><li><strong>Catatan Tambahan:</strong> TBC</li></ul>"
+      },
+      "mac_requirements": [],
+      "linux_requirements": [],
+      "developers": [
+        "Ghost Story Games"
+      ],
+      "publishers": [
+        "Ghost Story Games"
+      ],
+      "package_groups": [],
+      "platforms": {
+        "windows": true,
+        "mac": false,
+        "linux": false
+      },
+      "categories": [
+        {
+          "id": 2,
+          "description": "Pemain Tunggal"
+        },
+        {
+          "id": 62,
+          "description": "Berbagi dengan Keluarga"
+        }
+      ],
+      "genres": [
+        {
+          "id": "1",
+          "description": "Aksi"
+        },
+        {
+          "id": "25",
+          "description": "Petualangan"
+        }
+      ],
+      "release_date": {
+        "coming_soon": true,
+        "date": "Segera Hadir"
+      },
+      "background": "https://store.akamai.steamstatic.com/images/storepagebackground/app/388860?t=1775684480",
+      "background_raw": "https://store.akamai.steamstatic.com/images/storepagebackground/app/388860?t=1775684480",
+      "content_descriptors": {
+        "ids": [
+          2,
+          5
+        ],
+        "notes": null
+      },
+      "ratings": {
+        "esrb": {
+          "rating": "rpm",
+          "display_online_notice": "true",
+          "required_age": "17"
+        },
+        "dejus": {
+          "rating": "14",
+          "descriptors": "Violência\r\nLinguagem imprópria\r\nAtos criminosos",
+          "use_age_gate": "true",
+          "required_age": "14"
+        },
+        "steam_germany": {
+          "rating_generated": "1",
+          "rating": "18",
+          "required_age": "18",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": "Drastische Gewalt\nAlkohol / Tabak\nDerbe Sprache"
+        },
+        "igrs": {
+          "rating_generated": "1",
+          "rating": "18",
+          "required_age": "18",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": "Rokok dan/atau rokok elektronik, minuman beralkohol, narkotika, psikotropika, dan/atau zat adiktif lainnya\nHoror\nKekerasan"
+        }
+      }
+    }
+  }
+}

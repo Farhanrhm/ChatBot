@@ -1,0 +1,32 @@
+{
+  "total": 4,
+  "items": [
+    {
+      "type": "app",
+      "name": "Dota 2",
+      "id": 570,
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/570/capsule_231x87.jpg?t=1791407503",
+      "metascore": "90",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false
+    },
+    {
+      "type": "app",
+      "name": "Dota 2 Player Profiles",
+      "id": 411180,
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/411180/capsule_231x87.jpg?t=1503354560",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": true,
+      "controller_support": "full"
+    }
+  ]
+}
