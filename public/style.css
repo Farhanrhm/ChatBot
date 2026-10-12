@@ -922,25 +922,133 @@ button, textarea { font: inherit; color: inherit; }
   .chat { padding: 20px 16px 12px; }
   .composer { padding: 8px 16px 14px; }
   .bubble { max-width: 88%; }
+  .welcome { padding: 20px 0 12px; }
+  .welcome h2 { font-size: clamp(26px, 4.5vw, 36px); }
+  .welcome > p { font-size: 15px; margin-bottom: 20px; }
+  .capsules { gap: 10px; }
+  .capsule { padding: 14px 14px 12px; }
+  .capsule .icon { font-size: 24px; }
+  .capsule .label { font-size: 17px; }
+  .capsule .hint { font-size: 13px; }
+  .meta-hints {
+    flex-direction: column;
+    gap: 4px;
+    padding-right: 140px; /* Ruang aman agar tidak tertutup badge Netlify atau floating widget */
+  }
 }
 
 @media (max-width: 520px) {
-  .capsules { grid-template-columns: minmax(0, 1fr); }
+  .topbar {
+    padding: 10px 14px;
+    gap: 10px;
+  }
+  .topbar h1 {
+    font-size: 18px;
+    line-height: 1.15;
+  }
+  .topbar p {
+    font-size: 11.5px;
+  }
+  .logo-mark.mini {
+    width: 32px;
+    height: 32px;
+  }
+  .chat {
+    padding: 14px 12px 8px;
+  }
+  .welcome {
+    padding: 10px 0 8px;
+  }
+  .welcome h2 {
+    font-size: 21px;
+    margin: 0 0 4px;
+    line-height: 1.15;
+  }
+  .welcome > p {
+    font-size: 13px;
+    margin: 0 0 12px;
+    line-height: 1.4;
+  }
+  /* Saran Cepat: tetap 2 kolom kompak (2x2) sehingga pas di layar tanpa mendominasi viewport */
+  .capsules {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .capsule {
+    padding: 10px 10px 9px;
+    min-height: 44px;
+    gap: 2px;
+    border-radius: 6px;
+  }
+  .capsule::before {
+    height: 2px;
+  }
+  .capsule .icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+  .capsule .label {
+    font-size: 13.5px;
+    line-height: 1.2;
+    font-weight: 600;
+  }
+  .capsule .hint {
+    font-size: 11px;
+    line-height: 1.25;
+    color: var(--muted);
+  }
+  /* Filter bar: scroll horizontal halus tanpa garis scrollbar kaku */
   .filter-bar {
     align-items: flex-start;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
+    margin-bottom: 6px;
+    padding: 2px 0;
   }
   .filter-groups {
     width: 100%;
     flex-wrap: nowrap;
     overflow-x: auto;
-    padding-bottom: 6px;
+    padding-bottom: 4px;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .filter-groups::-webkit-scrollbar {
+    display: none;
   }
   .filter-group {
     flex-shrink: 0;
+    gap: 4px;
+  }
+  .filter-group-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.3px;
+  }
+  .filter-chip {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    border-radius: 18px;
+  }
+  .clear-filters-btn {
+    min-height: 44px;
+    padding: 2px 6px;
+    font-size: 0.76rem;
+    margin-top: -2px;
+  }
+  .composer {
+    padding: 6px 12px max(12px, env(safe-area-inset-bottom, 12px));
+  }
+  #chat-form {
+    padding: 6px;
+    gap: 8px;
+    border-radius: 8px;
+  }
+  #user-input {
+    padding: 8px 8px;
+    min-height: 44px;
   }
   .btn-ghost {
     min-width: 44px;
@@ -960,7 +1068,7 @@ button, textarea { font: inherit; color: inherit; }
   .btn-send {
     min-width: 44px;
     min-height: 44px;
-    padding: 0 14px;
+    padding: 0 13px;
     font-size: 0;
     gap: 0;
     display: inline-flex;
@@ -969,6 +1077,31 @@ button, textarea { font: inherit; color: inherit; }
   }
   .btn-send svg { width: 18px; height: 18px; }
   .avatar { width: 32px; height: 32px; }
+  .bubble { max-width: 92%; }
+  .game-card-actions {
+    gap: 8px;
+  }
+  .steam-store-card-btn,
+  .btn-wishlist-card {
+    flex: 1 1 auto;
+    font-size: 0.85rem;
+    padding: 0 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .capsules {
+    gap: 6px;
+  }
+  .capsule {
+    padding: 8px 8px 7px;
+  }
+  .capsule .label {
+    font-size: 13px;
+  }
+  .capsule .hint {
+    font-size: 10.5px;
+  }
 }
 
 /* Modal Drawer Wishlist Lokal */
