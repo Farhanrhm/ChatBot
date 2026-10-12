@@ -27,6 +27,14 @@ Dokumen ini mencatat skenario pengujian fungsional, keamanan, batasan input, dan
 | 17 | Ketahanan Timeout Steam | Simulasi jaringan Steam terputus atau timeout melebihi batas | Server tidak menggagalkan balasan bot; teks obrolan tetap tampil dan kartu fallback ke status tanpa harga. |  |  |
 | 18 | Percakapan Panjang (10+ Turn) | Melakukan obrolan lebih dari 10 giliran bolak-balik | Payload tidak melebihi batas 100kb, server tidak mengembalikan HTTP 413, riwayat tersimpan bersih. |  |  |
 | 19 | Tampilan Responsif Ponsel (375px) | Membuka UI dan kartu game pada viewport 375px | Kartu game, poster, badge diskon, dan baris harga tertata rapi tanpa scroll horizontal. |  |  |
+| 20 | Simpan Game ke Wishlist | Klik tombol "Wishlist" pada salah satu kartu game | Tombol berubah menjadi "Tersimpan" (`aria-pressed="true"`), badge topbar bertambah, game masuk ke daftar drawer. |  |  |
+| 21 | Ketahanan Refresh Browser | Refresh halaman browser setelah menyimpan 2 game ke wishlist | Data wishlist tetap utuh di `localStorage`, angka badge dan item drawer tidak berkurang. |  |  |
+| 22 | Ketahanan Reset Chat | Klik tombol "Reset chat" di topbar setelah menyimpan game | Percakapan dikosongkan, namun seluruh daftar wishlist tetap aman di penyimpanan browser. |  |  |
+| 23 | Hapus Game dari Wishlist | Klik tombol hapus (ikon tempat sampah) di drawer atau klik tombol "Tersimpan" di kartu | Game terhapus dari daftar, badge berkurang, dan tombol kartu kembali ke status "Wishlist". |  |  |
+| 24 | Batas Maksimal 50 Game | Menambahkan game saat wishlist telah mencapai 50 item | Game ke-51 ditolak, muncul notifikasi bahwa wishlist telah penuh (maksimal 50). |  |  |
+| 25 | Salin Daftar ke Clipboard | Klik tombol "Salin daftar" di toolbar panel wishlist | Daftar tersalin dalam format teks biasa "Judul - URL" per baris tanpa harga/diskon, muncul feedback "Tersalin". |  |  |
+| 26 | Navigasi Keyboard (Accessibility) | Buka drawer wishlist, tekan Tab / Shift+Tab, dan tekan tombol Esc | Fokus terjebak di dalam panel saat terbuka, tombol Esc menutup drawer dan mengembalikan fokus ke pemicu. |  |  |
+| 27 | Tampilan Responsif Drawer (375px) | Buka panel wishlist pada viewport lebar 375px (mobile) | Drawer tampil penuh atau proporsional tanpa overflow horizontal, seluruh tombol memenuhi target sentuh 44x44px. |  |  |
 
 ---
 
@@ -83,6 +91,7 @@ Semua test case memeriksa:
 - Penolakan jika teks user melebihi 1000 karakter.
 - Validasi status harga, diskon, dan penolakan sekuel Steam.
 - Batasan kuota harian (`DailyCapLimiter`) dan reset pergantian tanggal.
+- Validasi modul Wishlist Lokal (`wishlistCore.js`): sanitasi data stabil tanpa harga/diskon, penolakan duplikat (appId & judul), batas kapasitas 50 item, ketahanan JSON rusak, format salin daftar ke teks biasa, dan penanganan kegagalan penyimpanan browser.
 
 ---
 

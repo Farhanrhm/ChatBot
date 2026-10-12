@@ -24,6 +24,7 @@ SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. M
 7. **Parser Markdown Aman**: Merender format tebal, miring, list, dan link dengan sanitasi HTML ketat untuk mencegah serangan XSS.
 8. **Ketahanan Sesi (sessionStorage)**: Percakapan tidak hilang saat halaman dimuat ulang (refresh), dan dapat dikosongkan dengan tombol Reset chat.
 9. **Indikator Responsif dan Penanganan Error**: Animasi typing indicator, penghitung karakter input (maksimal 1000 karakter), serta bubble error interaktif dengan tombol Coba lagi.
+10. **Wishlist Lokal (Browser Storage)**: Simpan game favorit langsung dari kartu ke daftar pribadi pengguna (maksimal 50 game), dilengkapi tombol drawer di topbar, navigasi keyboard lengkap (`Esc`, focus trap), tombol "Salin daftar", dan ketahanan data saat chat di-reset.
 
 ---
 
@@ -256,6 +257,7 @@ SteamScout memverifikasi judul rekomendasi ke API publik Steam Storefront untuk 
 
 - **Akurasi AI**: Rekomendasi dihasilkan oleh LLM dan dapat sewaktu-waktu mengalami ketidakakuratan data mengenai detail tahun rilis atau developer game indie tertentu.
 - **Dinamika Harga Toko Steam**: Informasi harga game, event diskon (Steam Sale), dan status Early Access dapat berubah sewaktu-waktu. Harga di aplikasi merupakan hasil pengecekan saat permintaan diproses dan dapat berbeda dari halaman toko langsung. Pengguna disarankan untuk memeriksa halaman toko resmi Steam sebelum membeli game.
+- **Penyimpanan Wishlist Lokal di Browser**: Data wishlist disimpan di `localStorage` peramban web pengguna dan tidak terhubung ke akun Steam pribadi atau server cloud. Daftar wishlist akan hilang jika pengguna menghapus riwayat/data situs browser atau menggunakan mode penjelajahan pribadi (Incognito).
 - **Waktu Bangun Hosting Gratis (Cold Start)**: Jika di-deploy pada layanan cloud gratis yang menerapkan penonaktifan sementara saat tidak ada lalu lintas, permintaan pertama mungkin membutuhkan waktu beberapa detik lebih lama untuk merespons.
 
 ---
@@ -267,7 +269,7 @@ SteamScout memverifikasi judul rekomendasi ke API publik Steam Storefront untuk 
 - [x] **Verifikasi Storefront Steam / Grounding**: Cek judul game ke Steam Storefront API untuk menampilkan cover art resmi dan link halaman resmi.
 - [x] **Real-time Streaming (SSE)**: Mengirim balasan respon melalui Server-Sent Events (`/api/chat/stream`) agar proses pembuatan rekomendasi responsif.
 - [x] **Informasi Harga & Deteksi Diskon Steam Sale**: Menampilkan badge diskon hijau, harga asli dicoret, status Free to Play, dan Segera Hadir.
-- [ ] **Opsi B: Fitur Wishlist & Backlog Lokal**: Menyimpan game rekomendasi favorit ke penyimpanan lokal browser (`localStorage`) dan mengekspor daftar game.
+- [x] **Opsi B: Fitur Wishlist & Backlog Lokal**: Menyimpan game rekomendasi favorit ke penyimpanan lokal browser (`localStorage`) dan mengekspor daftar game.
 - [ ] **Opsi C: Quick Preference Filter Bar**: Preset toggle cepat di atas area input (misal: "Laptop Kentang", "Di Bawah Rp100k", "Co-op / Mabar").
 
 ---

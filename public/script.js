@@ -1,5 +1,15 @@
 /* SteamScout: Frontend logic */
 
+import {
+  getWishlist,
+  addToWishlist,
+  removeFromWishlist,
+  isInWishlist,
+  formatWishlistForCopy,
+  getItemKey,
+  MAX_WISHLIST_ITEMS,
+} from "./wishlistCore.js";
+
 const API_URL = "/api/chat";
 const STORAGE_KEY = "steamscout_chat_history";
 
@@ -44,6 +54,16 @@ const els = {
   charCounter: $("#char-counter"),
   sendBtn: $("#send-btn"),
   resetBtn: $("#reset-btn"),
+  wishlistBtn: $("#wishlist-btn"),
+  wishlistBadge: $("#wishlist-badge"),
+  wishlistPanel: $("#wishlist-panel"),
+  wishlistBackdrop: $("#wishlist-backdrop"),
+  wishlistCloseBtn: $("#wishlist-close-btn"),
+  wishlistDrawerCount: $("#wishlist-drawer-count"),
+  wishlistCopyBtn: $("#wishlist-copy-btn"),
+  wishlistCopyFeedback: $("#wishlist-copy-feedback"),
+  wishlistEmpty: $("#wishlist-empty"),
+  wishlistItems: $("#wishlist-items"),
 };
 
 let history = [];
@@ -309,6 +329,21 @@ function formatBotContent(raw) {
                   </svg>
                   Buka di Steam Store
                 </a>
+                <button
+                  type="button"
+                  class="btn-wishlist-toggle"
+                  data-appid="${g.appId || ""}"
+                  data-title="${escapeHtml(g.title || "")}"
+                  data-store-url="${escapeHtml(storeUrl)}"
+                  aria-pressed="${isInWishlist(globalThis.localStorage, { appId: g.appId, title: g.title }) ? "true" : "false"}"
+                  aria-label="${isInWishlist(globalThis.localStorage, { appId: g.appId, title: g.title }) ? `Hapus ${title} dari wishlist` : `Simpan ${title} ke wishlist`}"
+                  title="${isInWishlist(globalThis.localStorage, { appId: g.appId, title: g.title }) ? "Hapus dari wishlist" : "Simpan ke wishlist"}"
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="${isInWishlist(globalThis.localStorage, { appId: g.appId, title: g.title }) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <span class="wishlist-btn-text">${isInWishlist(globalThis.localStorage, { appId: g.appId, title: g.title }) ? "Tersimpan" : "Wishlist"}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -618,8 +653,236 @@ els.resetBtn.addEventListener("click", () => {
   els.input.focus();
 });
 
+/* Logika dan UI Wishlist Lokal */
+let previousActiveElement = null;
+let toastTimeout = null;
+
+function showToast(message) {
+  let toast = $(".wishlist-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.className = "wishlist-toast";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.hidden = false;
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
+    toast.hidden = true;
+  }, 3200);
+}
+
+function updateAllWishlistCardButtons() {
+  document.querySelectorAll(".btn-wishlist-toggle").forEach((btn) => {
+    const appId = btn.dataset.appid;
+    const title = btn.dataset.title;
+    const isSaved = isInWishlist(globalThis.localStorage, { appId, title });
+    btn.setAttribute("aria-pressed", isSaved ? "true" : "false");
+    btn.setAttribute("aria-label", isSaved ? `Hapus ${title} dari wishlist` : `Simpan ${title} ke wishlist`);
+    btn.setAttribute("title", isSaved ? "Hapus dari wishlist" : "Simpan ke wishlist");
+    const textSpan = btn.querySelector(".wishlist-btn-text");
+    if (textSpan) textSpan.textContent = isSaved ? "Tersimpan" : "Wishlist";
+    const svg = btn.querySelector("svg");
+    if (svg) svg.setAttribute("fill", isSaved ? "currentColor" : "none");
+  });
+}
+
+function updateWishlistUI() {
+  const list = getWishlist(globalThis.localStorage);
+  const count = list.length;
+
+  if (els.wishlistBadge) els.wishlistBadge.textContent = String(count);
+  if (els.wishlistBtn) {
+    els.wishlistBtn.setAttribute("aria-label", `Buka wishlist, ${count} game tersimpan`);
+  }
+  if (els.wishlistDrawerCount) {
+    els.wishlistDrawerCount.textContent = `(${count}/${MAX_WISHLIST_ITEMS})`;
+  }
+
+  if (els.wishlistEmpty && els.wishlistItems) {
+    if (count === 0) {
+      els.wishlistEmpty.hidden = false;
+      els.wishlistItems.innerHTML = "";
+    } else {
+      els.wishlistEmpty.hidden = true;
+      els.wishlistItems.innerHTML = list
+        .map((item) => {
+          const itemTitle = escapeHtml(item.title);
+          const itemUrl = escapeHtml(item.storeUrl);
+          const itemKey = escapeHtml(getItemKey(item));
+          return `
+            <li class="wishlist-item">
+              <div class="wishlist-item-main">
+                <div class="wishlist-item-title" title="${itemTitle}">${itemTitle}</div>
+                <a href="${itemUrl}" target="_blank" rel="noopener noreferrer" class="wishlist-item-link" aria-label="Buka ${itemTitle} di Steam Store">
+                  Buka di Steam
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                </a>
+              </div>
+              <button
+                type="button"
+                class="btn-item-delete"
+                data-key="${itemKey}"
+                data-title="${itemTitle}"
+                aria-label="Hapus ${itemTitle} dari wishlist"
+                title="Hapus dari wishlist"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+              </button>
+            </li>`;
+        })
+        .join("");
+
+      els.wishlistItems.querySelectorAll(".btn-item-delete").forEach((delBtn) => {
+        delBtn.addEventListener("click", () => {
+          const key = delBtn.dataset.key;
+          removeFromWishlist(globalThis.localStorage, key);
+          updateWishlistUI();
+        });
+      });
+    }
+  }
+
+  updateAllWishlistCardButtons();
+}
+
+function openWishlistPanel() {
+  previousActiveElement = document.activeElement;
+  els.wishlistBackdrop.hidden = false;
+  els.wishlistPanel.hidden = false;
+  els.wishlistBtn.setAttribute("aria-expanded", "true");
+  updateWishlistUI();
+  els.wishlistCloseBtn.focus();
+}
+
+function closeWishlistPanel() {
+  els.wishlistBackdrop.hidden = true;
+  els.wishlistPanel.hidden = true;
+  els.wishlistBtn.setAttribute("aria-expanded", "false");
+  if (previousActiveElement && typeof previousActiveElement.focus === "function") {
+    previousActiveElement.focus();
+  }
+}
+
+// Event listener drawer & backdrop
+if (els.wishlistBtn) {
+  els.wishlistBtn.addEventListener("click", () => {
+    if (els.wishlistPanel.hidden) {
+      openWishlistPanel();
+    } else {
+      closeWishlistPanel();
+    }
+  });
+}
+
+if (els.wishlistCloseBtn) {
+  els.wishlistCloseBtn.addEventListener("click", closeWishlistPanel);
+}
+
+if (els.wishlistBackdrop) {
+  els.wishlistBackdrop.addEventListener("click", closeWishlistPanel);
+}
+
+// Keyboard trap & ESC listener
+if (els.wishlistPanel) {
+  els.wishlistPanel.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeWishlistPanel();
+      return;
+    }
+
+    if (e.key === "Tab") {
+      const focusables = els.wishlistPanel.querySelectorAll(
+        'button:not([disabled]):not([hidden]), a[href]:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length === 0) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  });
+}
+
+// Salin daftar ke clipboard
+if (els.wishlistCopyBtn) {
+  els.wishlistCopyBtn.addEventListener("click", async () => {
+    const list = getWishlist(globalThis.localStorage);
+    if (list.length === 0) {
+      showToast("Wishlist kosong, belum ada game untuk disalin.");
+      return;
+    }
+
+    const textToCopy = formatWishlistForCopy(list);
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const tempTextarea = document.createElement("textarea");
+        tempTextarea.value = textToCopy;
+        tempTextarea.style.position = "fixed";
+        tempTextarea.style.opacity = "0";
+        document.body.appendChild(tempTextarea);
+        tempTextarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(tempTextarea);
+      }
+
+      if (els.wishlistCopyFeedback) {
+        els.wishlistCopyFeedback.hidden = false;
+        setTimeout(() => {
+          els.wishlistCopyFeedback.hidden = true;
+        }, 2500);
+      }
+    } catch (err) {
+      console.warn("Gagal menyalin ke clipboard:", err);
+      showToast("Gagal menyalin ke clipboard. Izin ditolak.");
+    }
+  });
+}
+
+// Event delegation untuk tombol bookmark pada kartu game di chat
+els.messages.addEventListener("click", (e) => {
+  const toggleBtn = e.target.closest(".btn-wishlist-toggle");
+  if (!toggleBtn) return;
+
+  const appId = toggleBtn.dataset.appid;
+  const title = toggleBtn.dataset.title;
+  const storeUrl = toggleBtn.dataset.storeUrl;
+
+  const isCurrentlySaved = isInWishlist(globalThis.localStorage, { appId, title });
+  if (isCurrentlySaved) {
+    removeFromWishlist(globalThis.localStorage, { appId, title });
+  } else {
+    const addResult = addToWishlist(globalThis.localStorage, { appId, title, storeUrl });
+    if (!addResult.success && addResult.error) {
+      showToast(addResult.error);
+    }
+  }
+
+  updateWishlistUI();
+});
+
 /* Inisialisasi dan muat riwayat sesi */
 renderQuickPrompts();
+updateWishlistUI();
 
 const savedHistory = loadHistoryFromStorage();
 if (savedHistory.length > 0) {

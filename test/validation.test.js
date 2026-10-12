@@ -330,5 +330,153 @@ test('DailyCapLimiter: reset counter otomatis saat tanggal berganti', async () =
   assert.equal(nextDayResult.allowed, true);
 });
 
+// --- Pengujian Unit Wishlist Lokal (wishlistCore.js) ---
 
+function createMockStorage(initial = {}) {
+  const store = new Map(Object.entries(initial));
+  return {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+    clear: () => store.clear(),
+  };
+}
 
+test('wishlistCore: sanitizeWishlistItem hanya menyimpan data stabil tanpa harga atau diskon', async () => {
+  const { sanitizeWishlistItem } = await import('../public/wishlistCore.js');
+
+  const dirtyInput = {
+    appId: '413150',
+    title: '  Stardew Valley  ',
+    storeUrl: 'https://store.steampowered.com/app/413150/Stardew_Valley/',
+    pricing: { status: 'paid', final: 115999, discountPercent: 20 },
+    headerImage: 'https://cdn.steam.com/banner.jpg',
+    whyFit: 'Sangat cocok untuk santai',
+    unknownField: 123,
+  };
+
+  const clean = sanitizeWishlistItem(dirtyInput);
+  assert.equal(clean.appId, 413150);
+  assert.equal(clean.title, 'Stardew Valley');
+  assert.equal(clean.storeUrl, 'https://store.steampowered.com/app/413150/Stardew_Valley/');
+  assert.ok(clean.addedAt);
+  assert.equal(clean.pricing, undefined);
+  assert.equal(clean.headerImage, undefined);
+  assert.equal(clean.whyFit, undefined);
+});
+
+test('wishlistCore: addToWishlist dan duplikasi (appId & judul normalisasi)', async () => {
+  const { addToWishlist, isInWishlist } = await import('../public/wishlistCore.js');
+  const storage = createMockStorage();
+
+  // Tambah item 1
+  const res1 = addToWishlist(storage, { appId: 105600, title: 'Terraria' });
+  assert.equal(res1.success, true);
+  assert.equal(res1.list.length, 1);
+  assert.equal(isInWishlist(storage, { appId: 105600 }), true);
+
+  // Tolak duplikat dengan appId yang sama
+  const dupeAppId = addToWishlist(storage, { appId: '105600', title: 'Terraria Lain' });
+  assert.equal(dupeAppId.success, false);
+  assert.ok(dupeAppId.error.includes('sudah ada'));
+  assert.equal(dupeAppId.list.length, 1);
+
+  // Tambah item 2 tanpa appId
+  const res2 = addToWishlist(storage, { title: 'Hades II' });
+  assert.equal(res2.success, true);
+  assert.equal(res2.list.length, 2);
+
+  // Tolak duplikat tanpa appId berdasarkan variasi huruf besar-kecil spasi
+  const dupeTitle = addToWishlist(storage, { title: '  hades ii  ' });
+  assert.equal(dupeTitle.success, false);
+  assert.equal(dupeTitle.list.length, 2);
+});
+
+test('wishlistCore: membatasi maksimal 50 item dan memberikan pesan jelas saat penuh', async () => {
+  const { addToWishlist, MAX_WISHLIST_ITEMS } = await import('../public/wishlistCore.js');
+  const storage = createMockStorage();
+
+  for (let i = 1; i <= MAX_WISHLIST_ITEMS; i++) {
+    const res = addToWishlist(storage, { appId: i, title: `Game Ke-${i}` });
+    assert.equal(res.success, true);
+  }
+
+  // Percobaan ke-51 harus ditolak
+  const overflow = addToWishlist(storage, { appId: 9999, title: 'Game Ke-51' });
+  assert.equal(overflow.success, false);
+  assert.ok(overflow.error.includes('penuh'));
+  assert.ok(overflow.error.includes('50'));
+  assert.equal(overflow.list.length, 50);
+});
+
+test('wishlistCore: getWishlist tahan terhadap JSON rusak dan me-reset ke array kosong', async () => {
+  const { getWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+  const storage = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: '<<< BUKAN JSON VALID >>>',
+  });
+
+  const list = getWishlist(storage);
+  assert.ok(Array.isArray(list));
+  assert.equal(list.length, 0);
+});
+
+test('wishlistCore: removeFromWishlist menghapus item berdasarkan appId atau key', async () => {
+  const { addToWishlist, removeFromWishlist, isInWishlist } = await import('../public/wishlistCore.js');
+  const storage = createMockStorage();
+
+  addToWishlist(storage, { appId: 400, title: 'Portal' });
+  addToWishlist(storage, { title: 'Dwarf Fortress' });
+
+  assert.equal(isInWishlist(storage, { appId: 400 }), true);
+
+  const removePortal = removeFromWishlist(storage, { appId: 400 });
+  assert.equal(removePortal.success, true);
+  assert.equal(removePortal.removed, true);
+  assert.equal(removePortal.list.length, 1);
+  assert.equal(isInWishlist(storage, { appId: 400 }), false);
+
+  // Hapus Dwarf Fortress dengan key string
+  const removeDf = removeFromWishlist(storage, 'title_dwarf fortress');
+  assert.equal(removeDf.success, true);
+  assert.equal(removeDf.removed, true);
+  assert.equal(removeDf.list.length, 0);
+});
+
+test('wishlistCore: formatWishlistForCopy menghasilkan baris Judul - URL tanpa harga', async () => {
+  const { formatWishlistForCopy } = await import('../public/wishlistCore.js');
+
+  const items = [
+    { title: 'Stardew Valley', storeUrl: 'https://store.steampowered.com/app/413150/' },
+    { title: 'Terraria', storeUrl: 'https://store.steampowered.com/app/105600/' },
+  ];
+
+  const text = formatWishlistForCopy(items);
+  const lines = text.split('\n');
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0], 'Stardew Valley - https://store.steampowered.com/app/413150/');
+  assert.equal(lines[1], 'Terraria - https://store.steampowered.com/app/105600/');
+  assert.equal(text.includes('Rp'), false);
+  assert.equal(text.includes('Diskon'), false);
+});
+
+test('wishlistCore: menangani storage yang tidak tersedia atau melempar error', async () => {
+  const { addToWishlist, removeFromWishlist, getWishlist } = await import('../public/wishlistCore.js');
+
+  const brokenStorage = {
+    getItem: () => {
+      throw new Error('Storage access denied');
+    },
+    setItem: () => {
+      throw new Error('QuotaExceededError');
+    },
+  };
+
+  assert.deepEqual(getWishlist(null), []);
+  assert.deepEqual(getWishlist(brokenStorage), []);
+
+  const addRes = addToWishlist(brokenStorage, { title: 'Game' });
+  assert.equal(addRes.success, false);
+
+  const removeRes = removeFromWishlist(brokenStorage, { title: 'Game' });
+  assert.equal(removeRes.success, false);
+});
