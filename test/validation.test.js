@@ -480,3 +480,85 @@ test('wishlistCore: menangani storage yang tidak tersedia atau melempar error', 
   const removeRes = removeFromWishlist(brokenStorage, { title: 'Game' });
   assert.equal(removeRes.success, false);
 });
+
+// --- Pengujian Unit Filter Preferensi Cepat (Prompt C) ---
+
+test('validatePreferences: mengembalikan nilai default "any" untuk input kosong atau undefined', async () => {
+  const { validatePreferences } = await import('../index.js');
+
+  assert.deepEqual(validatePreferences(undefined), { spec: 'any', budget: 'any', mode: 'any' });
+  assert.deepEqual(validatePreferences(null), { spec: 'any', budget: 'any', mode: 'any' });
+  assert.deepEqual(validatePreferences({}), { spec: 'any', budget: 'any', mode: 'any' });
+  assert.deepEqual(validatePreferences({ spec: '', budget: null }), { spec: 'any', budget: 'any', mode: 'any' });
+});
+
+test('validatePreferences: memvalidasi kombinasi preferensi yang sah dan normalisasi lowercase', async () => {
+  const { validatePreferences } = await import('../index.js');
+
+  const valid1 = validatePreferences({ spec: 'potato', budget: 'free', mode: 'coop' });
+  assert.deepEqual(valid1, { spec: 'potato', budget: 'free', mode: 'coop' });
+
+  const valid2 = validatePreferences({ spec: '  GAMING  ', budget: 'under100k', mode: 'single' });
+  assert.deepEqual(valid2, { spec: 'gaming', budget: 'under100k', mode: 'single' });
+});
+
+test('validatePreferences: menolak nilai tidak dikenal atau tipe data ilegal dengan HTTP 400', async () => {
+  const { validatePreferences } = await import('../index.js');
+
+  assert.throws(() => validatePreferences('bukan-objek'), { status: 400 });
+  assert.throws(() => validatePreferences([1, 2, 3]), { status: 400 });
+  assert.throws(() => validatePreferences({ spec: 123 }), { status: 400 });
+  assert.throws(() => validatePreferences({ spec: 'supercomputer' }), { status: 400 });
+  assert.throws(() => validatePreferences({ budget: 'diskon-murah' }), { status: 400 });
+  assert.throws(() => validatePreferences({ mode: 'battle-royale' }), { status: 400 });
+});
+
+test('buildPreferencesPromptNote: merakit kalimat bahasa Indonesia yang tepat dari enum', async () => {
+  const { buildPreferencesPromptNote } = await import('../index.js');
+
+  // Semua any menghasilkan string kosong
+  assert.equal(buildPreferencesPromptNote({ spec: 'any', budget: 'any', mode: 'any' }), '');
+
+  // Parsial
+  const note1 = buildPreferencesPromptNote({ spec: 'potato', budget: 'any', mode: 'any' });
+  assert.equal(note1, 'Preferensi dari filter aplikasi: spek perangkat = laptop kentang.');
+
+  // Lengkap
+  const note2 = buildPreferencesPromptNote({ spec: 'gaming', budget: 'under100k', mode: 'coop' });
+  assert.equal(
+    note2,
+    'Preferensi dari filter aplikasi: spek perangkat = PC gaming; budget = di bawah Rp100 ribu; mode = co-op.'
+  );
+});
+
+test('Filter Preferensi: riwayat conversation asli tidak tercemar dan tidak termutasi', async () => {
+  const { toContents, validatePreferences, buildPreferencesPromptNote } = await import('../index.js');
+
+  const rawConversation = [
+    { role: 'user', text: 'Cari game yang santai' },
+    { role: 'model', text: 'Ini beberapa game...' },
+    { role: 'user', text: 'Ada yang grafis pixel?' },
+  ];
+
+  // Simpan snapshot teks asli
+  const snapshotBefore = JSON.stringify(rawConversation);
+
+  const validatedPrefs = validatePreferences({ spec: 'potato', budget: 'free' });
+  const contents = toContents(rawConversation);
+  const note = buildPreferencesPromptNote(validatedPrefs);
+
+  if (note && contents.length > 0) {
+    const lastIndex = contents.length - 1;
+    contents[lastIndex] = {
+      role: 'user',
+      parts: [{ text: `${contents[lastIndex].parts[0].text}\n\n${note}` }],
+    };
+  }
+
+  // Pastikan contents memiliki catatan filter di giliran terakhir
+  assert.ok(contents[contents.length - 1].parts[0].text.includes('Preferensi dari filter aplikasi'));
+
+  // Pastikan rawConversation asli dari klien TIDAK tercemar sama sekali
+  assert.equal(JSON.stringify(rawConversation), snapshotBefore);
+  assert.equal(rawConversation[rawConversation.length - 1].text, 'Ada yang grafis pixel?');
+});
