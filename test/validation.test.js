@@ -98,10 +98,31 @@ test('getSteamGameDetails: menangani input judul kosong atau invalid secara aman
 });
 
 test('calculateTitleSimilarity: mencocokkan judul mirip dan menolak judul berbeda', async () => {
-  const { calculateTitleSimilarity } = await import('../services/steamStore.js');
+  const { calculateTitleSimilarity, hasMatchingSequelTokens, formatRupiah } = await import('../services/steamStore.js');
   assert.equal(calculateTitleSimilarity('Terraria', 'Terraria'), 1);
   assert.ok(calculateTitleSimilarity('The Witcher 3: Wild Hunt', 'The Witcher 3: Wild Hunt (2015)') >= 0.7);
   assert.ok(calculateTitleSimilarity('Grand Theft Auto VI', 'Grand Theft Auto: Vice City Definitive Edition') < 0.65);
+
+  // Penolakan sekuel dan nomor berbeda
+  assert.equal(hasMatchingSequelTokens('Hades', 'Hades II'), false);
+  assert.equal(calculateTitleSimilarity('Hades', 'Hades II'), 0);
+
+  assert.equal(hasMatchingSequelTokens('Portal', 'Portal 2'), false);
+  assert.equal(calculateTitleSimilarity('Portal', 'Portal 2'), 0);
+
+  assert.equal(hasMatchingSequelTokens('Resident Evil 2', 'Resident Evil 4'), false);
+  assert.equal(calculateTitleSimilarity('Resident Evil 2', 'Resident Evil 4'), 0);
+
+  // Penerimaan judul dengan aksen Unicode
+  assert.ok(calculateTitleSimilarity('Pokémon Legends: Arceus', 'Pokemon Legends Arceus') >= 0.7);
+  assert.ok(calculateTitleSimilarity('Café Stella', 'Cafe Stella') >= 0.7);
+
+  // Penerimaan subjudul / edisi
+  assert.ok(calculateTitleSimilarity('The Witcher 3: Wild Hunt - Game of the Year Edition', 'The Witcher 3: Wild Hunt') >= 0.65);
+
+  // Format Rupiah standar
+  assert.equal(formatRupiah(90999), 'Rp\u00a090.999');
+  assert.equal(formatRupiah(45499), 'Rp\u00a045.499');
 });
 
 test('ExpiringCache: memvalidasi TTL dan penggusuran saat melebihi kapasitas', async () => {

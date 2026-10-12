@@ -8,6 +8,20 @@ export const TTL_UNKNOWN_MS = 60 * 1000;      // 1 menit
 export const MAX_CACHE_ENTRIES = 200;
 export const OVERALL_ENRICHMENT_TIMEOUT_MS = 6000; // 6 detik
 export const PER_REQUEST_TIMEOUT_MS = 2500;        // 2,5 detik
+export const MAX_TITLE_QUERY_LENGTH = 120;         // Batas panjang query
+
+const ROMAN_NUMERALS = {
+  i: '1',
+  ii: '2',
+  iii: '3',
+  iv: '4',
+  v: '5',
+  vi: '6',
+  vii: '7',
+  viii: '8',
+  ix: '9',
+  x: '10',
+};
 
 /**
  * Cache memori berbatas waktu (TTL) dengan penggusuran First-In First-Out saat penuh.
@@ -50,8 +64,25 @@ export const titleCache = new ExpiringCache(MAX_CACHE_ENTRIES);
 export const appDetailsCache = new ExpiringCache(MAX_CACHE_ENTRIES);
 
 /**
+ * Format angka dalam rupiah ke format standar konsisten "Rp XX.XXX".
+ *
+ * @param {number} amount
+ * @returns {string}
+ */
+export function formatRupiah(amount) {
+  if (typeof amount !== 'number' || isNaN(amount)) return '';
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0,
+  })
+    .format(amount)
+    .replace(',00', '');
+}
+
+/**
  * Normalisasi judul untuk perbandingan ketat:
- * huruf kecil, hapus teks dalam kurung, hapus simbol non-alfanumerik.
+ * dekomposisi aksen Unicode, huruf kecil, hapus teks dalam kurung, hapus simbol non-alfanumerik.
  *
  * @param {string} str
  * @returns {string}
@@ -59,16 +90,66 @@ export const appDetailsCache = new ExpiringCache(MAX_CACHE_ENTRIES);
 export function normalizeTitle(str) {
   if (!str || typeof str !== 'string') return '';
   return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // hilangkan aksen seperti é, è, ö
     .toLowerCase()
-    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
-    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ') // hilangkan teks dalam kurung (tahun, edisi)
+    .replace(/[^a-z0-9\s]/g, ' ') // hilangkan simbol
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 /**
+ * Mengekstrak penanda angka dan angka romawi sebagai string angka arab standar.
+ *
+ * @param {string} str
+ * @returns {Array<string>}
+ */
+export function extractNumericTokens(str) {
+  const norm = normalizeTitle(str);
+  if (!norm) return [];
+  const words = norm.split(' ').filter(Boolean);
+  const tokens = [];
+
+  for (const w of words) {
+    if (/^\d+$/.test(w)) {
+      tokens.push(w);
+    } else if (ROMAN_NUMERALS[w]) {
+      tokens.push(ROMAN_NUMERALS[w]);
+    }
+  }
+  return tokens;
+}
+
+/**
+ * Memeriksa apakah penanda angka/sekuel cocok antara target dan kandidat.
+ * Mencegah kesalahan pasangan seperti Hades vs Hades II atau Portal vs Portal 2.
+ *
+ * @param {string} target
+ * @param {string} candidate
+ * @returns {boolean}
+ */
+export function hasMatchingSequelTokens(target, candidate) {
+  const targetTokens = extractNumericTokens(target);
+  const candidateTokens = extractNumericTokens(candidate);
+
+  // Jika salah satu memiliki nomor sekuel dan yang lain tidak, tolak
+  if (targetTokens.length !== candidateTokens.length) {
+    return false;
+  }
+
+  // Jika keduanya memiliki nomor sekuel, pastikan nomornya persis sama
+  for (let i = 0; i < targetTokens.length; i++) {
+    if (targetTokens[i] !== candidateTokens[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * Menghitung tingkat kemiripan (0.0 - 1.0) antara dua judul setelah dinormalisasi.
- * Menggabungkan kecocokan kata (Jaccard) dan kesamaan bigram karakter (Dice).
  *
  * @param {string} strA
  * @param {string} strB
@@ -79,6 +160,11 @@ export function calculateTitleSimilarity(strA, strB) {
   const b = normalizeTitle(strB);
   if (!a || !b) return 0;
   if (a === b) return 1;
+
+  // Jika penanda sekuel berbeda, skor langsung 0
+  if (!hasMatchingSequelTokens(strA, strB)) {
+    return 0;
+  }
 
   const wordsA = a.split(' ').filter(Boolean);
   const wordsB = b.split(' ').filter(Boolean);
@@ -149,7 +235,8 @@ async function fetchWithTimeout(url, { signal, timeoutMs = PER_REQUEST_TIMEOUT_M
  * @returns {Promise<object|null>}
  */
 export async function getAppDetails(appId, { signal, fetchFn = globalThis.fetch, timeoutMs = PER_REQUEST_TIMEOUT_MS } = {}) {
-  if (!appId || typeof appId !== 'number') return null;
+  // Validasi ketat appId: harus integer positif
+  if (!Number.isInteger(appId) || appId <= 0) return null;
 
   const cached = appDetailsCache.get(appId);
   if (cached) return cached;
@@ -173,7 +260,7 @@ export async function getAppDetails(appId, { signal, fetchFn = globalThis.fetch,
 
 /**
  * Mencari dan memverifikasi game Steam berdasarkan judul rekomendasi.
- * Menguji 3-5 kandidat teratas untuk memilih item bertipe 'game' dengan kesamaan judul >= 0.65.
+ * Menguji kandidat teratas dan memilih yang berskor tertinggi bertipe 'game'.
  *
  * @param {string} title
  * @param {object} options
@@ -195,7 +282,8 @@ export async function getSteamGameDetails(
     return fallback;
   }
 
-  const cleanTitle = title.trim();
+  // Batasi panjang query maksimal untuk mencegah payload berlebih
+  const cleanTitle = title.trim().slice(0, MAX_TITLE_QUERY_LENGTH);
   const cacheKey = cleanTitle.toLowerCase();
 
   const cached = titleCache.get(cacheKey);
@@ -218,23 +306,32 @@ export async function getSteamGameDetails(
     }
 
     const searchData = await res.json();
-    const candidates = Array.isArray(searchData?.items) ? searchData.items.slice(0, 5) : [];
+    const rawCandidates = Array.isArray(searchData?.items) ? searchData.items.slice(0, 5) : [];
 
-    if (candidates.length === 0) {
+    if (rawCandidates.length === 0) {
       titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
       return fallback;
     }
 
-    // Periksa kandidat satu per satu
-    for (const candidate of candidates) {
-      if (!candidate || !candidate.id) continue;
-
-      const sim = calculateTitleSimilarity(cleanTitle, candidate.name || '');
-      if (sim < 0.65) {
-        continue;
+    // Beri skor pada setiap kandidat dan urutkan dari skor tertinggi
+    const scoredCandidates = [];
+    for (const item of rawCandidates) {
+      if (!item || !Number.isInteger(item.id) || item.id <= 0) continue;
+      const sim = calculateTitleSimilarity(cleanTitle, item.name || '');
+      if (sim >= 0.65) {
+        scoredCandidates.push({ item, sim });
       }
+    }
 
-      // Validasi tipe item dan data harga lewat App Details API
+    scoredCandidates.sort((a, b) => b.sim - a.sim);
+
+    if (scoredCandidates.length === 0) {
+      titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
+      return fallback;
+    }
+
+    // Periksa kandidat terbaik secara berurutan
+    for (const { item: candidate } of scoredCandidates) {
       const appData = await getAppDetails(candidate.id, {
         signal,
         fetchFn,
@@ -273,8 +370,8 @@ export async function getSteamGameDetails(
           currency: po.currency || 'IDR',
           initial,
           final,
-          initialFormatted: po.initial_formatted || '',
-          finalFormatted: po.final_formatted || (final ? `Rp ${final.toLocaleString('id-ID')}` : ''),
+          initialFormatted: po.initial_formatted || (initial ? formatRupiah(initial) : ''),
+          finalFormatted: po.final_formatted || (final ? formatRupiah(final) : ''),
           discountPercent,
           onSale: discountPercent > 0,
           fetchedAt,
@@ -298,7 +395,7 @@ export async function getSteamGameDetails(
       return result;
     }
 
-    // Tidak ada kandidat yang lolos validasi
+    // Tidak ada kandidat yang lolos tipe 'game'
     titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
     return fallback;
   } catch (err) {

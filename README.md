@@ -194,20 +194,39 @@ final_project/
 
 ---
 
-## Keterbatasan Sistem
+## Fitur Harga & Diskon Steam (Storefront Grounding)
 
-- **Akurasi AI**: Rekomendasi dihasilkan oleh LLM dan dapat sewaktu-waktu mengalami ketidakakuratan data mengenai detail tahun rilis atau developer game indie tertentu.
-- **Dinamika Toko Steam**: Informasi harga game, event diskon (Steam Sale), dan status Early Access dapat berubah sewaktu-waktu. Pengguna disarankan untuk memeriksa halaman toko resmi Steam sebelum membeli game.
-- **Waktu Bangun Hosting Gratis (Cold Start)**: Jika di-deploy pada layanan gratis cloud yang menerapkan penonaktifan sementara saat tidak ada lalu lintas, permintaan pertama mungkin membutuhkan waktu beberapa detik lebih lama untuk merespons.
+SteamScout memverifikasi judul rekomendasi ke API publik Steam Storefront untuk menyajikan data harga dan status game secara langsung pada kartu:
+1. **Model Status Tiga Keadaan**:
+   * **Game Berbayar (`paid`)**: Menampilkan harga normal, serta harga awal yang dicoret dan badge diskon hijau (contoh: `-50%`) jika sedang berlangsung Steam Sale.
+   * **Free to Play (`free`)**: Menampilkan label "Free to Play" hanya jika Steam mengonfirmasi status gratis (`is_free: true`).
+   * **Segera Hadir (`upcoming`)**: Menampilkan label "Segera Hadir" untuk judul yang belum dirilis.
+   * **Tidak Diketahui (`unknown`)**: Jika data harga tidak ada, kartu tetap tampil utuh tanpa baris harga (fallback anggun).
+2. **Keandalan & Ketahanan (Resilience)**:
+   * **Endpoint Tidak Resmi**: Data harga diambil dari endpoint publik Steam (`storesearch` dan `appdetails`). Endpoint ini tidak berdokumen resmi dan dapat membatasi laju permintaan sewaktu-waktu.
+   * **Anggaran Waktu & Fallback**: Pengayaan Steam dibatasi total 6 detik dengan `Promise.allSettled`. Gangguan koneksi atau timeout Steam tidak akan pernah menggagalkan balasan kurasi Gemini.
+   * **Pencocokan Judul & Penolakan Sekuel**: Sistem membedakan judul dengan nomor sekuel berbeda (seperti *Hades* vs *Hades II* atau *Portal* vs *Portal 2*), menolak DLC/soundtrack, dan menormalisasi aksen Unicode.
+   * **Caching Cerdas**: Data harga di-cache selama 10 menit (dan 1 menit untuk status unknown) dengan batas maksimal 200 entri untuk mencegah beban berlebih ke server Steam.
 
 ---
 
-## Rencana Pengembangan Selanjutnya (Fase 3)
+## Keterbatasan Sistem
+
+- **Akurasi AI**: Rekomendasi dihasilkan oleh LLM dan dapat sewaktu-waktu mengalami ketidakakuratan data mengenai detail tahun rilis atau developer game indie tertentu.
+- **Dinamika Harga Toko Steam**: Informasi harga game, event diskon (Steam Sale), dan status Early Access dapat berubah sewaktu-waktu. Harga di aplikasi merupakan hasil pengecekan saat permintaan diproses dan dapat berbeda dari halaman toko langsung. Pengguna disarankan untuk memeriksa halaman toko resmi Steam sebelum membeli game.
+- **Waktu Bangun Hosting Gratis (Cold Start)**: Jika di-deploy pada layanan cloud gratis yang menerapkan penonaktifan sementara saat tidak ada lalu lintas, permintaan pertama mungkin membutuhkan waktu beberapa detik lebih lama untuk merespons.
+
+---
+
+## Rencana Pengembangan Selanjutnya
 
 - [x] **Tombol "Cari di Steam" per Game**: Tautan pencarian langsung ke toko resmi Steam per rekomendasi game.
-- [x] **Structured JSON Output (Response Schema)**: Memanfaatkan `responseSchema` Gemini agar menghasilkan objek data terstruktur (`intro`, `games`, `followUp`) yang dirender ke dalam kartu game interaktif.
-- [x] **Verifikasi Storefront Steam / Grounding**: Cek judul game ke Steam Storefront API untuk menampilkan cover art resmi, harga diskon terkini, dan link halaman resmi.
-- [x] **Real-time Streaming (SSE)**: Mengirim balasan respon melalui Server-Sent Events (`/api/chat/stream`) agar proses pembuatan rekomendasi lebih responsif dan interaktif.
+- [x] **Structured JSON Output (Response Schema)**: Objek data terstruktur (`intro`, `games`, `followUp`) yang dirender ke dalam kartu game interaktif.
+- [x] **Verifikasi Storefront Steam / Grounding**: Cek judul game ke Steam Storefront API untuk menampilkan cover art resmi dan link halaman resmi.
+- [x] **Real-time Streaming (SSE)**: Mengirim balasan respon melalui Server-Sent Events (`/api/chat/stream`) agar proses pembuatan rekomendasi responsif.
+- [x] **Informasi Harga & Deteksi Diskon Steam Sale**: Menampilkan badge diskon hijau, harga asli dicoret, status Free to Play, dan Segera Hadir.
+- [ ] **Opsi B: Fitur Wishlist & Backlog Lokal**: Menyimpan game rekomendasi favorit ke penyimpanan lokal browser (`localStorage`) dan mengekspor daftar game.
+- [ ] **Opsi C: Quick Preference Filter Bar**: Preset toggle cepat di atas area input (misal: "Laptop Kentang", "Di Bawah Rp100k", "Co-op / Mabar").
 
 ---
 

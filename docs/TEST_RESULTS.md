@@ -21,6 +21,12 @@ Dokumen ini mencatat skenario pengujian fungsional, keamanan, batasan input, dan
 | 11 | Penanganan Server Mati (Offline) | Mematikan server backend lalu mengirim pesan di UI | Muncul bubble error dengan pesan ramah dan tombol "Coba lagi". Tombol berfungsi saat server menyala kembali. | Muncul bubble error interaktif dengan tombol "Coba lagi", fungsi retry otomatis memulihkan pesan saat server aktif kembali. | Lulus |
 | 12 | Ketahanan Sesi Browser (sessionStorage) | Mengirim 2 pesan lalu me-refresh halaman web browser | Riwayat percakapan tetap tampil utuh di layar. Menekan tombol "Reset chat" mengosongkan riwayat secara bersih. | Sesi obrolan tersimpan otomatis di sessionStorage, reload halaman mempertahankan chat, tombol Reset chat membersihkan layar dan memori. | Lulus |
 | 13 | Responsivitas Tampilan (Mobile & Desktop) | Membuka UI pada viewport 375px (ponsel) dan 1440px (desktop) | Tampilan menyesuaikan rapi: sidebar menjadi ikon di topbar pada mobile, tidak ada horizontal overflow, tap target tombol minimal 44px. | Tata letak reflow sempurna di 375px, tap target seluruh tombol >= 44x44px, kontras teks memenuhi standar WCAG AA (>= 4.5:1). | Lulus |
+| 14 | Game Diskon Steam | Rekomendasi game yang sedang diskon di Steam (misal: *Terraria*) | Menampilkan badge diskon hijau (contoh: `-50%`), harga asli dicoret (`<del>`), dan harga diskon resmi. |  |  |
+| 15 | Game Free to Play | Rekomendasi game gratis (misal: *Dota 2*, *Counter-Strike 2*) | Menampilkan label "Free to Play" tanpa badge diskon atau harga palsu. |  |  |
+| 16 | Judul Tidak Ada di Steam | Rekomendasi game fiktif atau judul yang belum tersedia di Steam | Kartu game tetap tampil rapi dengan penjelasan, tombol fallback pencarian Steam, tanpa baris harga atau gambar rusak. |  |  |
+| 17 | Ketahanan Timeout Steam | Simulasi jaringan Steam terputus atau timeout melebihi batas | Server tidak menggagalkan balasan bot; teks obrolan tetap tampil dan kartu fallback ke status tanpa harga. |  |  |
+| 18 | Percakapan Panjang (10+ Turn) | Melakukan obrolan lebih dari 10 giliran bolak-balik | Payload tidak melebihi batas 100kb, server tidak mengembalikan HTTP 413, riwayat tersimpan bersih. |  |  |
+| 19 | Tampilan Responsif Ponsel (375px) | Membuka UI dan kartu game pada viewport 375px | Kartu game, poster, badge diskon, dan baris harga tertata rapi tanpa scroll horizontal. |  |  |
 
 ---
 

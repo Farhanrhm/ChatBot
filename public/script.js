@@ -240,11 +240,49 @@ function formatBotContent(raw) {
         const storeUrl = g.storeUrl || `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || "")}`;
         const headerImg = g.headerImage ? escapeHtml(g.headerImage) : null;
 
+        const discountBadgeHtml =
+          g.pricing?.status === "paid" && g.pricing?.onSale && g.pricing?.discountPercent > 0
+            ? `<span class="discount-badge" aria-label="Diskon ${escapeHtml(String(g.pricing.discountPercent))} persen">-${escapeHtml(String(g.pricing.discountPercent))}%</span>`
+            : "";
+
         const bannerHtml = headerImg
           ? `<div class="game-card-banner">
+              ${discountBadgeHtml}
               <img src="${headerImg}" alt="Poster resmi ${title}" loading="lazy" onerror="this.parentElement.style.display='none'">
             </div>`
           : "";
+
+        let priceHtml = "";
+        if (g.pricing && typeof g.pricing === "object") {
+          if (g.pricing.status === "paid") {
+            if (g.pricing.onSale && g.pricing.initialFormatted && g.pricing.finalFormatted) {
+              priceHtml = `
+                <div class="game-price-row">
+                  <span class="sr-only">Harga game: </span>
+                  <del class="price-original"><span class="sr-only">Harga normal: </span>${escapeHtml(g.pricing.initialFormatted)}</del>
+                  <span class="price-current"><span class="sr-only">Harga diskon: </span>${escapeHtml(g.pricing.finalFormatted)}</span>
+                </div>`;
+            } else if (g.pricing.finalFormatted) {
+              priceHtml = `
+                <div class="game-price-row">
+                  <span class="sr-only">Harga game: </span>
+                  <span class="price-current">${escapeHtml(g.pricing.finalFormatted)}</span>
+                </div>`;
+            }
+          } else if (g.pricing.status === "free") {
+            priceHtml = `
+              <div class="game-price-row">
+                <span class="sr-only">Status harga: </span>
+                <span class="price-tag free">${escapeHtml(g.pricing.label || "Free to Play")}</span>
+              </div>`;
+          } else if (g.pricing.status === "upcoming") {
+            priceHtml = `
+              <div class="game-price-row">
+                <span class="sr-only">Status rilis: </span>
+                <span class="price-tag upcoming">${escapeHtml(g.pricing.label || "Segera Hadir")}</span>
+              </div>`;
+          }
+        }
 
         const tagsHtml = Array.isArray(g.genres) && g.genres.length > 0
           ? `<div class="game-card-tags">${g.genres.map((t) => `<span class="game-tag">${escapeHtml(t)}</span>`).join("")}</div>`
@@ -258,6 +296,7 @@ function formatBotContent(raw) {
                 <h4 class="game-card-title">${title}</h4>
                 ${metaStr ? `<span class="game-card-meta">${metaStr}</span>` : ""}
               </div>
+              ${priceHtml}
               ${tagsHtml}
               <div class="game-card-body">
                 ${g.whyFit ? `<p class="game-card-desc"><strong>Kenapa cocok:</strong> ${inline(g.whyFit)}</p>` : ""}
@@ -275,6 +314,18 @@ function formatBotContent(raw) {
           </div>
         `;
       });
+
+      const hasValidPricing = structured.games.some(
+        (g) => g.pricing && g.pricing.status && g.pricing.status !== "unknown"
+      );
+      if (hasValidPricing) {
+        html += `
+          <div class="steam-attribution">
+            <small>Harga dan ketersediaan dicek per waktu respon, dapat berubah sewaktu-waktu. Data dari Steam Storefront.</small>
+          </div>
+        `;
+      }
+
       html += `</div>`;
     }
 
@@ -362,6 +413,8 @@ async function requestReply() {
     // Coba streaming via SSE terlebih dahulu (/api/chat/stream)
     let finalData = null;
     let streamSuccess = false;
+    let streamRawResult = null;
+    let fallbackRawResult = null;
 
     try {
       const streamRes = await fetch("/api/chat/stream", {
@@ -393,6 +446,7 @@ async function requestReply() {
               if (payload.error) throw new Error(payload.error);
               if (payload.done && payload.data) {
                 finalData = payload.data;
+                streamRawResult = payload.result || null;
                 streamSuccess = true;
               }
             } catch (parseErr) {
@@ -424,6 +478,7 @@ async function requestReply() {
       }
 
       finalData = data?.data || data?.result;
+      fallbackRawResult = data?.result || null;
     }
 
     typing.remove();
@@ -431,8 +486,50 @@ async function requestReply() {
       throw new Error("Balasan dari server kosong.");
     }
 
-    const savedText = typeof finalData === "object" ? JSON.stringify(finalData) : finalData;
-    history.push({ role: "model", text: savedText });
+    // Ekstrak teks bersih tanpa data kartu/harga sementara agar payload riwayat tidak membengkak
+    const cleanHistoryText = (() => {
+      const source = streamRawResult || fallbackRawResult;
+      if (typeof source === "string" && source.trim()) {
+        try {
+          const parsed = JSON.parse(source);
+          if (parsed && typeof parsed === "object" && Array.isArray(parsed.games)) {
+            return JSON.stringify({
+              intro: parsed.intro || "",
+              games: parsed.games.map((g) => ({
+                title: g.title,
+                year: g.year,
+                developer: g.developer,
+                genres: g.genres,
+                whyFit: g.whyFit,
+                specsAndBudget: g.specsAndBudget,
+              })),
+              followUp: parsed.followUp || "",
+            });
+          }
+        } catch {
+          return source.trim();
+        }
+      }
+      if (finalData && typeof finalData === "object") {
+        return JSON.stringify({
+          intro: finalData.intro || "",
+          games: Array.isArray(finalData.games)
+            ? finalData.games.map((g) => ({
+                title: g.title,
+                year: g.year,
+                developer: g.developer,
+                genres: g.genres,
+                whyFit: g.whyFit,
+                specsAndBudget: g.specsAndBudget,
+              }))
+            : [],
+          followUp: finalData.followUp || "",
+        });
+      }
+      return typeof finalData === "string" ? finalData : "";
+    })();
+
+    history.push({ role: "model", text: cleanHistoryText });
     saveHistoryToStorage();
     addMessage("bot", finalData);
   } catch (err) {
