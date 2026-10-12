@@ -60,6 +60,12 @@
         </div>
         <div class="topbar-actions">
           <span class="status"><i aria-hidden="true"></i>Online</span>
+          <button type="button" id="wishlist-btn" class="btn-ghost btn-wishlist-top" aria-label="Buka wishlist, 0 game tersimpan" aria-haspopup="dialog" aria-expanded="false">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+            Wishlist <span id="wishlist-badge" class="wishlist-count-badge">0</span>
+          </button>
           <button type="button" id="reset-btn" class="btn-ghost" title="Hapus obrolan dan mulai pencarian baru" aria-label="Reset chat">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" />
@@ -113,6 +119,56 @@
     </main>
   </div>
 
-  <script src="script.js"></script>
+  <!-- Modal Drawer Wishlist Lokal -->
+  <div id="wishlist-backdrop" class="modal-backdrop" hidden></div>
+  <aside
+    id="wishlist-panel"
+    class="wishlist-drawer"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="wishlist-title"
+    hidden
+  >
+    <div class="wishlist-header">
+      <div class="wishlist-header-title">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+        </svg>
+        <h2 id="wishlist-title">Wishlist Game</h2>
+        <span id="wishlist-drawer-count" class="wishlist-drawer-count">(0/50)</span>
+      </div>
+      <button type="button" id="wishlist-close-btn" class="btn-icon" aria-label="Tutup panel wishlist">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <div class="wishlist-notice">
+      <small>Harga tidak disimpan. Cek harga terbaru di halaman Steam.</small>
+    </div>
+
+    <div class="wishlist-toolbar">
+      <button type="button" id="wishlist-copy-btn" class="btn-ghost" aria-label="Salin daftar wishlist ke clipboard">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        Salin daftar
+      </button>
+      <span id="wishlist-copy-feedback" class="copy-feedback" role="status" aria-live="polite" hidden>Tersalin</span>
+    </div>
+
+    <div id="wishlist-content" class="wishlist-body">
+      <div id="wishlist-empty" class="wishlist-empty">
+        <p>Belum ada game tersimpan.</p>
+        <small>Klik tombol Wishlist pada kartu rekomendasi game untuk menyimpannya ke sini.</small>
+      </div>
+      <ul id="wishlist-items" class="wishlist-items" role="list"></ul>
+    </div>
+  </aside>
+
+  <script type="module" src="script.js"></script>
 </body>
 </html>
