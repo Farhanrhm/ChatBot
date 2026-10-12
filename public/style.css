@@ -282,7 +282,32 @@ button, textarea { font: inherit; color: inherit; }
   background: var(--bubble-user);
   color: var(--text-strong);
   border-top-right-radius: 2px;
+}
+
+.user-msg-text {
   white-space: pre-wrap;
+}
+
+.user-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.active-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(102, 192, 244, 0.35);
+  border-radius: 4px;
+  padding: 2px 7px;
+  letter-spacing: 0.2px;
 }
 
 /* Format teks balasan bot */
@@ -686,6 +711,106 @@ button, textarea { font: inherit; color: inherit; }
 }
 .composer-inner { max-width: 840px; margin: 0 auto; }
 
+/* Filter Preferensi Cepat */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 4px 2px;
+}
+
+.filter-groups {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-group-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filter-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter-chip {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.filter-chip:hover {
+  background: rgba(102, 192, 244, 0.1);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.filter-chip[aria-pressed="true"] {
+  background: rgba(102, 192, 244, 0.2);
+  border-color: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 0 10px rgba(102, 192, 244, 0.35);
+}
+
+.filter-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.clear-filters-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  font-size: 0.8rem;
+  color: var(--danger);
+  cursor: pointer;
+  text-decoration: underline;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.15s ease;
+}
+
+.clear-filters-btn:hover {
+  color: #ff9e9e;
+}
+
+.clear-filters-btn:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
 .chips {
   display: flex;
   gap: 8px;
@@ -801,6 +926,22 @@ button, textarea { font: inherit; color: inherit; }
 
 @media (max-width: 520px) {
   .capsules { grid-template-columns: minmax(0, 1fr); }
+  .filter-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .filter-groups {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .filter-group {
+    flex-shrink: 0;
+  }
   .btn-ghost {
     min-width: 44px;
     min-height: 44px;
