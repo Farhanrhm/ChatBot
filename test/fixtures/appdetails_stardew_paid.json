@@ -1,0 +1,288 @@
+{
+  "413150": {
+    "success": true,
+    "data": {
+      "type": "game",
+      "name": "Stardew Valley",
+      "steam_appid": 413150,
+      "required_age": 0,
+      "is_free": false,
+      "controller_support": "full",
+      "dlc": [
+        440820
+      ],
+      "supported_languages": "Bhs. Inggris, Bhs. Jerman, Bhs. Spanyol - Spanyol, Bhs. Jepang, Bhs. Portugis - Brasil, Bhs. Rusia, Bhs. Tionghoa Sederhana, Bhs. Prancis, Bhs. Italia, Bhs. Hungaria, Bhs. Korea, Bhs. Turki",
+      "reviews": "“Far more than just a farming game, this one-man labor of love is filled with seemingly endless content and heart.”<br>5/5 – Giant Bomb<br><br>“The core mechanics and relaxing aesthetic merge so well together that players will sink in to the experience and never want to leave.”<br>95 – Destructoid<br><br>“Stardew Valley has been the most rich and heartwarming experience I’ve had in a game in years.”<br>95 – CGMagazine<br>",
+      "header_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/413150/header.jpg?t=1786554168",
+      "capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/413150/capsule_231x87.jpg?t=1786554168",
+      "capsule_imagev5": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/413150/capsule_184x69.jpg?t=1786554168",
+      "website": "http://www.stardewvalley.net",
+      "pc_requirements": {
+        "minimum": "<strong>Minimum:</strong><br><ul class=\"bb_ul\"><li><strong>OS *:</strong> Windows Vista or greater<br></li><li><strong>Prosesor:</strong> 2 Ghz<br></li><li><strong>Memori:</strong> 2 GB RAM<br></li><li><strong>Grafis:</strong> 256 mb video memory, shader model 3.0+<br></li><li><strong>DirectX:</strong> Versi 10<br></li><li><strong>Penyimpanan:</strong> 500 MB ruang tersedia</li></ul>"
+      },
+      "mac_requirements": {
+        "minimum": "<strong>Minimum:</strong><br><ul class=\"bb_ul\"><li><strong>OS:</strong> Mac OSX 10.10+<br></li><li><strong>Prosesor:</strong> 2 Ghz<br></li><li><strong>Memori:</strong> 2 GB RAM<br></li><li><strong>Grafis:</strong> 256 mb video memory, OpenGL 2<br></li><li><strong>Penyimpanan:</strong> 500 MB ruang tersedia</li></ul>"
+      },
+      "linux_requirements": {
+        "minimum": "<strong>Minimum:</strong><br><ul class=\"bb_ul\"><li><strong>OS:</strong> Ubuntu 12.04 LTS<br></li><li><strong>Prosesor:</strong> 2 Ghz<br></li><li><strong>Memori:</strong> 2 GB RAM<br></li><li><strong>Grafis:</strong> 256 mb video memory, OpenGL 2<br></li><li><strong>Penyimpanan:</strong> 500 MB ruang tersedia</li></ul>"
+      },
+      "developers": [
+        "ConcernedApe"
+      ],
+      "publishers": [
+        "ConcernedApe"
+      ],
+      "price_overview": {
+        "currency": "IDR",
+        "initial": 11599900,
+        "final": 11599900,
+        "discount_percent": 0,
+        "initial_formatted": "",
+        "final_formatted": "Rp 115 999"
+      },
+      "packages": [
+        82712,
+        1729063
+      ],
+      "package_groups": [
+        {
+          "name": "default",
+          "title": "Beli Stardew Valley",
+          "description": "",
+          "selection_text": "Pilih opsi pembelian",
+          "save_text": "",
+          "display_type": 0,
+          "is_recurring_subscription": "false",
+          "subs": [
+            {
+              "packageid": 82712,
+              "percent_savings_text": " ",
+              "percent_savings": 0,
+              "option_text": "Stardew Valley - Rp 115 999",
+              "option_description": "",
+              "can_get_free_license": "0",
+              "is_free_license": false,
+              "price_in_cents_with_discount": 11599900
+            },
+            {
+              "packageid": 1729063,
+              "percent_savings_text": " ",
+              "percent_savings": 0,
+              "option_text": "Stardew Valley - Rp 134 999",
+              "option_description": "",
+              "can_get_free_license": "0",
+              "is_free_license": false,
+              "price_in_cents_with_discount": 13499900
+            }
+          ]
+        }
+      ],
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "metacritic": {
+        "score": 89,
+        "url": "https://www.metacritic.com/game/pc/stardew-valley?ftag=MCD-06-10aaa1f"
+      },
+      "categories": [
+        {
+          "id": 2,
+          "description": "Pemain Tunggal"
+        },
+        {
+          "id": 1,
+          "description": "Multipemain"
+        },
+        {
+          "id": 9,
+          "description": "Co-op"
+        },
+        {
+          "id": 38,
+          "description": "Co-op Online"
+        },
+        {
+          "id": 48,
+          "description": "Co-op LAN"
+        },
+        {
+          "id": 39,
+          "description": "Layar Co-op bersama/terpisah"
+        },
+        {
+          "id": 24,
+          "description": "Layar bersama/terpisah"
+        },
+        {
+          "id": 22,
+          "description": "Pencapaian Steam"
+        },
+        {
+          "id": 28,
+          "description": "Dukungan kontroler penuh"
+        },
+        {
+          "id": 29,
+          "description": "Trading Card Steam"
+        },
+        {
+          "id": 23,
+          "description": "Steam Cloud"
+        },
+        {
+          "id": 41,
+          "description": "Remote Play di Ponsel"
+        },
+        {
+          "id": 42,
+          "description": "Remote Play di Tablet"
+        },
+        {
+          "id": 44,
+          "description": "Remote Play Together"
+        },
+        {
+          "id": 62,
+          "description": "Berbagi dengan Keluarga"
+        }
+      ],
+      "genres": [
+        {
+          "id": "23",
+          "description": "Indie"
+        },
+        {
+          "id": "3",
+          "description": "RPG"
+        },
+        {
+          "id": "28",
+          "description": "Simulasi"
+        }
+      ],
+      "recommendations": {
+        "total": 899418
+      },
+      "achievements": {
+        "total": 49,
+        "highlighted": [
+          {
+            "icon": "dac82a85ceb1493bb2155d41890b4a6099f5eaa5.jpg",
+            "localized_name": "Greenhorn",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Greenhorn",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/413150/dac82a85ceb1493bb2155d41890b4a6099f5eaa5.jpg"
+          },
+          {
+            "icon": "2a5c84271214a05435ea1c7a60bacc1cbbc5fa5a.jpg",
+            "localized_name": "Cowpoke",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Cowpoke",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/413150/2a5c84271214a05435ea1c7a60bacc1cbbc5fa5a.jpg"
+          },
+          {
+            "icon": "b81de530e1de874a4add0b690d372df3ffc44ea2.jpg",
+            "localized_name": "Homesteader",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Homesteader",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/413150/b81de530e1de874a4add0b690d372df3ffc44ea2.jpg"
+          },
+          {
+            "icon": "f96dbf78eebf05e027d1ca2fb25296a7db8f2036.jpg",
+            "localized_name": "Millionaire",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Millionaire",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/413150/f96dbf78eebf05e027d1ca2fb25296a7db8f2036.jpg"
+          },
+          {
+            "icon": "0db49d4d468db3597bdbbd5c42296de05b02dc5d.jpg",
+            "localized_name": "Legend",
+            "archived": 0,
+            "hidden": 1,
+            "name": "Legend",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/413150/0db49d4d468db3597bdbbd5c42296de05b02dc5d.jpg"
+          },
+          {
+            "icon": "2ea2e98c122084b05cc8a0b60bf8c08050a10cfb.jpg",
+            "localized_name": "A Complete Collection",
+            "archived": 0,
+            "hidden": 0,
+            "name": "A Complete Collection",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/413150/2ea2e98c122084b05cc8a0b60bf8c08050a10cfb.jpg"
+          },
+          {
+            "icon": "73b81a2c4c59bfdf3d87bab03cb2932b4953fe18.jpg",
+            "localized_name": "A New Friend",
+            "archived": 0,
+            "hidden": 0,
+            "name": "A New Friend",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/413150/73b81a2c4c59bfdf3d87bab03cb2932b4953fe18.jpg"
+          },
+          {
+            "icon": "da975460e6ca17e1cf397d598d4eb9c65502f786.jpg",
+            "localized_name": "Best Friends",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Best Friends",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/413150/da975460e6ca17e1cf397d598d4eb9c65502f786.jpg"
+          },
+          {
+            "icon": "c0330b9f16d6491c4ac9569270d9edce2ce3cd7a.jpg",
+            "localized_name": "The Beloved Farmer",
+            "archived": 0,
+            "hidden": 0,
+            "name": "The Beloved Farmer",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/413150/c0330b9f16d6491c4ac9569270d9edce2ce3cd7a.jpg"
+          },
+          {
+            "icon": "dafe0ceff688bebb1c8554cbfa478e9826eb7074.jpg",
+            "localized_name": "Cliques",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Cliques",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/413150/dafe0ceff688bebb1c8554cbfa478e9826eb7074.jpg"
+          }
+        ]
+      },
+      "release_date": {
+        "coming_soon": false,
+        "date": "26 Feb 2016"
+      },
+      "background": "https://store.akamai.steamstatic.com/images/storepagebackground/app/413150?t=1786554168",
+      "background_raw": "https://store.akamai.steamstatic.com/images/storepagebackground/app/413150?t=1786554168",
+      "content_descriptors": {
+        "ids": [],
+        "notes": null
+      },
+      "ratings": {
+        "esrb": {
+          "rating": "e10",
+          "descriptors": "Fantasy Violence\r\nMild Blood\r\nMild Language\r\nUse of Alcohol and Tobacco\r\nSimulated Gambling",
+          "display_online_notice": "true"
+        },
+        "pegi": {
+          "rating": "12",
+          "descriptors": "Violence"
+        },
+        "usk": {
+          "rating": "6"
+        },
+        "oflc": {
+          "rating": "pg"
+        },
+        "dejus": {
+          "rating": "12",
+          "descriptors": "Violência fantasiosa\r\nViolência\r\nDrogas lícitas",
+          "use_age_gate": "true",
+          "required_age": "12"
+        }
+      }
+    }
+  }
+}

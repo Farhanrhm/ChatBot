@@ -1,0 +1,235 @@
+{
+  "5006530": {
+    "success": true,
+    "data": {
+      "type": "dlc",
+      "name": "The Witcher 3: Wild Hunt — Songs of the Past",
+      "steam_appid": 5006530,
+      "required_age": 0,
+      "is_free": false,
+      "controller_support": "full",
+      "fullgame": {
+        "appid": "292030",
+        "name": "The Witcher 3: Wild Hunt — Remastered"
+      },
+      "supported_languages": "Bhs. Inggris<strong>*</strong>, Bhs. Prancis<strong>*</strong>, Bhs. Italia, Bhs. Jerman<strong>*</strong>, Bhs. Spanyol - Spanyol, Bhs. Arab, Bhs. Ceko, Bhs. Hungaria, Bhs. Jepang<strong>*</strong>, Bhs. Korea<strong>*</strong>, Bhs. Polandia<strong>*</strong>, Bhs. Portugis - Brasil<strong>*</strong>, Bhs. Tionghoa Tradisional, Bhs. Turki, Bhs. Tionghoa Sederhana<strong>*</strong>, Bhs. Spanyol - Amerika Latin, Bhs. Ukraina, Bhs. Rusia<br><strong>*</strong>bahasa dengan dukungan audio penuh",
+      "header_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/5006530/021761d42f572fca3e2655f4b3245531baca78cf/header.jpg?t=1788763575",
+      "capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/5006530/875fd9ddfbd226be2f3b971acf103f033f0553c4/capsule_231x87.jpg?t=1788763575",
+      "capsule_imagev5": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/5006530/875fd9ddfbd226be2f3b971acf103f033f0553c4/capsule_184x69.jpg?t=1788763575",
+      "website": "https://www.thewitcher.com/witcher3",
+      "pc_requirements": {
+        "minimum": "<strong>Minimum:</strong><br><ul class=\"bb_ul\"><li>Prosesor 64-bit dan OS diperlukan<br></li><li><strong>OS:</strong> 64-bit Windows 11<br></li><li><strong>Prosesor:</strong> Core i5-8400 / Ryzen 5 2600<br></li><li><strong>Memori:</strong> 12 GB GB RAM<br></li><li><strong>Grafis:</strong> GeForce GTX 1660 / Radeon RX 5500 XT 8GB / Arc A580<br></li><li><strong>Penyimpanan:</strong> 70 GB ruang tersedia</li></ul>",
+        "recommended": "<strong>Direkomendasikan:</strong><br><ul class=\"bb_ul\"><li>Prosesor 64-bit dan OS diperlukan<br></li><li><strong>OS:</strong> 64-bit Windows 11<br></li><li><strong>Prosesor:</strong> Intel Core i7 8700K / AMD Ryzen 5 3600X<br></li><li><strong>Memori:</strong> 16 GB RAM<br></li><li><strong>Grafis:</strong> RTX 2060 Super / AMD Radeon RX 6600 XT / Intel Arc B580<br></li><li><strong>Penyimpanan:</strong> 70 GB ruang tersedia</li></ul>"
+      },
+      "mac_requirements": {
+        "minimum": "<strong>Minimum:</strong><br><ul class=\"bb_ul\"></ul>",
+        "recommended": "<strong>Direkomendasikan:</strong><br><ul class=\"bb_ul\"></ul>"
+      },
+      "linux_requirements": {
+        "minimum": "<strong>Minimum:</strong><br><ul class=\"bb_ul\"></ul>",
+        "recommended": "<strong>Direkomendasikan:</strong><br><ul class=\"bb_ul\"></ul>"
+      },
+      "legal_notice": "The Witcher 3: Wild Hunt – Songs of the Past © CD PROJEKT RED S.A. All rights reserved. CD PROJEKT, the CD PROJEKT logo, CD PROJEKT RED, the CD PROJEKT RED logo, REDengine, the REDengine logo, The Witcher, the The Witcher Logo, Songs of the Past and the Songs of the Past Logo are trademarks and/or registered trademarks of CD PROJEKT RED S.A. in the US and/or other countries. The Witcher game is set in the universe created by Andrzej Sapkowski in his series of books. All other copyrights and trademarks are the property of their respective owners.",
+      "developers": [
+        "CD PROJEKT RED",
+        "Fool's Theory",
+        "Yigsoft"
+      ],
+      "publishers": [
+        "CD PROJEKT RED"
+      ],
+      "package_groups": [],
+      "platforms": {
+        "windows": true,
+        "mac": false,
+        "linux": false
+      },
+      "categories": [
+        {
+          "id": 2,
+          "description": "Pemain Tunggal"
+        },
+        {
+          "id": 21,
+          "description": "DLC"
+        },
+        {
+          "id": 22,
+          "description": "Pencapaian Steam"
+        },
+        {
+          "id": 28,
+          "description": "Dukungan kontroler penuh"
+        },
+        {
+          "id": 29,
+          "description": "Trading Card Steam"
+        },
+        {
+          "id": 30,
+          "description": "Workshop Steam"
+        },
+        {
+          "id": 64,
+          "description": "Penyesuaian Ukuran Teks"
+        },
+        {
+          "id": 67,
+          "description": "Kenyamanan Kamera"
+        },
+        {
+          "id": 66,
+          "description": "Alternatif Warna"
+        },
+        {
+          "id": 68,
+          "description": "Kontrol Volume Kustom"
+        },
+        {
+          "id": 78,
+          "description": "Penyesuaian Tingkat Kesulitan"
+        },
+        {
+          "id": 74,
+          "description": "Dapat Dimainkan Tanpa Input Berjangka Waktu"
+        },
+        {
+          "id": 55,
+          "description": "Dukungan Kontroler DualShock"
+        },
+        {
+          "id": 56,
+          "description": "Dukungan Kontroler DualShock"
+        },
+        {
+          "id": 57,
+          "description": "Dukungan Kontroler DualSense"
+        },
+        {
+          "id": 58,
+          "description": "Dukungan Kontroler DualSense"
+        },
+        {
+          "id": 79,
+          "description": "Simpan Kapan Saja"
+        },
+        {
+          "id": 69,
+          "description": "Suara Stereo"
+        },
+        {
+          "id": 70,
+          "description": "Suara Surround"
+        },
+        {
+          "id": 23,
+          "description": "Steam Cloud"
+        },
+        {
+          "id": 42,
+          "description": "Remote Play di Tablet"
+        },
+        {
+          "id": 61,
+          "description": "HDR tersedia"
+        },
+        {
+          "id": 62,
+          "description": "Berbagi dengan Keluarga"
+        }
+      ],
+      "genres": [
+        {
+          "id": "1",
+          "description": "Aksi"
+        },
+        {
+          "id": "25",
+          "description": "Petualangan"
+        },
+        {
+          "id": "3",
+          "description": "RPG"
+        }
+      ],
+      "release_date": {
+        "coming_soon": true,
+        "date": "Segera Hadir"
+      },
+      "background": "https://store.akamai.steamstatic.com/images/storepagebackground/app/5006530?t=1788763575",
+      "background_raw": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/5006530/19397c816dc9910293dafce920dc98721f5b5fc1/page_bg_raw.jpg?t=1788763575",
+      "content_descriptors": {
+        "ids": [
+          1,
+          5
+        ],
+        "notes": "The Witcher 3: Wild Hunt contains strong language,\r\nintense violence, blood and gore, as well as nudity and\r\nsexual material."
+      },
+      "ratings": {
+        "esrb": {
+          "rating": "m",
+          "descriptors": "Blood and Gore\r\nIntense Violence\r\nNudity\r\nStrong Language\r\nStrong Sexual Content\r\nUse of Alcohol",
+          "use_age_gate": "true",
+          "required_age": "17"
+        },
+        "oflc": {
+          "rating": "r18",
+          "descriptors": "High impact violence and sex",
+          "use_age_gate": "true",
+          "required_age": "18"
+        },
+        "nzoflc": {
+          "rating": "r16",
+          "descriptors": "Violence\r\nSexual violence\r\nOffensive language and sex scenes",
+          "use_age_gate": "true",
+          "required_age": "16"
+        },
+        "kgrb": {
+          "rating": "19",
+          "descriptors": "Sexuality\r\nViolence\r\nLanguage\r\nDrugs",
+          "use_age_gate": "true",
+          "required_age": "19"
+        },
+        "dejus": {
+          "rating": "16",
+          "descriptors": "Conteúdo Sexual\r\nDrogas Lícitas\r\nViolência",
+          "use_age_gate": "true",
+          "required_age": "16"
+        },
+        "mda": {
+          "rating": "M18",
+          "descriptors": "STRONG VIOLENCE, NUDITY AND SEXUAL SCENES",
+          "use_age_gate": "true",
+          "required_age": "18"
+        },
+        "fpb": {
+          "rating": "18",
+          "descriptors": "SCENES CONTAINING IMAGES OF ILLEGAL DRUGS\r\nSCENES OF HORROR\r\nSTRONG LANGUAGE (SWEAR-WORDS, THREATS, ABUSE OR PREJUDICE)\r\nGRAPHIC OR PROLONGED PICTURES OF NUDITY\r\nTHERE MAY BE BRIEF SCENES OF SEXUAL ACTIVITY\r\nSCENES SHOWING PICTURES OF VIOLENCE",
+          "use_age_gate": "true",
+          "required_age": "18"
+        },
+        "crl": {
+          "rating": "18",
+          "use_age_gate": "true",
+          "required_age": "18"
+        },
+        "steam_germany": {
+          "rating_generated": "1",
+          "rating": "18",
+          "required_age": "18",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": "Sexuelle Inhalte\nDrastische Gewalt\nAlkohol / Tabak"
+        },
+        "igrs": {
+          "rating_generated": "1",
+          "rating": "BANNED",
+          "required_age": "2147483647",
+          "banned": "1",
+          "use_age_gate": "0",
+          "descriptors": "Penggunaan bahasa\nRokok dan/atau rokok elektronik, minuman beralkohol, narkotika, psikotropika, dan/atau zat adiktif lainnya\nPenampilan Tokoh"
+        }
+      }
+    }
+  }
+}

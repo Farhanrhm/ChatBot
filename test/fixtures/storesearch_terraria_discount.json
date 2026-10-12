@@ -1,0 +1,42 @@
+{
+  "total": 3,
+  "items": [
+    {
+      "type": "app",
+      "name": "Terraria",
+      "id": 105600,
+      "price": {
+        "currency": "IDR",
+        "initial": 9099900,
+        "final": 4549900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/105600/capsule_231x87.jpg?t=1769844435",
+      "metascore": "83",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false,
+      "controller_support": "full"
+    },
+    {
+      "type": "app",
+      "name": "Terraria: Official Soundtrack",
+      "id": 409210,
+      "price": {
+        "currency": "IDR",
+        "initial": 4749900,
+        "final": 2374900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/409210/capsule_231x87.jpg?t=1769542804",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false
+    }
+  ]
+}

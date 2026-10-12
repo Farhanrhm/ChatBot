@@ -1,0 +1,197 @@
+{
+  "570": {
+    "success": true,
+    "data": {
+      "type": "game",
+      "name": "Dota 2",
+      "steam_appid": 570,
+      "required_age": 0,
+      "is_free": true,
+      "dlc": [
+        1241930,
+        652720
+      ],
+      "supported_languages": "Bhs. Bulgaria, Bhs. Ceko, Bhs. Denmark, Bhs. Belanda, Bhs. Inggris<strong>*</strong>, Bhs. Finlandia, Bhs. Prancis, Bhs. Jerman, Bhs. Yunani, Bhs. Hungaria, Bhs. Italia, Bhs. Jepang, Bhs. Korea<strong>*</strong>, Bhs. Norwegia, Bhs. Polandia, Bhs. Portugis - Portugal, Bhs. Portugis - Brasil, Bhs. Rumania, Bhs. Rusia, Bhs. Tionghoa Sederhana<strong>*</strong>, Bhs. Spanyol - Spanyol, Bhs. Swedia, Bhs. Thai, Bhs. Tionghoa Tradisional, Bhs. Turki, Bhs. Ukraina, Bhs. Spanyol - Amerika Latin, Bhs. Vietnam<br><strong>*</strong>bahasa dengan dukungan audio penuh",
+      "reviews": "“A modern multiplayer masterpiece.”<br>9.5/10 – Destructoid<br><br>“Once you start to learn its secrets, there’s a wild and exciting variety of play here that’s unmatched, even by its peers.”<br>9.4/10 – IGN<br><br>“Dota 2 is possibly the only competitive free-to-play game that is totally uncompromised by its business model.”<br>90/100 – PC Gamer<br>",
+      "header_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/570/header.jpg?t=1791407503",
+      "capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/570/capsule_231x87.jpg?t=1791407503",
+      "capsule_imagev5": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/570/capsule_184x69.jpg?t=1791407503",
+      "website": "http://www.dota2.com/",
+      "pc_requirements": {
+        "minimum": "<strong>Minimum:</strong><br><ul class=\"bb_ul\"><li><strong>OS *:</strong> Windows 7 or newer<br></li><li><strong>Prosesor:</strong> Dual core from Intel or AMD at 2.8 GHz<br></li><li><strong>Memori:</strong> 4 GB RAM<br></li><li><strong>Grafis:</strong> NVIDIA GeForce 8600/9600GT, ATI/AMD Radeon HD2600/3600<br></li><li><strong>DirectX:</strong> Versi 11<br></li><li><strong>Jaringan:</strong> Koneksi Internet Broadband<br></li><li><strong>Penyimpanan:</strong> 60 GB ruang tersedia<br></li><li><strong>Kartu suara:</strong> DirectX Compatible</li></ul>"
+      },
+      "mac_requirements": {
+        "minimum": "<strong>Minimum:</strong><br><ul class=\"bb_ul\"><li><strong>OS:</strong> macOS 10.15 or newer<br></li><li><strong>Prosesor:</strong> Dual core from Intel<br></li><li><strong>Memori:</strong> 4 GB RAM<br></li><li><strong>Grafis:</strong> Metal-capable GPU (AMD GCN-based GPU or newer, NVIDIA Kepler-based GPU or newer, Intel HD 4000 or newer)<br></li><li><strong>Jaringan:</strong> Koneksi Internet Broadband<br></li><li><strong>Penyimpanan:</strong> 60 GB ruang tersedia</li></ul>"
+      },
+      "linux_requirements": {
+        "minimum": "<strong>Minimum:</strong><br><ul class=\"bb_ul\"><li><strong>OS:</strong> Ubuntu 12.04 or newer<br></li><li><strong>Prosesor:</strong> Dual core from Intel or AMD at 2.8 GHz<br></li><li><strong>Memori:</strong> 4 GB RAM<br></li><li><strong>Grafis:</strong> AMD GCN+, NVIDIA Kepler+, or Intel HD 5000-series or newer<br></li><li><strong>Jaringan:</strong> Koneksi Internet Broadband<br></li><li><strong>Penyimpanan:</strong> 60 GB ruang tersedia<br></li><li><strong>Kartu suara:</strong> OpenAL Compatible Sound Card</li></ul>"
+      },
+      "developers": [
+        "Valve"
+      ],
+      "publishers": [
+        "Valve"
+      ],
+      "packages": [
+        49307,
+        197846,
+        330209
+      ],
+      "package_groups": [
+        {
+          "name": "default",
+          "title": "Beli Dota 2",
+          "description": "",
+          "selection_text": "Pilih opsi pembelian",
+          "save_text": "",
+          "display_type": 0,
+          "is_recurring_subscription": "false",
+          "subs": [
+            {
+              "packageid": 197846,
+              "percent_savings_text": " ",
+              "percent_savings": 0,
+              "option_text": "Dota 2 - Commercial License - Gratis",
+              "option_description": "",
+              "can_get_free_license": "0",
+              "is_free_license": true,
+              "price_in_cents_with_discount": 0
+            }
+          ]
+        }
+      ],
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "metacritic": {
+        "score": 90,
+        "url": "https://www.metacritic.com/game/pc/dota-2?ftag=MCD-06-10aaa1f"
+      },
+      "categories": [
+        {
+          "id": 1,
+          "description": "Multipemain"
+        },
+        {
+          "id": 9,
+          "description": "Co-op"
+        },
+        {
+          "id": 29,
+          "description": "Trading Card Steam"
+        },
+        {
+          "id": 30,
+          "description": "Workshop Steam"
+        },
+        {
+          "id": 40,
+          "description": "Koleksi SteamVR"
+        },
+        {
+          "id": 35,
+          "description": "Pembelian dalam Aplikasi"
+        },
+        {
+          "id": 67,
+          "description": "Kenyamanan Kamera"
+        },
+        {
+          "id": 66,
+          "description": "Alternatif Warna"
+        },
+        {
+          "id": 68,
+          "description": "Kontrol Volume Kustom"
+        },
+        {
+          "id": 8,
+          "description": "Valve Anti-Cheat diaktifkan"
+        },
+        {
+          "id": 63,
+          "description": "Steam Timeline"
+        }
+      ],
+      "genres": [
+        {
+          "id": "1",
+          "description": "Aksi"
+        },
+        {
+          "id": "2",
+          "description": "Strategi"
+        },
+        {
+          "id": "37",
+          "description": "F2P"
+        }
+      ],
+      "recommendations": {
+        "total": 14374
+      },
+      "release_date": {
+        "coming_soon": false,
+        "date": "9 Jul 2013"
+      },
+      "background": "https://store.akamai.steamstatic.com/images/storepagebackground/app/570?t=1791407503",
+      "background_raw": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/570/page_bg_raw.jpg?t=1791407503",
+      "content_descriptors": {
+        "ids": [
+          5
+        ],
+        "notes": "Dota 2 mengandung kekerasan fantasi, konsumsi alkohol, dan ketelanjangan sebagian ringan.\r\n"
+      },
+      "ratings": {
+        "kgrb": {
+          "rating": "12",
+          "descriptors": "12 (12세 이상 이용가)\r\n만 12세 미만의 자는\r\n이용할 수 없는 게임물"
+        },
+        "usk": {
+          "rating": "12"
+        },
+        "agcom": {
+          "rating": "12",
+          "descriptors": "Violenza"
+        },
+        "cadpa": {
+          "rating": "12"
+        },
+        "dejus": {
+          "rating_generated": "1",
+          "rating": "18",
+          "required_age": "18",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": "Drogas lícitas\nMedo"
+        },
+        "steam_germany": {
+          "rating_generated": "1",
+          "rating": "16",
+          "required_age": "16",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": "Alkohol / Tabak\nGewalt"
+        },
+        "igrs": {
+          "rating_generated": "1",
+          "rating": "18",
+          "required_age": "18",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": "Interaksi Daring\nRokok dan/atau rokok elektronik, minuman beralkohol, narkotika, psikotropika, dan/atau zat adiktif lainnya\nHoror"
+        },
+        "steam_australia": {
+          "rating_generated": "1",
+          "rating": "M",
+          "required_age": "15",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": "Drug Themes\nMild horror themes\nMild Violence"
+        }
+      }
+    }
+  }
+}

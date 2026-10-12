@@ -1,0 +1,31 @@
+{
+  "total": 3,
+  "items": [
+    {
+      "type": "app",
+      "name": "Judas",
+      "id": 388860,
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/388860/5b69d02005995a12ebd62a7cec68e74f49ff3a7a/capsule_231x87.jpg?t=1775684480",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": false,
+        "linux": false
+      },
+      "streamingvideo": false
+    },
+    {
+      "type": "app",
+      "name": "The Judas Ghost",
+      "id": 3194440,
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3194440/b7408796e3ae0c90e596b09a49fa268009dfce92/capsule_231x87.jpg?t=1725710588",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": false,
+        "linux": false
+      },
+      "streamingvideo": false
+    }
+  ]
+}

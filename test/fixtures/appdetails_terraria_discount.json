@@ -1,0 +1,305 @@
+{
+  "105600": {
+    "success": true,
+    "data": {
+      "type": "game",
+      "name": "Terraria",
+      "steam_appid": 105600,
+      "required_age": 0,
+      "is_free": false,
+      "controller_support": "full",
+      "dlc": [
+        409210,
+        1323320
+      ],
+      "supported_languages": "Bhs. Inggris, Bhs. Prancis, Bhs. Italia, Bhs. Jerman, Bhs. Spanyol - Spanyol, Bhs. Polandia, Bhs. Portugis - Brasil, Bhs. Rusia, Bhs. Tionghoa Sederhana",
+      "header_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/105600/header.jpg?t=1769844435",
+      "capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/105600/capsule_231x87.jpg?t=1769844435",
+      "capsule_imagev5": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/105600/capsule_184x69.jpg?t=1769844435",
+      "website": "http://www.terraria.org/",
+      "pc_requirements": {
+        "minimum": "<h2 class=\"bb_tag\" ><strong>REQUIRED</strong></h2><ul class=\"bb_ul\"><li><strong>OS: Windows Xp, Vista, 7, 8/8.1, 10</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Processor: 2.0 Ghz</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Memory: 2.5GB</strong><br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Hard Disk Space: 200MB </strong> \t<br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Video Card: 128mb Video Memory, capable of Shader Model 2.0+</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>DirectX®: 9.0c or Greater</strong> \t<br>\t\t\t\t\t\t\t\t\t</li></ul>",
+        "recommended": "<h2 class=\"bb_tag\" ><strong>RECOMMENDED</strong></h2><ul class=\"bb_ul\"><li><strong>OS: Windows 7, 8/8.1, 10</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Processor: Dual Core 3.0 Ghz</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Memory: 4GB</strong><br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Hard Disk Space: 200MB </strong> \t<br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Video Card: 256mb Video Memory, capable of Shader Model 2.0+</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>DirectX®: 9.0c or Greater</strong> \t<br>\t\t\t\t\t\t\t\t\t</li></ul>"
+      },
+      "mac_requirements": {
+        "minimum": "<h2 class=\"bb_tag\" ><strong>REQUIRED</strong></h2><ul class=\"bb_ul\"><li><strong>OS: OSX 10.9.5 - 10.11.6</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Processor: 2.0 Ghz</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Memory: 2.5GB</strong><br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Hard Disk Space: 200MB </strong> \t<br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Video Card: 128mb Video Memory, capable of OpenGL 3.0+ support (2.1 with ARB extensions acceptable</strong> <br>\t\t\t\t\t\t\t\t\t</li></ul>",
+        "recommended": "<h2 class=\"bb_tag\" ><strong>RECOMMENDED</strong></h2><ul class=\"bb_ul\"><li><strong>OS: OSX 10.9.5 - 10.11.6</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Processor: Dual Core 3.0 Ghz</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Memory: 4GB</strong><br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Hard Disk Space: 200MB </strong> \t<br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Video Card: 256mb Video Memory, capable of OpenGL 3.0+ support (2.1 with ARB extensions acceptable</strong> <br>\t\t\t\t\t\t\t\t\t</li></ul>"
+      },
+      "linux_requirements": {
+        "minimum": "<h2 class=\"bb_tag\" ><strong>REQUIRED</strong></h2>LINUX<br><ul class=\"bb_ul\"><li><strong>OS: Ubuntu 14.04 LTS</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Processor: 2.0 Ghz</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Memory: 2.5GB</strong><br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Hard Disk Space: 200MB </strong> \t<br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Video Card: 128mb Video Memory, capable of OpenGL 3.0+ support (2.1 with ARB extensions acceptable</strong> <br>\t\t\t\t\t\t\t\t\t</li></ul>",
+        "recommended": "<h2 class=\"bb_tag\" ><strong>RECOMMENDED</strong></h2>LINUX<br><ul class=\"bb_ul\"><li><strong>OS: Ubuntu 14.04 LTS</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Processor: Dual Core 3.0 Ghz</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Memory: 4GB</strong><br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Hard Disk Space: 200MB </strong> \t<br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Video Card: 256mb Video Memory, capable of OpenGL 3.0+ support (2.1 with ARB extensions acceptable</strong> <br>\t\t\t\t\t\t\t\t\t</li></ul>"
+      },
+      "developers": [
+        "Re-Logic"
+      ],
+      "publishers": [
+        "Re-Logic"
+      ],
+      "price_overview": {
+        "currency": "IDR",
+        "initial": 9099900,
+        "final": 4549900,
+        "discount_percent": 50,
+        "initial_formatted": "Rp 90 999",
+        "final_formatted": "Rp 45 499"
+      },
+      "packages": [
+        8183,
+        356628,
+        8184
+      ],
+      "package_groups": [
+        {
+          "name": "default",
+          "title": "Beli Terraria",
+          "description": "",
+          "selection_text": "Pilih opsi pembelian",
+          "save_text": "",
+          "display_type": 0,
+          "is_recurring_subscription": "false",
+          "subs": [
+            {
+              "packageid": 8183,
+              "percent_savings_text": "-50% ",
+              "percent_savings": 0,
+              "option_text": "Terraria - <span class=\"discount_original_price\">Rp 90 999</span> Rp 45 499",
+              "option_description": "",
+              "can_get_free_license": "0",
+              "is_free_license": false,
+              "price_in_cents_with_discount": 4549900
+            },
+            {
+              "packageid": 356628,
+              "percent_savings_text": " ",
+              "percent_savings": 0,
+              "option_text": "Terraria - Commercial License - Rp 69 999",
+              "option_description": "",
+              "can_get_free_license": "0",
+              "is_free_license": false,
+              "price_in_cents_with_discount": 6999900
+            },
+            {
+              "packageid": 8184,
+              "percent_savings_text": "-50% ",
+              "percent_savings": 0,
+              "option_text": "Terraria 4-Pack - <span class=\"discount_original_price\">Rp 245 999</span> Rp 122 999",
+              "option_description": "",
+              "can_get_free_license": "0",
+              "is_free_license": false,
+              "price_in_cents_with_discount": 12299900
+            }
+          ]
+        }
+      ],
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "metacritic": {
+        "score": 83,
+        "url": "https://www.metacritic.com/game/pc/terraria?ftag=MCD-06-10aaa1f"
+      },
+      "categories": [
+        {
+          "id": 2,
+          "description": "Pemain Tunggal"
+        },
+        {
+          "id": 1,
+          "description": "Multipemain"
+        },
+        {
+          "id": 49,
+          "description": "PvP"
+        },
+        {
+          "id": 36,
+          "description": "PvP Online"
+        },
+        {
+          "id": 9,
+          "description": "Co-op"
+        },
+        {
+          "id": 38,
+          "description": "Co-op Online"
+        },
+        {
+          "id": 22,
+          "description": "Pencapaian Steam"
+        },
+        {
+          "id": 28,
+          "description": "Dukungan kontroler penuh"
+        },
+        {
+          "id": 29,
+          "description": "Trading Card Steam"
+        },
+        {
+          "id": 23,
+          "description": "Steam Cloud"
+        },
+        {
+          "id": 41,
+          "description": "Remote Play di Ponsel"
+        },
+        {
+          "id": 42,
+          "description": "Remote Play di Tablet"
+        },
+        {
+          "id": 43,
+          "description": "Remote Play di TV"
+        },
+        {
+          "id": 62,
+          "description": "Berbagi dengan Keluarga"
+        }
+      ],
+      "genres": [
+        {
+          "id": "1",
+          "description": "Aksi"
+        },
+        {
+          "id": "25",
+          "description": "Petualangan"
+        },
+        {
+          "id": "23",
+          "description": "Indie"
+        },
+        {
+          "id": "3",
+          "description": "RPG"
+        }
+      ],
+      "recommendations": {
+        "total": 1245592
+      },
+      "achievements": {
+        "total": 137,
+        "highlighted": [
+          {
+            "icon": "0fbb33098c9da39d1d4771d8209afface9c46e81.jpg",
+            "localized_name": "Timber!!",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Timber!!",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/105600/0fbb33098c9da39d1d4771d8209afface9c46e81.jpg"
+          },
+          {
+            "icon": "65bbc5ea6a030b963d9a06e5e1b315c3872837a3.jpg",
+            "localized_name": "No Hobo",
+            "archived": 0,
+            "hidden": 0,
+            "name": "No Hobo",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/105600/65bbc5ea6a030b963d9a06e5e1b315c3872837a3.jpg"
+          },
+          {
+            "icon": "4760436e9973519098bb2cc419339d24e56af139.jpg",
+            "localized_name": "Stop! Hammer Time!",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Stop! Hammer Time!",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/105600/4760436e9973519098bb2cc419339d24e56af139.jpg"
+          },
+          {
+            "icon": "57b929ffd1a732ffc49abc6c53387e08bac4cbbb.jpg",
+            "localized_name": "Ooo! Shiny!",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Ooo! Shiny!",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/105600/57b929ffd1a732ffc49abc6c53387e08bac4cbbb.jpg"
+          },
+          {
+            "icon": "8243e4a0f7f803cd06cf37d64d11e04697afe30c.jpg",
+            "localized_name": "Heart Breaker",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Heart Breaker",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/105600/8243e4a0f7f803cd06cf37d64d11e04697afe30c.jpg"
+          },
+          {
+            "icon": "f727271437793b278c809a067fa2334ea2846f34.jpg",
+            "localized_name": "Heavy Metal",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Heavy Metal",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/105600/f727271437793b278c809a067fa2334ea2846f34.jpg"
+          },
+          {
+            "icon": "6705287adc42e2741d632c2d714424b2aa3e5716.jpg",
+            "localized_name": "I Am Loot!",
+            "archived": 0,
+            "hidden": 0,
+            "name": "I Am Loot!",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/105600/6705287adc42e2741d632c2d714424b2aa3e5716.jpg"
+          },
+          {
+            "icon": "738ca7765e32895918979d31d600d19254b14190.jpg",
+            "localized_name": "Star Power",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Star Power",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/105600/738ca7765e32895918979d31d600d19254b14190.jpg"
+          },
+          {
+            "icon": "0e2a5e080563ce9c30cf3b45dd155d18640f0bf6.jpg",
+            "localized_name": "Hold on Tight!",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Hold on Tight!",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/105600/0e2a5e080563ce9c30cf3b45dd155d18640f0bf6.jpg"
+          },
+          {
+            "icon": "b10b068163125e13444e2cdb145c1a200c7ad607.jpg",
+            "localized_name": "Eye on You",
+            "archived": 0,
+            "hidden": 0,
+            "name": "Eye on You",
+            "path": "https://shared.akamai.steamstatic.com/community_assets/images/apps/105600/b10b068163125e13444e2cdb145c1a200c7ad607.jpg"
+          }
+        ]
+      },
+      "release_date": {
+        "coming_soon": false,
+        "date": "16 Mei 2011"
+      },
+      "background": "https://store.akamai.steamstatic.com/images/storepagebackground/app/105600?t=1769844435",
+      "background_raw": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/105600/page_bg_raw.jpg?t=1769844435",
+      "content_descriptors": {
+        "ids": [],
+        "notes": null
+      },
+      "ratings": {
+        "dejus": {
+          "rating_generated": "1",
+          "rating": "6",
+          "required_age": "6",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": "Violência fantasiosa"
+        },
+        "steam_germany": {
+          "rating_generated": "1",
+          "rating": "12",
+          "required_age": "12",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": "Fantasy-Gewalt"
+        },
+        "igrs": {
+          "rating_generated": "1",
+          "rating": "13",
+          "required_age": "13",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": "Kekerasan\nInteraksi Daring"
+        }
+      }
+    }
+  }
+}
