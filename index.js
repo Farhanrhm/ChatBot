@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { SYSTEM_INSTRUCTION } from './prompts/systemPrompt.js';
 import { getSteamGameDetails, enrichGamesWithSteam } from './services/steamStore.js';
+import { defaultDailyCap } from './services/dailyCap.js';
 
 // Deteksi mode pengujian unit agar tidak memblokir CI saat tanpa API key
 const isTestMode =
@@ -233,13 +234,17 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 1000) {
   }
 }
 
-// Endpoint status kesehatan server
+// Endpoint status kesehatan server (health check untuk hosting Render & Railway)
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: Math.round(process.uptime()),
+  });
 });
 
 // Endpoint chat utama
-app.post('/api/chat', chatRateLimiter, async (req, res) => {
+app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req, res) => {
   try {
     const { conversation } = req.body || {};
 
@@ -304,7 +309,7 @@ app.post('/api/chat', chatRateLimiter, async (req, res) => {
 });
 
 // Endpoint chat streaming via Server-Sent Events (SSE) (Fase 3 Opsi C)
-app.post('/api/chat/stream', chatRateLimiter, async (req, res) => {
+app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), async (req, res) => {
   try {
     const { conversation } = req.body || {};
     const contents = toContents(conversation);
@@ -359,8 +364,8 @@ app.post('/api/chat/stream', chatRateLimiter, async (req, res) => {
 });
 
 if (!isTestMode) {
-  const server = app.listen(PORT, () => {
-    console.log(`SteamScout server ready on http://localhost:${PORT}`);
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`SteamScout server ready on http://0.0.0.0:${PORT}`);
   });
 
   // Penanganan Graceful Shutdown dengan batas waktu paksa 10 detik
