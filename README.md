@@ -181,7 +181,7 @@ final_project/
 ## Live Demo
 
 Aplikasi dapat diakses secara publik melalui tautan demo berikut:
-👉 [https://steamscout.onrender.com](https://steamscout.onrender.com)
+[https://steamscout.onrender.com](https://steamscout.onrender.com)
 
 > [!NOTE]
 > * **Cold Start pada Layanan Gratis**: Pada penyedia hosting cloud gratis (seperti Render Free Instance), server akan tidur (*sleep*) jika tidak ada lalu lintas. Permintaan pertama mungkin membutuhkan waktu 30-50 detik untuk merespons kembali.
@@ -288,4 +288,12 @@ SteamScout memverifikasi judul rekomendasi ke API publik Steam Storefront untuk 
 ## Disclaimer
 
 Proyek ini dibuat untuk tujuan edukasi dan portofolio. Aplikasi ini **tidak berafiliasi, disponsori, atau didukung secara resmi oleh Valve Corporation maupun platform Steam**. Semua nama game, merek dagang, dan materi berhak cipta merupakan milik pemiliknya masing-masing.
+
+---
+
+## Atribusi & Lisensi
+
+- **Ikon UI**: Menggunakan ikon SVG dari [Lucide Icons](https://lucide.dev) yang dilisensikan di bawah [ISC License](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
+- **Font**: Inter dan Outfit dari [Google Fonts](https://fonts.google.com) (SIL Open Font License).
+- **Lisensi Proyek**: Proyek ini dilisensikan di bawah lisensi MIT.
 
