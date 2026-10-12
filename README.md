@@ -166,6 +166,46 @@ final_project/
 
 ---
 
+## Live Demo
+
+Aplikasi dapat diakses secara publik melalui tautan demo berikut:
+👉 [https://steamscout.onrender.com](https://steamscout.onrender.com)
+
+> [!NOTE]
+> * **Cold Start pada Layanan Gratis**: Pada penyedia hosting cloud gratis (seperti Render Free Instance), server akan tidur (*sleep*) jika tidak ada lalu lintas. Permintaan pertama mungkin membutuhkan waktu 30-50 detik untuk merespons kembali.
+> * **Batas Kuota Demo**: Untuk melindungi kuota Google AI Studio, demo publik dibatasi maksimal 500 permintaan per hari secara global dan 60 pesan per hari per IP.
+
+---
+
+## Panduan Deploy ke Cloud
+
+Aplikasi SteamScout siap di-deploy langsung ke penyedia hosting cloud seperti **Render** atau **Railway**.
+
+### 1. Deploy ke Render (Web Service)
+1. Hubungkan repositori GitHub Anda ke akun Render.
+2. Buat **New Web Service** dan pilih repositori `ChatBot`.
+3. Atur konfigurasi build dan start:
+   - **Environment**: `Node`
+   - **Branch**: `main`
+   - **Build Command**: `npm ci`
+   - **Start Command**: `npm start`
+   - **Health Check Path**: `/api/health`
+4. Tambahkan **Environment Variables** di dashboard Render:
+   - `GEMINI_API_KEY`: *(Kunci API Google Gemini Anda)*
+   - `GEMINI_MODEL`: `gemini-2.5-flash`
+   - `NODE_ENV`: `production`
+   - `DAILY_REQUEST_CAP`: `500`
+   - `DAILY_REQUEST_CAP_PER_IP`: `60`
+5. Klik **Create Web Service**.
+
+### 2. Deploy ke Railway
+1. Buat **New Project** di Railway dan pilih **Deploy from GitHub repo**.
+2. Buka tab **Settings** dan atur **Healthcheck Path** ke `/api/health`.
+3. Buka tab **Variables** dan masukkan variabel lingkungan yang sama (`GEMINI_API_KEY`, `GEMINI_MODEL`, `NODE_ENV`, `DAILY_REQUEST_CAP`, `DAILY_REQUEST_CAP_PER_IP`).
+4. Pada tab **Networking**, klik **Generate Domain** untuk mendapatkan URL publik HTTPS.
+
+---
+
 ## Penjelasan Variabel Lingkungan (`.env`)
 
 | Variabel | Deskripsi | Default |
@@ -174,9 +214,11 @@ final_project/
 | `GEMINI_MODEL` | Nama model AI yang digunakan | `gemini-2.5-flash` |
 | `GEMINI_TEMPERATURE` | Tingkat kreativitas variasi jawaban AI | `0.75` |
 | `PORT` | Port server lokal Express | `3000` |
-| `NODE_ENV` | Mode lingkungan aplikasi | `development` |
+| `NODE_ENV` | Mode lingkungan aplikasi (`production` / `development`) | `development` |
 | `RATE_LIMIT_WINDOW_MS` | Jendela waktu rate limit (dalam milidetik) | `60000` (1 menit) |
-| `RATE_LIMIT_MAX` | Maksimal request yang diizinkan per IP | `20` |
+| `RATE_LIMIT_MAX` | Maksimal request yang diizinkan per menit per IP | `20` |
+| `DAILY_REQUEST_CAP` | Batas maksimal total request demo per hari secara global | `500` |
+| `DAILY_REQUEST_CAP_PER_IP` | Batas maksimal pesan demo per hari per alamat IP | `60` |
 
 ---
 

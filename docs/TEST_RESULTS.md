@@ -81,3 +81,24 @@ Semua test case memeriksa:
 - Pembersihan role `model` di awal percakapan.
 - Pemotongan otomatis maksimal 20 giliran percakapan terakhir.
 - Penolakan jika teks user melebihi 1000 karakter.
+- Validasi status harga, diskon, dan penolakan sekuel Steam.
+- Batasan kuota harian (`DailyCapLimiter`) dan reset pergantian tanggal.
+
+---
+
+## 4. Daftar Uji Pasca-Deploy Produksi (Render / Railway)
+
+Jalankan pengujian ini setelah aplikasi selesai dipublikasikan ke layanan hosting cloud:
+
+| No | Skenario Uji | Tindakan / Pengujian | Hasil yang Diharapkan | Hasil Aktual | Status |
+|:--:|---|---|---|---|:--:|
+| 1 | Akses Protokol HTTPS | Buka URL produksi publik di browser | Halaman termuat dengan aman melalui koneksi HTTPS tanpa peringatan sertifikat SSL. |  |  |
+| 2 | Keamanan CSP & Font | Buka Developer Tools > Console | Font Google Fonts dan gambar Steam termuat tanpa pelanggaran Content Security Policy (CSP). |  |  |
+| 3 | Obrolan Interaktif | Kirim pertanyaan: `"Game seru untuk laptop kentang"` | Bot kurator merespons lancar dengan teks pembuka, rekomendasi game, dan penutup. |  |  |
+| 4 | Kartu Game Interaktif | Periksa respon rekomendasi | Menampilkan kartu game rapi lengkap dengan judul, developer, tag genre, dan penjelasan. |  |  |
+| 5 | Data Harga & Poster Steam | Periksa poster dan baris harga pada kartu | Poster resmi Steam termuat, status harga (harga normal/diskon/Free to Play) tampil akurat, atau fallback rapi tanpa harga. |  |  |
+| 6 | Uji Trust Proxy (Multi-IP) | Akses aplikasi dari dua perangkat / jaringan berbeda | Rate limiter menghitung IP masing-masing secara independen (`trust proxy: 1` berfungsi). |  |  |
+| 7 | Health Check Server | Akses URL `https://<domain>/api/health` | Server mengembalikan HTTP 200 dengan JSON `{ status: "healthy", uptime: ..., timestamp: ... }`. |  |  |
+| 8 | Batas Kuota Harian | Kirim pesan melebihi batas harian per IP (60 pesan) | Server merespons HTTP 429 dengan pesan ramah berbahasa Indonesia bahwa kuota harian telah tercapai. |  |  |
+| 9 | Responsivitas Layar Ponsel | Buka URL di ponsel atau emulator browser 375px | Seluruh elemen (topbar, kartu game, composer) reflow rapi tanpa scroll horizontal. |  |  |
+
