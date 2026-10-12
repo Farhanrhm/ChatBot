@@ -73,10 +73,42 @@ function updateFilterUI() {
     chip.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
 
-  const hasActive =
-    activePreferences.spec !== "any" ||
-    activePreferences.budget !== "any" ||
-    activePreferences.mode !== "any";
+  const activeParts = [];
+  let activeCount = 0;
+  if (activePreferences.spec !== "any" && PREF_TEXT_MAP.spec[activePreferences.spec]) {
+    activeParts.push(PREF_TEXT_MAP.spec[activePreferences.spec]);
+    activeCount++;
+  }
+  if (activePreferences.budget !== "any" && PREF_TEXT_MAP.budget[activePreferences.budget]) {
+    activeParts.push(PREF_TEXT_MAP.budget[activePreferences.budget]);
+    activeCount++;
+  }
+  if (activePreferences.mode !== "any" && PREF_TEXT_MAP.mode[activePreferences.mode]) {
+    activeParts.push(PREF_TEXT_MAP.mode[activePreferences.mode]);
+    activeCount++;
+  }
+
+  // Perbarui teks ringkasan filter aktif di samping tombol trigger mobile
+  if (els.filterSummaryText) {
+    els.filterSummaryText.textContent = activeParts.length > 0 ? activeParts.join(", ") : "Semua";
+  }
+
+  // Perbarui badge jumlah filter aktif pada tombol trigger mobile
+  if (els.filterActiveCount) {
+    els.filterActiveCount.textContent = String(activeCount);
+    els.filterActiveCount.hidden = activeCount === 0;
+  }
+
+  if (els.filterToggleBtn) {
+    els.filterToggleBtn.setAttribute(
+      "aria-label",
+      activeCount > 0
+        ? `Buka filter preferensi, ${activeCount} aktif: ${activeParts.join(", ")}`
+        : "Buka filter preferensi"
+    );
+  }
+
+  const hasActive = activeCount > 0;
   if (els.clearFiltersBtn) {
     els.clearFiltersBtn.hidden = !hasActive;
   }
@@ -99,10 +131,10 @@ function extractReply(data) {
 
 // Saran cepat untuk memulai obrolan
 const QUICK_PROMPTS = [
-  { icon: "💻", label: "Laptop kentang", hint: "Ringan tapi tetap seru", tint: "#66c0f4", prompt: "Game seru untuk laptop kentang" },
-  { icon: "🤝", label: "Co-op santai", hint: "Main bareng teman", tint: "#a4d007", prompt: "Game co-op santai bareng teman" },
-  { icon: "⚔️", label: "Menantang", hint: "Mirip Souls-like", tint: "#e8a14a", prompt: "Game menantang mirip Souls-like" },
-  { icon: "☕", label: "Cozy", hint: "Pelepas stres", tint: "#b48ce8", prompt: "Cozy game santai pelepas stres" },
+  { icon: "laptop", label: "Laptop kentang", hint: "Ringan tapi tetap seru", tint: "#66c0f4", prompt: "Game seru untuk laptop kentang" },
+  { icon: "users", label: "Co-op santai", hint: "Main bareng teman", tint: "#a4d007", prompt: "Game co-op santai bareng teman" },
+  { icon: "swords", label: "Menantang", hint: "Mirip Souls-like", tint: "#e8a14a", prompt: "Game menantang mirip Souls-like" },
+  { icon: "coffee", label: "Cozy", hint: "Pelepas stres", tint: "#b48ce8", prompt: "Cozy game santai pelepas stres" },
 ];
 
 const BOT_AVATAR = `
@@ -137,6 +169,11 @@ const els = {
   wishlistEmpty: $("#wishlist-empty"),
   wishlistItems: $("#wishlist-items"),
   filterBar: $("#filter-bar"),
+  filterToggleBtn: $("#filter-toggle-btn"),
+  filterToggleLabel: $("#filter-toggle-label"),
+  filterActiveCount: $("#filter-active-count"),
+  filterSummaryText: $("#filter-summary-text"),
+  filterGroups: $("#filter-groups"),
   clearFiltersBtn: $("#clear-filters-btn"),
 };
 
@@ -180,10 +217,30 @@ function renderQuickPrompts() {
     capsule.className = "capsule";
     capsule.setAttribute("aria-label", `${item.label} - ${item.hint}`);
     capsule.style.setProperty("--tint", item.tint);
-    capsule.innerHTML = `
-      <span class="icon" aria-hidden="true">${item.icon}</span>
-      <span class="label">${item.label}</span>
-      <span class="hint">${item.hint}</span>`;
+
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "icon";
+    iconSpan.setAttribute("aria-hidden", "true");
+
+    const capsuleSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    capsuleSvg.setAttribute("class", "capsule-icon");
+    capsuleSvg.setAttribute("aria-hidden", "true");
+    const capsuleUse = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    capsuleUse.setAttribute("href", `#icon-${item.icon}`);
+    capsuleSvg.appendChild(capsuleUse);
+    iconSpan.appendChild(capsuleSvg);
+
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "label";
+    labelSpan.textContent = item.label;
+
+    const hintSpan = document.createElement("span");
+    hintSpan.className = "hint";
+    hintSpan.textContent = item.hint;
+
+    capsule.appendChild(iconSpan);
+    capsule.appendChild(labelSpan);
+    capsule.appendChild(hintSpan);
     capsule.addEventListener("click", () => sendMessage(item.prompt));
     els.capsules.appendChild(capsule);
 
@@ -191,7 +248,20 @@ function renderQuickPrompts() {
     chip.type = "button";
     chip.className = "chip";
     chip.setAttribute("aria-label", `Pilih saran: ${item.prompt}`);
-    chip.textContent = `${item.icon} ${item.prompt}`;
+
+    const chipSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    chipSvg.setAttribute("class", "chip-icon");
+    chipSvg.setAttribute("aria-hidden", "true");
+    const chipUse = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    chipUse.setAttribute("href", `#icon-${item.icon}`);
+    chipSvg.appendChild(chipUse);
+
+    const chipText = document.createElement("span");
+    chipText.className = "chip-text";
+    chipText.textContent = item.prompt;
+
+    chip.appendChild(chipSvg);
+    chip.appendChild(chipText);
     chip.addEventListener("click", () => sendMessage(item.prompt));
     els.chips.appendChild(chip);
   });
@@ -992,6 +1062,56 @@ if (els.clearFiltersBtn) {
     activePreferences.mode = "any";
     savePreferencesToStorage();
     updateFilterUI();
+  });
+}
+
+/* Panel Filter Mobile: buka/tutup, tutup via Esc, dan kembalikan fokus */
+function closeFilterPanel() {
+  if (els.filterGroups?.classList.contains("is-open")) {
+    els.filterGroups.classList.remove("is-open");
+    if (els.filterToggleBtn) {
+      els.filterToggleBtn.setAttribute("aria-expanded", "false");
+      els.filterToggleBtn.focus();
+    }
+  }
+}
+
+function toggleFilterPanel() {
+  if (!els.filterGroups || !els.filterToggleBtn) return;
+  const isOpen = els.filterGroups.classList.toggle("is-open");
+  els.filterToggleBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+}
+
+if (els.filterToggleBtn) {
+  els.filterToggleBtn.addEventListener("click", toggleFilterPanel);
+}
+
+// Tutup panel filter saat tombol Esc ditekan
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && els.filterGroups?.classList.contains("is-open")) {
+    closeFilterPanel();
+  }
+});
+
+// Sinkronkan status panel filter saat layar melewati batas 520px (matchMedia)
+const mobileFilterMedia = window.matchMedia("(max-width: 520px)");
+mobileFilterMedia.addEventListener("change", (e) => {
+  // Jika berpindah ke desktop (> 520px), reset status panel mobile
+  if (!e.matches) {
+    if (els.filterGroups) {
+      els.filterGroups.classList.remove("is-open");
+    }
+    if (els.filterToggleBtn) {
+      els.filterToggleBtn.setAttribute("aria-expanded", "false");
+    }
+  }
+});
+
+// Deteksi keyboard virtual via visualViewport (sembunyikan catatan kaki hanya saat keyboard terbuka)
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", () => {
+    const isKeyboardOpen = window.visualViewport.height < window.innerHeight - 150;
+    document.body.classList.toggle("keyboard-open", isKeyboardOpen);
   });
 }
 

@@ -115,7 +115,16 @@ button, textarea { font: inherit; color: inherit; }
   background: rgba(33, 43, 59, 0.55);
 }
 
-.tips li > span { font-size: 18px; line-height: 1.4; }
+.tip-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--accent);
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  margin-top: 2px;
+}
 .tips li strong { display: block; font-weight: 600; color: var(--text-strong); font-size: 15px; }
 .tips li small { display: block; color: var(--muted); font-size: 13px; line-height: 1.35; }
 
@@ -240,7 +249,20 @@ button, textarea { font: inherit; color: inherit; }
   border-color: var(--tint);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--tint);
 }
-.capsule .icon { font-size: 28px; line-height: 1.2; }
+.capsule .icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--tint);
+  line-height: 1;
+}
+.capsule-icon {
+  width: 26px;
+  height: 26px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  flex: none;
+}
 .capsule .label {
   font-family: var(--font-head);
   font-weight: 600;
@@ -721,6 +743,15 @@ button, textarea { font: inherit; color: inherit; }
   padding: 4px 2px;
 }
 
+.filter-mobile-trigger {
+  display: contents;
+}
+
+.filter-toggle-btn,
+.filter-summary-text {
+  display: none;
+}
+
 .filter-groups {
   display: flex;
   align-items: center;
@@ -762,9 +793,21 @@ button, textarea { font: inherit; color: inherit; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   transition: all 0.15s ease;
   white-space: nowrap;
+}
+
+.filter-chip-icon,
+.filter-chip svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  color: var(--accent);
+  transition: color 0.15s ease;
 }
 
 .filter-chip:hover {
@@ -823,17 +866,31 @@ button, textarea { font: inherit; color: inherit; }
 
 .chip {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   min-height: 44px;
   padding: 8px 14px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 6px;
   font-size: 14px;
+  color: var(--text);
   white-space: nowrap;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
+.chip-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  color: var(--accent);
+}
 .chip:hover { border-color: var(--accent); color: var(--accent); background: #243449; }
+.chip:hover .chip-icon { color: var(--accent); }
 .chip:disabled { opacity: 0.5; cursor: not-allowed; }
 
 #chat-form {
@@ -901,16 +958,21 @@ button, textarea { font: inherit; color: inherit; }
 .btn-send:disabled { filter: grayscale(0.7) brightness(0.7); cursor: not-allowed; }
 
 .meta-hints {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 8px;
+  margin-top: 6px;
   padding: 0 4px;
+  text-align: center;
 }
 
-.hint { margin: 0; font-size: 12.5px; color: var(--muted); }
-.disclaimer { margin: 0; font-size: 12px; color: var(--muted); font-style: italic; }
+.hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+body.keyboard-open .meta-hints {
+  display: none;
+}
 
 /* Responsive */
 @media (max-width: 860px) {
@@ -930,11 +992,6 @@ button, textarea { font: inherit; color: inherit; }
   .capsule .icon { font-size: 24px; }
   .capsule .label { font-size: 17px; }
   .capsule .hint { font-size: 13px; }
-  .meta-hints {
-    flex-direction: column;
-    gap: 4px;
-    padding-right: 140px; /* Ruang aman agar tidak tertutup badge Netlify atau floating widget */
-  }
 }
 
 @media (max-width: 520px) {
@@ -969,7 +1026,7 @@ button, textarea { font: inherit; color: inherit; }
     margin: 0 0 12px;
     line-height: 1.4;
   }
-  /* Saran Cepat: tetap 2 kolom kompak (2x2) sehingga pas di layar tanpa mendominasi viewport */
+  /* Saran Cepat: tetap 2 kolom kompak (2x2), ikon 22px, label 15px, hint min 12px */
   .capsules {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
@@ -984,59 +1041,155 @@ button, textarea { font: inherit; color: inherit; }
     height: 2px;
   }
   .capsule .icon {
-    font-size: 18px;
+    font-size: 22px;
     line-height: 1;
   }
+  .capsule-icon {
+    width: 22px;
+    height: 22px;
+  }
   .capsule .label {
-    font-size: 13.5px;
+    font-size: 15px;
     line-height: 1.2;
     font-weight: 600;
   }
   .capsule .hint {
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.25;
     color: var(--muted);
   }
-  /* Filter bar: scroll horizontal halus tanpa garis scrollbar kaku */
+
+  /* Filter bar mobile: trigger row + collapsible internal scrolling panel */
   .filter-bar {
-    align-items: flex-start;
+    align-items: stretch;
     flex-direction: column;
-    gap: 4px;
+    gap: 0;
     margin-bottom: 6px;
     padding: 2px 0;
   }
-  .filter-groups {
+  .filter-mobile-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     width: 100%;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    gap: 8px;
   }
-  .filter-groups::-webkit-scrollbar {
+  .filter-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 6px 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    flex: none;
+    transition: all 0.15s ease;
+  }
+  .filter-toggle-icon {
+    width: 15px;
+    height: 15px;
+    flex: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+  }
+  .filter-toggle-btn:hover,
+  .filter-toggle-btn[aria-expanded="true"] {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(102, 192, 244, 0.1);
+  }
+  .filter-toggle-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .filter-active-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--accent-2);
+    color: #ffffff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .filter-summary-text {
+    display: inline-block;
+    font-size: 0.78rem;
+    color: var(--muted);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .filter-groups {
     display: none;
+    width: 100%;
+    max-height: min(320px, 55vh);
+    overflow-y: auto;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    margin-top: 6px;
+    background: #192433;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    scrollbar-width: thin;
+    scrollbar-color: #2a475e var(--bg-0);
+  }
+  .filter-groups.is-open {
+    display: flex;
+    animation: filterPanelOpen 0.18s ease-out;
+  }
+  @keyframes filterPanelOpen {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
   .filter-group {
-    flex-shrink: 0;
-    gap: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    width: 100%;
   }
   .filter-group-label {
     font-size: 0.7rem;
-    letter-spacing: 0.3px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
   }
   .filter-chip {
+    flex: 1 1 calc(50% - 6px);
     min-height: 44px;
     min-width: 44px;
-    padding: 4px 10px;
-    font-size: 0.78rem;
-    border-radius: 18px;
+    padding: 8px 10px;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    justify-content: center;
   }
   .clear-filters-btn {
     min-height: 44px;
-    padding: 2px 6px;
+    padding: 4px 6px;
     font-size: 0.76rem;
-    margin-top: -2px;
+    flex: none;
   }
   .composer {
     padding: 6px 12px max(12px, env(safe-area-inset-bottom, 12px));
@@ -1059,6 +1212,15 @@ button, textarea { font: inherit; color: inherit; }
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+  .btn-ghost:focus-visible,
+  .btn-icon:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .btn-ghost:focus:not(:focus-visible),
+  .btn-icon:focus:not(:focus-visible) {
+    outline: none;
   }
   .btn-ghost svg { width: 18px; height: 18px; }
   .btn-wishlist-top .wishlist-count-badge {
@@ -1097,10 +1259,10 @@ button, textarea { font: inherit; color: inherit; }
     padding: 8px 8px 7px;
   }
   .capsule .label {
-    font-size: 13px;
+    font-size: 14px;
   }
   .capsule .hint {
-    font-size: 10.5px;
+    display: none;
   }
 }
 

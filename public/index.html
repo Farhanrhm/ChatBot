@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>SteamScout: Your Personal Game Curator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -13,6 +13,74 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- SVG Sprite (Lucide Icons, Lisensi ISC) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+    <symbol id="icon-compass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+    </symbol>
+    <symbol id="icon-laptop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16" />
+    </symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </symbol>
+    <symbol id="icon-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+    </symbol>
+    <symbol id="icon-smile" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+      <line x1="9" x2="9.01" y1="9" y2="9" />
+      <line x1="15" x2="15.01" y1="9" y2="9" />
+    </symbol>
+    <symbol id="icon-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </symbol>
+    <symbol id="icon-gift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="8" width="18" height="4" rx="1" />
+      <path d="M12 8v13" />
+      <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" />
+      <path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 4.8 0 0 1 12 8a4.8 4.8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5" />
+    </symbol>
+    <symbol id="icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </symbol>
+    <symbol id="icon-swords" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" />
+      <line x1="13" x2="19" y1="19" y2="13" />
+      <line x1="16" x2="20" y1="16" y2="20" />
+      <line x1="19" x2="21" y1="21" y2="19" />
+      <polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5" />
+      <line x1="5" x2="9" y1="14" y2="18" />
+      <line x1="7" x2="4" y1="17" y2="20" />
+      <line x1="3" x2="5" y1="19" y2="21" />
+    </symbol>
+    <symbol id="icon-coffee" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10 2v2" />
+      <path d="M14 2v2" />
+      <path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h12Z" />
+      <path d="M6 2v2" />
+      <path d="M17 10h1a3 3 0 0 1 0 6h-1" />
+    </symbol>
+    <symbol id="icon-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="21" x2="14" y1="4" y2="4" />
+      <line x1="10" x2="3" y1="4" y2="4" />
+      <line x1="21" x2="12" y1="12" y2="12" />
+      <line x1="8" x2="3" y1="12" y2="12" />
+      <line x1="21" x2="16" y1="20" y2="20" />
+      <line x1="12" x2="3" y1="20" y2="20" />
+      <line x1="14" x2="14" y1="2" y2="6" />
+      <line x1="8" x2="8" y1="10" y2="14" />
+      <line x1="16" x2="16" y1="18" y2="22" />
+    </symbol>
+  </svg>
+
   <div class="app">
     <!-- Sidebar (desktop) -->
     <aside class="rail">
@@ -34,11 +102,11 @@
       <section class="tips" aria-labelledby="tips-title">
         <h2 id="tips-title">Biar rekomendasinya pas, ceritakan:</h2>
         <ul>
-          <li><span aria-hidden="true">🎯</span><div><strong>Genre</strong><small>Roguelike, farming, horror, strategi...</small></div></li>
-          <li><span aria-hidden="true">💻</span><div><strong>Spek PC</strong><small>Laptop kentang atau PC gaming</small></div></li>
-          <li><span aria-hidden="true">👥</span><div><strong>Mode main</strong><small>Single-player, co-op, multiplayer</small></div></li>
-          <li><span aria-hidden="true">💸</span><div><strong>Budget</strong><small>Gratis, di bawah 100 ribu, bebas</small></div></li>
-          <li><span aria-hidden="true">🌤️</span><div><strong>Mood</strong><small>Santai, menantang, pengin cerita seru</small></div></li>
+          <li><svg class="tip-icon" aria-hidden="true"><use href="#icon-compass"></use></svg><div><strong>Genre</strong><small>Roguelike, farming, horror, strategi...</small></div></li>
+          <li><svg class="tip-icon" aria-hidden="true"><use href="#icon-laptop"></use></svg><div><strong>Spek PC</strong><small>Laptop kentang atau PC gaming</small></div></li>
+          <li><svg class="tip-icon" aria-hidden="true"><use href="#icon-users"></use></svg><div><strong>Mode main</strong><small>Single-player, co-op, multiplayer</small></div></li>
+          <li><svg class="tip-icon" aria-hidden="true"><use href="#icon-tag"></use></svg><div><strong>Budget</strong><small>Gratis, di bawah 100 ribu, bebas</small></div></li>
+          <li><svg class="tip-icon" aria-hidden="true"><use href="#icon-smile"></use></svg><div><strong>Mood</strong><small>Santai, menantang, pengin cerita seru</small></div></li>
         </ul>
       </section>
     </aside>
@@ -92,15 +160,42 @@
       <footer class="composer">
         <div class="composer-inner">
           <section id="filter-bar" class="filter-bar" aria-label="Filter preferensi cepat">
-            <div class="filter-groups">
+            <div class="filter-mobile-trigger">
+              <button
+                type="button"
+                id="filter-toggle-btn"
+                class="filter-toggle-btn"
+                aria-expanded="false"
+                aria-controls="filter-groups"
+                aria-label="Buka filter preferensi"
+              >
+                <svg class="filter-toggle-icon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <use href="#icon-sliders"></use>
+                </svg>
+                <span id="filter-toggle-label">Filter</span>
+                <span id="filter-active-count" class="filter-active-badge" hidden>0</span>
+              </button>
+              <span id="filter-summary-text" class="filter-summary-text" aria-live="polite">Semua</span>
+              <button type="button" id="clear-filters-btn" class="clear-filters-btn" aria-label="Hapus semua filter" hidden>
+                Hapus filter
+              </button>
+            </div>
+
+            <div id="filter-groups" class="filter-groups">
               <div class="filter-group" role="group" aria-labelledby="filter-spec-label">
                 <span id="filter-spec-label" class="filter-group-label">Spek:</span>
                 <div class="filter-chips">
                   <button type="button" class="filter-chip" data-group="spec" data-value="potato" aria-pressed="false">
-                    💻 Kentang
+                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <use href="#icon-laptop"></use>
+                    </svg>
+                    <span>Kentang</span>
                   </button>
                   <button type="button" class="filter-chip" data-group="spec" data-value="gaming" aria-pressed="false">
-                    ⚡ Gaming
+                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <use href="#icon-zap"></use>
+                    </svg>
+                    <span>Gaming</span>
                   </button>
                 </div>
               </div>
@@ -109,10 +204,16 @@
                 <span id="filter-budget-label" class="filter-group-label">Budget:</span>
                 <div class="filter-chips">
                   <button type="button" class="filter-chip" data-group="budget" data-value="free" aria-pressed="false">
-                    🎁 Gratis
+                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <use href="#icon-gift"></use>
+                    </svg>
+                    <span>Gratis</span>
                   </button>
                   <button type="button" class="filter-chip" data-group="budget" data-value="under100k" aria-pressed="false">
-                    🏷️ &lt; 100rb
+                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <use href="#icon-tag"></use>
+                    </svg>
+                    <span>&lt; 100rb</span>
                   </button>
                 </div>
               </div>
@@ -121,18 +222,20 @@
                 <span id="filter-mode-label" class="filter-group-label">Mode:</span>
                 <div class="filter-chips">
                   <button type="button" class="filter-chip" data-group="mode" data-value="single" aria-pressed="false">
-                    👤 Single
+                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <use href="#icon-user"></use>
+                    </svg>
+                    <span>Single</span>
                   </button>
                   <button type="button" class="filter-chip" data-group="mode" data-value="coop" aria-pressed="false">
-                    🤝 Co-op
+                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <use href="#icon-users"></use>
+                    </svg>
+                    <span>Co-op</span>
                   </button>
                 </div>
               </div>
             </div>
-
-            <button type="button" id="clear-filters-btn" class="clear-filters-btn" aria-label="Hapus semua filter" hidden>
-              Hapus filter
-            </button>
           </section>
           <div id="chips" class="chips" hidden aria-label="Saran cepat"></div>
           <form id="chat-form" autocomplete="off">
@@ -141,7 +244,7 @@
                 id="user-input"
                 rows="1"
                 maxlength="1000"
-                placeholder="Contoh: game roguelike yang ringan buat laptop kentang, di bawah 100 ribu"
+                placeholder="Cari game: roguelike, co-op, spek kentang..."
                 aria-label="Pesan untuk SteamScout"
               ></textarea>
               <span id="char-counter" class="char-counter" aria-live="polite" hidden>0/1000</span>
@@ -154,8 +257,7 @@
             </button>
           </form>
           <div class="meta-hints">
-            <p class="hint">Harga dan diskon bisa berubah. Cek halaman Steam sebelum membeli.</p>
-            <p class="disclaimer">Proyek edukasi, tidak berafiliasi dengan Valve atau Steam.</p>
+            <p class="hint">Harga Steam dapat berubah. Proyek edukasi, tidak berafiliasi dengan Valve.</p>
           </div>
         </div>
       </footer>
