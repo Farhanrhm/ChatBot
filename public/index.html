@@ -91,6 +91,49 @@
 
       <footer class="composer">
         <div class="composer-inner">
+          <section id="filter-bar" class="filter-bar" aria-label="Filter preferensi cepat">
+            <div class="filter-groups">
+              <div class="filter-group" role="group" aria-labelledby="filter-spec-label">
+                <span id="filter-spec-label" class="filter-group-label">Spek:</span>
+                <div class="filter-chips">
+                  <button type="button" class="filter-chip" data-group="spec" data-value="potato" aria-pressed="false">
+                    💻 Kentang
+                  </button>
+                  <button type="button" class="filter-chip" data-group="spec" data-value="gaming" aria-pressed="false">
+                    ⚡ Gaming
+                  </button>
+                </div>
+              </div>
+
+              <div class="filter-group" role="group" aria-labelledby="filter-budget-label">
+                <span id="filter-budget-label" class="filter-group-label">Budget:</span>
+                <div class="filter-chips">
+                  <button type="button" class="filter-chip" data-group="budget" data-value="free" aria-pressed="false">
+                    🎁 Gratis
+                  </button>
+                  <button type="button" class="filter-chip" data-group="budget" data-value="under100k" aria-pressed="false">
+                    🏷️ &lt; 100rb
+                  </button>
+                </div>
+              </div>
+
+              <div class="filter-group" role="group" aria-labelledby="filter-mode-label">
+                <span id="filter-mode-label" class="filter-group-label">Mode:</span>
+                <div class="filter-chips">
+                  <button type="button" class="filter-chip" data-group="mode" data-value="single" aria-pressed="false">
+                    👤 Single
+                  </button>
+                  <button type="button" class="filter-chip" data-group="mode" data-value="coop" aria-pressed="false">
+                    🤝 Co-op
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button type="button" id="clear-filters-btn" class="clear-filters-btn" aria-label="Hapus semua filter" hidden>
+              Hapus filter
+            </button>
+          </section>
           <div id="chips" class="chips" hidden aria-label="Saran cepat"></div>
           <form id="chat-form" autocomplete="off">
             <div class="input-wrap">

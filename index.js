@@ -90,6 +90,91 @@ const chatRateLimiter = rateLimit({
   },
 });
 
+// Nilai enum yang diizinkan untuk filter preferensi cepat
+export const ALLOWED_PREFERENCES = {
+  spec: ['any', 'potato', 'gaming'],
+  budget: ['any', 'free', 'under100k'],
+  mode: ['any', 'single', 'coop'],
+};
+
+export const PREFERENCE_LABELS = {
+  spec: {
+    potato: 'laptop kentang',
+    gaming: 'PC gaming',
+  },
+  budget: {
+    free: 'gratis',
+    under100k: 'di bawah Rp100 ribu',
+  },
+  mode: {
+    single: 'single-player',
+    coop: 'co-op',
+  },
+};
+
+/**
+ * Memvalidasi objek preferences dari body request.
+ * Melempar error HTTP 400 jika ada tipe data salah atau nilai tidak dikenal.
+ *
+ * @param {object} [preferences]
+ * @returns {{ spec: string, budget: string, mode: string }}
+ */
+export function validatePreferences(preferences) {
+  if (preferences === undefined || preferences === null) {
+    return { spec: 'any', budget: 'any', mode: 'any' };
+  }
+  if (typeof preferences !== 'object' || Array.isArray(preferences)) {
+    throw { status: 400, message: 'Field preferences harus berupa objek.' };
+  }
+
+  const validated = { spec: 'any', budget: 'any', mode: 'any' };
+
+  for (const key of ['spec', 'budget', 'mode']) {
+    const val = preferences[key];
+    if (val === undefined || val === null || val === '') {
+      validated[key] = 'any';
+    } else if (typeof val !== 'string') {
+      throw { status: 400, message: `Nilai preferensi '${key}' harus berupa string.` };
+    } else {
+      const clean = val.trim().toLowerCase();
+      if (!ALLOWED_PREFERENCES[key].includes(clean)) {
+        throw {
+          status: 400,
+          message: `Nilai preferensi '${key}' tidak valid: '${val}'. Pilihan yang diizinkan: ${ALLOWED_PREFERENCES[key].join(', ')}.`,
+        };
+      }
+      validated[key] = clean;
+    }
+  }
+
+  return validated;
+}
+
+/**
+ * Merakit kalimat tetap berbahasa Indonesia dari enum preferensi yang sudah divalidasi.
+ * Mengembalikan string kosong jika semua filter bernilai 'any'.
+ *
+ * @param {{ spec: string, budget: string, mode: string }} validatedPrefs
+ * @returns {string}
+ */
+export function buildPreferencesPromptNote(validatedPrefs) {
+  if (!validatedPrefs || typeof validatedPrefs !== 'object') return '';
+  const parts = [];
+
+  if (validatedPrefs.spec && validatedPrefs.spec !== 'any' && PREFERENCE_LABELS.spec[validatedPrefs.spec]) {
+    parts.push(`spek perangkat = ${PREFERENCE_LABELS.spec[validatedPrefs.spec]}`);
+  }
+  if (validatedPrefs.budget && validatedPrefs.budget !== 'any' && PREFERENCE_LABELS.budget[validatedPrefs.budget]) {
+    parts.push(`budget = ${PREFERENCE_LABELS.budget[validatedPrefs.budget]}`);
+  }
+  if (validatedPrefs.mode && validatedPrefs.mode !== 'any' && PREFERENCE_LABELS.mode[validatedPrefs.mode]) {
+    parts.push(`mode = ${PREFERENCE_LABELS.mode[validatedPrefs.mode]}`);
+  }
+
+  if (parts.length === 0) return '';
+  return `Preferensi dari filter aplikasi: ${parts.join('; ')}.`;
+}
+
 /**
  * Validasi dan sanitasi riwayat percakapan dari klien sebelum dikirim ke Gemini.
  * Mencegah manipulasi peran dan membatasi panjang teks percakapan.
@@ -246,10 +331,22 @@ app.get('/api/health', (req, res) => {
 // Endpoint chat utama
 app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req, res) => {
   try {
-    const { conversation } = req.body || {};
+    const { conversation, preferences } = req.body || {};
 
-    // Validasi dan format riwayat
+    // Validasi preferensi filter dan riwayat percakapan
+    const validatedPrefs = validatePreferences(preferences);
     const contents = toContents(conversation);
+
+    // Tambahkan catatan preferensi filter ke giliran pengguna terakhir tanpa memutasi conversation asli
+    const filterNote = buildPreferencesPromptNote(validatedPrefs);
+    if (filterNote && contents.length > 0) {
+      const lastIndex = contents.length - 1;
+      const lastUserText = contents[lastIndex].parts[0].text;
+      contents[lastIndex] = {
+        role: 'user',
+        parts: [{ text: `${lastUserText}\n\n${filterNote}` }],
+      };
+    }
 
     // Dapatkan balasan AI dari Gemini
     const result = await callGeminiWithRetry(contents);
@@ -311,8 +408,20 @@ app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req,
 // Endpoint chat streaming via Server-Sent Events (SSE) (Fase 3 Opsi C)
 app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), async (req, res) => {
   try {
-    const { conversation } = req.body || {};
+    const { conversation, preferences } = req.body || {};
+
+    const validatedPrefs = validatePreferences(preferences);
     const contents = toContents(conversation);
+
+    const filterNote = buildPreferencesPromptNote(validatedPrefs);
+    if (filterNote && contents.length > 0) {
+      const lastIndex = contents.length - 1;
+      const lastUserText = contents[lastIndex].parts[0].text;
+      contents[lastIndex] = {
+        role: 'user',
+        parts: [{ text: `${lastUserText}\n\n${filterNote}` }],
+      };
+    }
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');

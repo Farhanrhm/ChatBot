@@ -13,12 +13,84 @@ import {
 const API_URL = "/api/chat";
 const STORAGE_KEY = "steamscout_chat_history";
 
+const PREFERENCES_STORAGE_KEY = "steamscout_filter_preferences";
+
+// State preferensi filter cepat
+const activePreferences = {
+  spec: "any",
+  budget: "any",
+  mode: "any",
+};
+
+function savePreferencesToStorage() {
+  try {
+    sessionStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(activePreferences));
+  } catch (err) {
+    console.warn("Gagal menyimpan filter ke sessionStorage:", err);
+  }
+}
+
+function loadPreferencesFromStorage() {
+  try {
+    const raw = sessionStorage.getItem(PREFERENCES_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      if (["any", "potato", "gaming"].includes(parsed.spec)) activePreferences.spec = parsed.spec;
+      if (["any", "free", "under100k"].includes(parsed.budget)) activePreferences.budget = parsed.budget;
+      if (["any", "single", "coop"].includes(parsed.mode)) activePreferences.mode = parsed.mode;
+    }
+  } catch (err) {
+    console.warn("Gagal membaca filter dari sessionStorage:", err);
+  }
+}
+
+const PREF_TEXT_MAP = {
+  spec: { potato: "laptop kentang", gaming: "PC gaming" },
+  budget: { free: "gratis", under100k: "< 100rb" },
+  mode: { single: "single-player", coop: "co-op" },
+};
+
+function getActiveFilterSummary() {
+  const parts = [];
+  if (activePreferences.spec !== "any" && PREF_TEXT_MAP.spec[activePreferences.spec]) {
+    parts.push(PREF_TEXT_MAP.spec[activePreferences.spec]);
+  }
+  if (activePreferences.budget !== "any" && PREF_TEXT_MAP.budget[activePreferences.budget]) {
+    parts.push(PREF_TEXT_MAP.budget[activePreferences.budget]);
+  }
+  if (activePreferences.mode !== "any" && PREF_TEXT_MAP.mode[activePreferences.mode]) {
+    parts.push(PREF_TEXT_MAP.mode[activePreferences.mode]);
+  }
+  return parts.length > 0 ? `Filter: ${parts.join(", ")}` : "";
+}
+
+function updateFilterUI() {
+  document.querySelectorAll(".filter-chip").forEach((chip) => {
+    const group = chip.dataset.group;
+    const val = chip.dataset.value;
+    const isActive = activePreferences[group] === val;
+    chip.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+
+  const hasActive =
+    activePreferences.spec !== "any" ||
+    activePreferences.budget !== "any" ||
+    activePreferences.mode !== "any";
+  if (els.clearFiltersBtn) {
+    els.clearFiltersBtn.hidden = !hasActive;
+  }
+}
+
 /**
  * Membangun body JSON request ke server.
- * Mengirim array conversation sebagai satu-satunya sumber pesan.
+ * Mengirim array conversation dan preferences sebagai field terpisah.
  */
 function buildRequestBody(conversation) {
-  return { conversation };
+  return {
+    conversation,
+    preferences: { ...activePreferences },
+  };
 }
 
 function extractReply(data) {
@@ -64,6 +136,8 @@ const els = {
   wishlistCopyFeedback: $("#wishlist-copy-feedback"),
   wishlistEmpty: $("#wishlist-empty"),
   wishlistItems: $("#wishlist-items"),
+  filterBar: $("#filter-bar"),
+  clearFiltersBtn: $("#clear-filters-btn"),
 };
 
 let history = [];
@@ -374,7 +448,7 @@ function formatBotContent(raw) {
   return formatMarkdown(typeof raw === "string" ? raw : JSON.stringify(raw));
 }
 
-function addMessage(role, text) {
+function addMessage(role, text, filterSummary = "") {
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
 
@@ -387,8 +461,25 @@ function addMessage(role, text) {
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  if (role === "bot") bubble.innerHTML = formatBotContent(text);
-  else bubble.textContent = text;
+  if (role === "bot") {
+    bubble.innerHTML = formatBotContent(text);
+  } else {
+    const textDiv = document.createElement("div");
+    textDiv.className = "user-msg-text";
+    textDiv.textContent = text;
+    bubble.appendChild(textDiv);
+
+    if (filterSummary) {
+      const badgeWrap = document.createElement("div");
+      badgeWrap.className = "user-active-filters";
+      badgeWrap.setAttribute("aria-label", "Filter aktif saat pesan dikirim");
+      const badge = document.createElement("span");
+      badge.className = "active-filter-badge";
+      badge.textContent = filterSummary;
+      badgeWrap.appendChild(badge);
+      bubble.appendChild(badgeWrap);
+    }
+  }
   wrap.appendChild(bubble);
 
   els.messages.appendChild(wrap);
@@ -589,8 +680,9 @@ async function sendMessage(text) {
   text = text.trim();
   if (!text || isLoading) return;
 
+  const filterSummary = getActiveFilterSummary();
   setWelcomeVisible(false);
-  addMessage("user", text);
+  addMessage("user", text, filterSummary);
   history.push({ role: "user", text });
   saveHistoryToStorage();
 
@@ -880,9 +972,34 @@ els.messages.addEventListener("click", (e) => {
   updateWishlistUI();
 });
 
+// Event listener chip filter preferensi
+document.querySelectorAll(".filter-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const group = chip.dataset.group;
+    const val = chip.dataset.value;
+    if (!group || !val) return;
+
+    activePreferences[group] = activePreferences[group] === val ? "any" : val;
+    savePreferencesToStorage();
+    updateFilterUI();
+  });
+});
+
+if (els.clearFiltersBtn) {
+  els.clearFiltersBtn.addEventListener("click", () => {
+    activePreferences.spec = "any";
+    activePreferences.budget = "any";
+    activePreferences.mode = "any";
+    savePreferencesToStorage();
+    updateFilterUI();
+  });
+}
+
 /* Inisialisasi dan muat riwayat sesi */
 renderQuickPrompts();
 updateWishlistUI();
+loadPreferencesFromStorage();
+updateFilterUI();
 
 const savedHistory = loadHistoryFromStorage();
 if (savedHistory.length > 0) {
