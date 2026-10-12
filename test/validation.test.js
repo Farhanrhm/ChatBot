@@ -282,4 +282,53 @@ test('enrichGamesWithSteam: memperkaya beberapa game secara paralel tanpa kegaga
   assert.ok(enriched[0].storeUrl.includes('search'));
 });
 
+test('DailyCapLimiter: membatasi request per IP saat kuota per IP habis', async () => {
+  const { DailyCapLimiter } = await import('../services/dailyCap.js');
+  const limiter = new DailyCapLimiter({ globalCap: 100, ipCap: 2 });
+
+  assert.equal(limiter.consume('127.0.0.1').allowed, true);
+  assert.equal(limiter.consume('127.0.0.1').allowed, true);
+
+  const blocked = limiter.consume('127.0.0.1');
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.reason, 'ip');
+  assert.ok(blocked.message.includes('perangkat Anda'));
+
+  // IP lain tetap diizinkan
+  assert.equal(limiter.consume('192.168.1.1').allowed, true);
+});
+
+test('DailyCapLimiter: membatasi total request saat kuota global habis', async () => {
+  const { DailyCapLimiter } = await import('../services/dailyCap.js');
+  const limiter = new DailyCapLimiter({ globalCap: 2, ipCap: 10 });
+
+  assert.equal(limiter.consume('ip-1').allowed, true);
+  assert.equal(limiter.consume('ip-2').allowed, true);
+
+  const blocked = limiter.consume('ip-3');
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.reason, 'global');
+  assert.ok(blocked.message.includes('aplikasi'));
+});
+
+test('DailyCapLimiter: reset counter otomatis saat tanggal berganti', async () => {
+  const { DailyCapLimiter } = await import('../services/dailyCap.js');
+  let simulatedDate = new Date('2026-10-12T10:00:00Z');
+
+  const limiter = new DailyCapLimiter({
+    globalCap: 1,
+    ipCap: 1,
+    getTime: () => simulatedDate,
+  });
+
+  assert.equal(limiter.consume('127.0.0.1').allowed, true);
+  assert.equal(limiter.consume('127.0.0.1').allowed, false);
+
+  // Simulasikan pergantian tanggal ke hari berikutnya
+  simulatedDate = new Date('2026-10-13T01:00:00Z');
+  const nextDayResult = limiter.consume('127.0.0.1');
+  assert.equal(nextDayResult.allowed, true);
+});
+
+
 
