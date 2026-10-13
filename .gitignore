@@ -30,3 +30,7 @@ anti-slop
 *.sln
 *.sw?
 .agents
+
+# Evaluation output results
+eval/results/*
+!eval/results/.gitkeep
