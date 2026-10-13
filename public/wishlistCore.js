@@ -2,28 +2,111 @@
  * SteamScout: Modul Inti Wishlist Lokal (Tanpa DOM / Testable)
  *
  * Mengelola penyimpanan daftar game ke browser storage (localStorage).
- * Aturan desain:
- * 1. Simpan HANYA data stabil: appId, title, storeUrl, addedAt.
- * 2. JANGAN menyimpan harga atau diskon.
- * 3. Kunci terpisah dari riwayat chat, tahan terhadap JSON rusak.
- * 4. Maksimal 50 item, tolak duplikat berdasarkan appId atau judul normalisasi.
+ * Aturan desain & perbaikan:
+ * 1. Simpan HANYA data stabil: appId, title, storeUrl, addedAt (tanpa harga/diskon).
+ * 2. Kunci terpisah dari riwayat chat, tahan terhadap JSON rusak atau item invalid.
+ * 3. Maksimal 50 item per pengguna.
+ * 4. isSameGame ketat:
+ *    - Jika kedua item memiliki appId: bandingkan appId saja (Number(a.appId) === Number(b.appId)).
+ *    - Jika salah satu atau keduanya tanpa appId: bandingkan normalizeGameTitle(title).
+ * 5. Cegah downgrade: entri ber-appId tidak boleh ditimpa oleh rekomendasi tanpa appId.
+ * 6. Auto-upgrade: entri tanpa appId diperbarui jika rekomendasi dengan appId resmi ditambahkan.
+ * 7. migrateWishlist: fungsi migrasi aman tanpa efek samping pada getWishlist.
  */
 
 export const WISHLIST_STORAGE_KEY = 'steamscout_wishlist';
 export const MAX_WISHLIST_ITEMS = 50;
 
 /**
- * Menghasilkan kunci identitas unik untuk sebuah item.
- * Mengutamakan appId jika ada; jika tidak, menggunakan normalisasi judul.
+ * REVISI 2: Normalisasi judul game secara deterministik.
+ *
+ * Aturan:
+ * 1. Konversi ke huruf kecil dan trim.
+ * 2. Normalisasi Unicode (NFKD) dan buang diakritik/aksen.
+ * 3. Hapus simbol merek dagang: ™, ®, ©.
+ * 4. Hapus apostrof dan tanda kutip ("Baldur's" -> "baldurs").
+ * 5. Ganti pemisah (: - _ dan unicode dashes) dengan spasi.
+ * 6. Rapikan spasi ganda menjadi spasi tunggal.
+ * 7. PENTING: JANGAN menghapus sufiks edisi ("Game of the Year Edition", "Deluxe")
+ *    atau nomor seri ("2", "3") secara agresif agar judul sekuel/edisi berbeda
+ *    tidak salah tergabung saat appId belum tersedia.
+ *
+ * @param {string} [title]
+ * @returns {string}
+ */
+export function normalizeGameTitle(title) {
+  if (typeof title !== 'string') return '';
+  return title
+    .replace(/[\u2122\u00AE\u00A9]/g, '') // Hapus ™, ®, © sebelum NFKD agar tidak terurai jadi karakter 'tm'
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '') // Hapus diakritik
+    .toLowerCase()
+    .replace(/['`’"]/g, '') // Hapus apostrof & quotes
+    .replace(/[:\-\u2010-\u2015\u2212\uFF0D_]/g, ' ') // Ganti tanda pisah & dash dengan spasi
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * REVISI 1: Memeriksa apakah dua objek merepresentasikan game yang sama.
+ *
+ * Aturan ketat:
+ * 1. Jika KEDUA item memiliki appId numerik valid:
+ *    Bandingkan appId saja. Jangan pernah menganggap dua item sama hanya karena
+ *    judulnya mirip bila keduanya memiliki appId berbeda (contoh: remake/remaster).
+ * 2. Jika SALAH SATU atau KEDUANYA tidak memiliki appId:
+ *    Bandingkan judul yang sudah dinormalisasi (normalizeGameTitle).
+ * 3. Jika input bukan objek valid atau judul keduanya kosong tanpa appId:
+ *    Kembalikan false.
+ *
+ * @param {object} a
+ * @param {object} b
+ * @returns {boolean}
+ */
+export function isSameGame(a, b) {
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') {
+    return false;
+  }
+
+  const hasAppIdA = a.appId !== undefined && a.appId !== null && String(a.appId).trim() !== '';
+  const hasAppIdB = b.appId !== undefined && b.appId !== null && String(b.appId).trim() !== '';
+
+  const parsedIdA = hasAppIdA ? Number.parseInt(String(a.appId).trim(), 10) : null;
+  const parsedIdB = hasAppIdB ? Number.parseInt(String(b.appId).trim(), 10) : null;
+
+  const validIdA = Number.isInteger(parsedIdA) && parsedIdA > 0 ? parsedIdA : null;
+  const validIdB = Number.isInteger(parsedIdB) && parsedIdB > 0 ? parsedIdB : null;
+
+  // Aturan 1: Kedua item memiliki appId valid
+  if (validIdA !== null && validIdB !== null) {
+    return validIdA === validIdB;
+  }
+
+  // Aturan 2: Salah satu atau keduanya tidak memiliki appId -> bandingkan judul normalisasi
+  const normA = normalizeGameTitle(a.title);
+  const normB = normalizeGameTitle(b.title);
+
+  if (normA && normB) {
+    return normA === normB;
+  }
+
+  return false;
+}
+
+/**
+ * Menghasilkan kunci identitas ringkas untuk sebuah item.
  * @param {object} item
  * @returns {string}
  */
 export function getItemKey(item) {
   if (!item || typeof item !== 'object') return '';
   if (item.appId !== undefined && item.appId !== null && String(item.appId).trim() !== '') {
-    return `app_${String(item.appId).trim()}`;
+    const parsed = Number.parseInt(String(item.appId).trim(), 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return `app_${parsed}`;
+    }
   }
-  const cleanTitle = String(item.title || '').trim().toLowerCase();
+  const cleanTitle = normalizeGameTitle(item.title);
   return cleanTitle ? `title_${cleanTitle}` : '';
 }
 
@@ -35,8 +118,8 @@ export function getItemKey(item) {
  */
 export function sanitizeWishlistItem(raw) {
   const item = raw && typeof raw === 'object' ? raw : {};
-  const title = String(item.title || 'Game Steam').trim();
-  
+  const title = typeof item.title === 'string' ? item.title.trim() : 'Game Steam';
+
   let appId = null;
   if (item.appId !== undefined && item.appId !== null && String(item.appId).trim() !== '') {
     const parsed = Number.parseInt(String(item.appId).trim(), 10);
@@ -51,7 +134,7 @@ export function sanitizeWishlistItem(raw) {
   } else if (appId) {
     storeUrl = `https://store.steampowered.com/app/${appId}/`;
   } else {
-    storeUrl = `https://store.steampowered.com/search/?term=${encodeURIComponent(title)}`;
+    storeUrl = `https://store.steampowered.com/search/?term=${encodeURIComponent(title || 'Game Steam')}`;
   }
 
   const addedAt = typeof item.addedAt === 'string' && item.addedAt.trim()
@@ -67,8 +150,9 @@ export function sanitizeWishlistItem(raw) {
 }
 
 /**
- * Membaca daftar wishlist dari storage dengan perlindungan try/catch.
- * Jika JSON rusak atau storage gagal, mereset secara aman ke array kosong.
+ * REVISI 3: Membaca daftar wishlist dari storage TANPA efek samping tersembunyi.
+ * Menyaring data invalid tanpa menghapus seluruh daftar hanya karena satu item rusak.
+ *
  * @param {object} [storage]
  * @returns {Array<object>}
  */
@@ -79,11 +163,17 @@ export function getWishlist(storage = globalThis.localStorage) {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
+
     return parsed
-      .filter((item) => item && typeof item === 'object' && item.title)
+      .filter((item) => {
+        if (!item || typeof item !== 'object') return false;
+        const hasTitle = typeof item.title === 'string' && item.title.trim().length > 0;
+        const hasAppId = item.appId !== undefined && item.appId !== null && String(item.appId).trim() !== '';
+        return hasTitle || hasAppId;
+      })
       .map(sanitizeWishlistItem);
   } catch (err) {
-    console.warn('Gagal membaca wishlist dari storage, mereset ke daftar kosong:', err);
+    console.warn('Gagal membaca wishlist dari storage, mereset aman ke daftar kosong:', err);
     return [];
   }
 }
@@ -106,27 +196,125 @@ export function saveWishlist(storage = globalThis.localStorage, list = []) {
 }
 
 /**
+ * REVISI 3: Fungsi migrasi terpisah untuk membersihkan data lama/duplikat di storage.
+ * Dipanggil sekali saat aplikasi dimuat.
+ * Aturan penggabungan duplikat:
+ * - Pertahankan entri yang memiliki appId resmi.
+ * - Pertahankan addedAt paling awal.
+ * - Pertahankan posisi urutan entri pertama kali muncul di array.
+ * - Hanya menulis balik ke localStorage jika terjadi perubahan.
+ *
+ * @param {object} [storage]
+ * @returns {{ list: Array<object>, changed: boolean, removedCount: number }}
+ */
+export function migrateWishlist(storage = globalThis.localStorage) {
+  if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
+    return { list: [], changed: false, removedCount: 0 };
+  }
+
+  const rawList = getWishlist(storage);
+  if (rawList.length === 0) {
+    return { list: [], changed: false, removedCount: 0 };
+  }
+
+  const cleanList = [];
+  let changed = false;
+
+  for (const candidate of rawList) {
+    const existingIndex = cleanList.findIndex((item) => isSameGame(item, candidate));
+
+    if (existingIndex === -1) {
+      cleanList.push(candidate);
+    } else {
+      // Ditemukan duplikat: lakukan penggabungan cerdas
+      changed = true;
+      const existing = cleanList[existingIndex];
+
+      // 1. Prioritaskan appId resmi
+      const resolvedAppId = existing.appId || candidate.appId || null;
+
+      // 2. Prioritaskan storeUrl resmi berbasis appId
+      let resolvedUrl = existing.storeUrl;
+      if (!existing.appId && candidate.appId) {
+        resolvedUrl = candidate.storeUrl;
+      }
+
+      // 3. Pertahankan addedAt paling awal
+      let resolvedAddedAt = existing.addedAt;
+      if (candidate.addedAt && existing.addedAt) {
+        resolvedAddedAt = new Date(candidate.addedAt) < new Date(existing.addedAt)
+          ? candidate.addedAt
+          : existing.addedAt;
+      } else if (candidate.addedAt) {
+        resolvedAddedAt = candidate.addedAt;
+      }
+
+      // Perbarui entri yang ada di posisi urutan pertama
+      cleanList[existingIndex] = {
+        ...existing,
+        appId: resolvedAppId,
+        storeUrl: resolvedUrl,
+        addedAt: resolvedAddedAt,
+      };
+    }
+  }
+
+  const removedCount = rawList.length - cleanList.length;
+
+  if (changed || removedCount > 0) {
+    try {
+      saveWishlist(storage, cleanList);
+    } catch (err) {
+      console.warn('Gagal menyimpan hasil migrasi wishlist ke storage:', err);
+    }
+  }
+
+  return { list: cleanList, changed, removedCount };
+}
+
+/**
  * Memeriksa apakah item sudah ada di dalam wishlist.
+ * Menggunakan perbandingan isSameGame yang ketat.
  * @param {object} storage
  * @param {object|string} itemOrKey
  * @returns {boolean}
  */
 export function isInWishlist(storage = globalThis.localStorage, itemOrKey) {
-  const targetKey = typeof itemOrKey === 'string' && (itemOrKey.startsWith('app_') || itemOrKey.startsWith('title_'))
-    ? itemOrKey
-    : getItemKey(itemOrKey);
-  if (!targetKey) return false;
-
+  if (!itemOrKey) return false;
   const currentList = getWishlist(storage);
-  return currentList.some((item) => getItemKey(item) === targetKey);
+
+  if (typeof itemOrKey === 'string') {
+    if (itemOrKey.startsWith('app_')) {
+      const parsedId = Number.parseInt(itemOrKey.replace('app_', ''), 10);
+      return currentList.some((item) => item.appId === parsedId);
+    }
+    if (itemOrKey.startsWith('title_')) {
+      const targetNorm = itemOrKey.replace('title_', '');
+      return currentList.some((item) => normalizeGameTitle(item.title) === targetNorm);
+    }
+    const targetNorm = normalizeGameTitle(itemOrKey);
+    return currentList.some((item) => normalizeGameTitle(item.title) === targetNorm);
+  }
+
+  return currentList.some((item) => isSameGame(item, itemOrKey));
 }
 
 /**
- * Menambahkan game ke wishlist.
- * Menolak duplikat dan membatasi maksimal 50 item.
+ * REVISI 4: Menambahkan game ke wishlist dengan perlindungan downgrade dan auto-upgrade.
+ *
+ * Aturan:
+ * 1. Jika game sudah ada:
+ *    - Jika entri yang ada belum punya appId, tapi data baru punya appId valid:
+ *      Lakukan UPGRADE in-place (pasang appId dan storeUrl resmi).
+ *    - Jika entri yang ada sudah punya appId, tapi data baru tidak punya appId:
+ *      CEGAH DOWNGRADE. Pertahankan data resmi dan jangan tambah entri baru.
+ *    - Kembalikan error 'Game sudah ada di dalam wishlist.'
+ * 2. Jika game belum ada:
+ *    - Simpan ke wishlist (maksimal 50 item).
+ *
  * @param {object} storage
  * @param {object} rawItem
- * @returns {{ success: boolean, list: Array<object>, item?: object, error?: string }}
+ * @returns {{ success: boolean, list: Array<object>, item?: object, upgraded?: boolean, error?: string }}
  */
 export function addToWishlist(storage = globalThis.localStorage, rawItem) {
   if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
@@ -134,15 +322,47 @@ export function addToWishlist(storage = globalThis.localStorage, rawItem) {
   }
 
   const cleanItem = sanitizeWishlistItem(rawItem);
-  const key = getItemKey(cleanItem);
-  if (!key) {
+  const cleanNorm = normalizeGameTitle(cleanItem.title);
+  if (!cleanItem.appId && !cleanNorm) {
     return { success: false, list: getWishlist(storage), error: 'Data game tidak valid.' };
   }
 
   const currentList = getWishlist(storage);
+  const existingIndex = currentList.findIndex((item) => isSameGame(item, cleanItem));
 
-  if (currentList.some((item) => getItemKey(item) === key)) {
-    return { success: false, list: currentList, error: 'Game sudah ada di dalam wishlist.' };
+  if (existingIndex !== -1) {
+    const existing = currentList[existingIndex];
+
+    // Kasus Auto-Upgrade: Entri lama tanpa appId, rekomendasi baru memiliki appId
+    if (!existing.appId && cleanItem.appId) {
+      const upgradedItem = {
+        ...existing,
+        appId: cleanItem.appId,
+        storeUrl: cleanItem.storeUrl,
+      };
+      currentList[existingIndex] = upgradedItem;
+      try {
+        saveWishlist(storage, currentList);
+        return {
+          success: true,
+          list: currentList,
+          item: upgradedItem,
+          upgraded: true,
+        };
+      } catch (err) {
+        console.error('Gagal memperbarui wishlist saat upgrade:', err);
+        return { success: false, list: currentList, error: 'Gagal menyimpan ke penyimpanan browser.' };
+      }
+    }
+
+    // Kasus Cegah Downgrade / Duplikat sama
+    return {
+      success: false,
+      list: currentList,
+      item: existing,
+      upgraded: false,
+      error: 'Game sudah ada di dalam wishlist.',
+    };
   }
 
   if (currentList.length >= MAX_WISHLIST_ITEMS) {
@@ -174,16 +394,28 @@ export function removeFromWishlist(storage = globalThis.localStorage, itemOrKey)
     return { success: false, list: [], removed: false, error: 'Penyimpanan lokal tidak tersedia di browser ini.' };
   }
 
-  const targetKey = typeof itemOrKey === 'string' && (itemOrKey.startsWith('app_') || itemOrKey.startsWith('title_'))
-    ? itemOrKey
-    : getItemKey(itemOrKey);
-
-  if (!targetKey) {
+  if (!itemOrKey) {
     return { success: false, list: getWishlist(storage), removed: false, error: 'Target game tidak valid.' };
   }
 
   const currentList = getWishlist(storage);
-  const nextList = currentList.filter((item) => getItemKey(item) !== targetKey);
+  let nextList = [];
+
+  if (typeof itemOrKey === 'string') {
+    if (itemOrKey.startsWith('app_')) {
+      const targetId = Number.parseInt(itemOrKey.replace('app_', ''), 10);
+      nextList = currentList.filter((item) => item.appId !== targetId);
+    } else if (itemOrKey.startsWith('title_')) {
+      const targetNorm = itemOrKey.replace('title_', '');
+      nextList = currentList.filter((item) => normalizeGameTitle(item.title) !== targetNorm);
+    } else {
+      const targetNorm = normalizeGameTitle(itemOrKey);
+      nextList = currentList.filter((item) => normalizeGameTitle(item.title) !== targetNorm);
+    }
+  } else {
+    nextList = currentList.filter((item) => !isSameGame(item, itemOrKey));
+  }
+
   const removed = nextList.length !== currentList.length;
 
   try {
@@ -193,17 +425,4 @@ export function removeFromWishlist(storage = globalThis.localStorage, itemOrKey)
     console.error('Gagal memperbarui wishlist:', err);
     return { success: false, list: currentList, removed: false, error: 'Gagal memperbarui penyimpanan browser.' };
   }
-}
-
-/**
- * Memformat daftar wishlist untuk fungsi Salin Daftar (teks biasa).
- * Format: Judul - Tautan Steam, satu item per baris.
- * @param {Array<object>} list
- * @returns {string}
- */
-export function formatWishlistForCopy(list = []) {
-  if (!Array.isArray(list) || list.length === 0) return '';
-  return list
-    .map((item) => `${item.title || 'Game Steam'} - ${item.storeUrl || 'https://store.steampowered.com/'}`)
-    .join('\n');
 }

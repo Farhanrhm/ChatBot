@@ -5,7 +5,8 @@ import {
   addToWishlist,
   removeFromWishlist,
   isInWishlist,
-  formatWishlistForCopy,
+  migrateWishlist,
+  normalizeGameTitle,
   getItemKey,
   MAX_WISHLIST_ITEMS,
 } from "./wishlistCore.js";
@@ -65,6 +66,15 @@ function getActiveFilterSummary() {
   return parts.length > 0 ? `Filter: ${parts.join(", ")}` : "";
 }
 
+// State toolbar filter & saran
+let isToolbarCollapsed = false;
+let hasUserToggledToolbar = false;
+
+// REVISI 6: Inisialisasi awal layar pendek (< 700px)
+if (window.matchMedia("(max-height: 700px)").matches) {
+  isToolbarCollapsed = true;
+}
+
 function updateFilterUI() {
   document.querySelectorAll(".filter-chip").forEach((chip) => {
     const group = chip.dataset.group;
@@ -88,24 +98,17 @@ function updateFilterUI() {
     activeCount++;
   }
 
-  // Perbarui teks ringkasan filter aktif di samping tombol trigger mobile
-  if (els.filterSummaryText) {
-    els.filterSummaryText.textContent = activeParts.length > 0 ? activeParts.join(", ") : "Semua";
-  }
-
-  // Perbarui badge jumlah filter aktif pada tombol trigger mobile
-  if (els.filterActiveCount) {
-    els.filterActiveCount.textContent = String(activeCount);
-    els.filterActiveCount.hidden = activeCount === 0;
+  // REVISI 3: Indikator filter aktif di pojok tombol toggle
+  if (els.filterActiveCountBadge) {
+    els.filterActiveCountBadge.textContent = String(activeCount);
+    els.filterActiveCountBadge.hidden = activeCount === 0;
   }
 
   if (els.filterToggleBtn) {
-    els.filterToggleBtn.setAttribute(
-      "aria-label",
-      activeCount > 0
-        ? `Buka filter preferensi, ${activeCount} aktif: ${activeParts.join(", ")}`
-        : "Buka filter preferensi"
-    );
+    const actionText = isToolbarCollapsed ? "Tampilkan filter & saran" : "Sembunyikan filter & saran";
+    const countText = activeCount > 0 ? ` (${activeCount} aktif)` : "";
+    els.filterToggleBtn.setAttribute("aria-label", `${actionText}${countText}`);
+    els.filterToggleBtn.setAttribute("title", `${actionText}${countText}`);
   }
 
   const hasActive = activeCount > 0;
@@ -114,13 +117,90 @@ function updateFilterUI() {
   }
 }
 
+function setToolbarCollapsed(collapsed) {
+  isToolbarCollapsed = collapsed;
+  if (els.quickToolbarWrap) {
+    els.quickToolbarWrap.classList.toggle("is-collapsed", collapsed);
+  }
+  if (els.filterToggleBtn) {
+    els.filterToggleBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  }
+  updateFilterUI();
+  if (!collapsed) {
+    requestAnimationFrame(updateToolbarScrollEdges);
+  }
+}
+
+// REVISI 4: Deteksi tepi scroll untuk efek fade mask kiri/kanan
+function updateToolbarScrollEdges() {
+  if (!els.quickToolbar || !els.quickToolbarWrap) return;
+  const scrollLeft = els.quickToolbar.scrollLeft;
+  const maxScroll = els.quickToolbar.scrollWidth - els.quickToolbar.clientWidth;
+  els.quickToolbarWrap.classList.toggle("has-left", scrollLeft > 3);
+  els.quickToolbarWrap.classList.toggle("has-right", maxScroll - scrollLeft > 3);
+}
+
+/* REVISI 6: Cache ringan judul terverifikasi ke App ID di sisi frontend */
+const VERIFIED_APPID_CACHE_KEY = "steamscout_verified_appid_cache";
+const MAX_VERIFIED_APPID_CACHE = 100;
+
+function getVerifiedAppIdCache() {
+  try {
+    const raw = localStorage.getItem(VERIFIED_APPID_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveVerifiedAppIdCache(cache) {
+  try {
+    localStorage.setItem(VERIFIED_APPID_CACHE_KEY, JSON.stringify(cache));
+  } catch (err) {
+    console.warn("Gagal menyimpan cache verified appId:", err);
+  }
+}
+
+function rememberVerifiedAppId(title, appId) {
+  if (!title || !appId) return;
+  const norm = normalizeGameTitle(title);
+  if (!norm) return;
+  const numericId = Number.parseInt(String(appId).trim(), 10);
+  if (!Number.isInteger(numericId) || numericId <= 0) return;
+
+  const cache = getVerifiedAppIdCache();
+  cache[norm] = numericId;
+
+  const keys = Object.keys(cache);
+  if (keys.length > MAX_VERIFIED_APPID_CACHE) {
+    const excess = keys.length - MAX_VERIFIED_APPID_CACHE;
+    for (let i = 0; i < excess; i++) {
+      delete cache[keys[i]];
+    }
+  }
+
+  saveVerifiedAppIdCache(cache);
+}
+
+function resolveAppIdFromCache(title) {
+  if (!title) return null;
+  const norm = normalizeGameTitle(title);
+  if (!norm) return null;
+  const cache = getVerifiedAppIdCache();
+  const cachedId = cache[norm];
+  return Number.isInteger(cachedId) && cachedId > 0 ? cachedId : null;
+}
+
 /**
  * Membangun body JSON request ke server.
- * Mengirim array conversation dan preferences sebagai field terpisah.
+ * Memangkas riwayat percakapan maksimal 20 turn terakhir agar payload aman di bawah 100kb.
  */
 function buildRequestBody(conversation) {
+  const safeConversation = Array.isArray(conversation) ? conversation.slice(-20) : [];
   return {
-    conversation,
+    conversation: safeConversation,
     preferences: { ...activePreferences },
   };
 }
@@ -152,6 +232,10 @@ const els = {
   welcome: $("#welcome"),
   capsules: $("#capsules"),
   messages: $("#messages"),
+  quickToolbarWrap: $("#quick-toolbar-wrap"),
+  quickToolbar: $("#quick-toolbar"),
+  filterToggleBtn: $("#filter-toggle-btn"),
+  filterActiveCountBadge: $("#filter-active-count-badge"),
   chips: $("#chips"),
   form: $("#chat-form"),
   input: $("#user-input"),
@@ -164,15 +248,8 @@ const els = {
   wishlistBackdrop: $("#wishlist-backdrop"),
   wishlistCloseBtn: $("#wishlist-close-btn"),
   wishlistDrawerCount: $("#wishlist-drawer-count"),
-  wishlistCopyBtn: $("#wishlist-copy-btn"),
-  wishlistCopyFeedback: $("#wishlist-copy-feedback"),
   wishlistEmpty: $("#wishlist-empty"),
   wishlistItems: $("#wishlist-items"),
-  filterBar: $("#filter-bar"),
-  filterToggleBtn: $("#filter-toggle-btn"),
-  filterToggleLabel: $("#filter-toggle-label"),
-  filterActiveCount: $("#filter-active-count"),
-  filterSummaryText: $("#filter-summary-text"),
   filterGroups: $("#filter-groups"),
   clearFiltersBtn: $("#clear-filters-btn"),
 };
@@ -211,7 +288,12 @@ function clearHistoryStorage() {
 
 /* Render saran cepat */
 function renderQuickPrompts() {
+  if (!els.capsules || !els.chips) return;
+  els.capsules.innerHTML = "";
+  els.chips.innerHTML = "";
+
   QUICK_PROMPTS.forEach((item) => {
+    // 1. Kapsul di welcome screen
     const capsule = document.createElement("button");
     capsule.type = "button";
     capsule.className = "capsule";
@@ -244,6 +326,7 @@ function renderQuickPrompts() {
     capsule.addEventListener("click", () => sendMessage(item.prompt));
     els.capsules.appendChild(capsule);
 
+    // 2. Chip kompak di toolbar horizontal
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "chip";
@@ -258,7 +341,7 @@ function renderQuickPrompts() {
 
     const chipText = document.createElement("span");
     chipText.className = "chip-text";
-    chipText.textContent = item.prompt;
+    chipText.textContent = item.label;
 
     chip.appendChild(chipSvg);
     chip.appendChild(chipText);
@@ -268,8 +351,7 @@ function renderQuickPrompts() {
 }
 
 function setWelcomeVisible(visible) {
-  els.welcome.hidden = !visible;
-  els.chips.hidden = visible;
+  if (els.welcome) els.welcome.hidden = !visible;
 }
 
 /* Parser Markdown aman (escape HTML dan link sanitasi) */
@@ -287,7 +369,6 @@ function inline(str) {
   s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
   s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   s = s.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<em>$2</em>");
-  // Hanya izinkan link http atau https
   s = s.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
@@ -351,7 +432,7 @@ function formatMarkdown(text) {
 
     closeList();
 
-    // Deteksi judul rekomendasi game: diawali **Nama Game** dan diikuti kurung (tahun, developer)
+    // Deteksi judul rekomendasi game
     const gameMatch = line.match(/^(?:\s*(?:\d+[.)]|[-*•])\s*)?\*\*([^*:]+?)\*\*\s*(\(.*)$/);
     if (gameMatch) {
       const gameTitle = gameMatch[1].trim();
@@ -368,12 +449,14 @@ function formatMarkdown(text) {
   return html;
 }
 
-/* Render pesan */
+/* Auto-scroll ke pesan terbaru pada elemen chat */
 function scrollToBottom() {
-  els.chat.scrollTo({ top: els.chat.scrollHeight, behavior: "smooth" });
+  if (els.chat) {
+    els.chat.scrollTo({ top: els.chat.scrollHeight, behavior: "smooth" });
+  }
 }
 
-/* Render balasan bot (mendukung Structured JSON Output dan fallback Markdown) */
+/* Render balasan bot (Structured JSON Output & Fallback Markdown) */
 function formatBotContent(raw) {
   let structured = null;
 
@@ -387,7 +470,6 @@ function formatBotContent(raw) {
     }
   }
 
-  // Jika response adalah objek terstruktur kurasi game
   if (structured && typeof structured === "object" && (structured.intro || Array.isArray(structured.games))) {
     let html = "";
     if (structured.intro) {
@@ -397,14 +479,33 @@ function formatBotContent(raw) {
     if (Array.isArray(structured.games) && structured.games.length > 0) {
       html += `<div class="game-cards">`;
       structured.games.forEach((g) => {
+        let appId = g.appId ? Number.parseInt(String(g.appId).trim(), 10) : null;
+        if (!Number.isInteger(appId) || appId <= 0) {
+          appId = null;
+        }
+
+        // REVISI 6: Sinkronisasi dan pemulihan App ID dari cache frontend
+        if (appId) {
+          rememberVerifiedAppId(g.title, appId);
+        } else {
+          const cachedId = resolveAppIdFromCache(g.title);
+          if (cachedId) {
+            appId = cachedId;
+            g.appId = cachedId;
+            if (!g.storeUrl || g.storeUrl.includes("/search/")) {
+              g.storeUrl = `https://store.steampowered.com/app/${cachedId}/`;
+            }
+          }
+        }
+
         const title = escapeHtml(g.title || "Game Steam");
         const year = g.year ? escapeHtml(g.year) : "";
         const dev = g.developer ? escapeHtml(g.developer) : "";
         const metaStr = [year, dev].filter(Boolean).join(" • ");
-        const storeUrl = g.storeUrl || `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || "")}`;
+        const storeUrl = g.storeUrl || (appId ? `https://store.steampowered.com/app/${appId}/` : `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || "")}`);
         const headerImg = g.headerImage ? escapeHtml(g.headerImage) : null;
 
-        const isUnverified = g.verified === false;
+        const isUnverified = g.verified === false && !appId;
         const discountBadgeHtml =
           !isUnverified && g.pricing?.status === "paid" && g.pricing?.onSale && g.pricing?.discountPercent > 0
             ? `<span class="discount-badge" aria-label="Diskon ${escapeHtml(String(g.pricing.discountPercent))} persen">-${escapeHtml(String(g.pricing.discountPercent))}%</span>`
@@ -457,7 +558,7 @@ function formatBotContent(raw) {
           ? `<span class="unverified-badge" role="status">Belum terverifikasi di Steam</span>`
           : "";
 
-        const isSearchLink = isUnverified || !g.appId;
+        const isSearchLink = isUnverified || !appId;
         const btnLabel = isSearchLink ? "Cari di Steam" : "Buka di Steam Store";
         const btnAriaLabel = isSearchLink ? `Cari ${title} di Steam` : `Buka ${title} di Steam`;
 
@@ -480,43 +581,32 @@ function formatBotContent(raw) {
               </div>
               <div class="game-card-actions">
                 <a href="${storeUrl}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="${btnAriaLabel}">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                    <path d="M12 2a10 10 0 0 0-9.95 9l5.65 2.33a2.89 2.89 0 0 1 1.76-.6c.23 0 .45.03.66.08l2.67-3.87A4.27 4.27 0 0 1 12.5 8a4.5 4.5 0 1 1 0 9c-.27 0-.53-.02-.79-.07l-2.73 3.96c-.22.06-.46.11-.71.11a3.25 3.25 0 0 1-3.23-3l-3.08-1.28A10 10 0 1 0 12 2z"/>
+                  <span>${btnLabel}</span>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
                   </svg>
-                  ${btnLabel}
                 </a>
                 <button
                   type="button"
                   class="btn-wishlist-toggle"
-                  data-appid="${g.appId || ""}"
-                  data-title="${escapeHtml(g.title || "")}"
-                  data-store-url="${escapeHtml(storeUrl)}"
-                  aria-pressed="${isInWishlist(globalThis.localStorage, { appId: g.appId, title: g.title }) ? "true" : "false"}"
-                  aria-label="${isInWishlist(globalThis.localStorage, { appId: g.appId, title: g.title }) ? `Hapus ${title} dari wishlist` : `Simpan ${title} ke wishlist`}"
-                  title="${isInWishlist(globalThis.localStorage, { appId: g.appId, title: g.title }) ? "Hapus dari wishlist" : "Simpan ke wishlist"}"
+                  data-appid="${appId ? escapeHtml(String(appId)) : ""}"
+                  data-title="${title}"
+                  data-store-url="${storeUrl}"
+                  aria-pressed="false"
+                  aria-label="Simpan ${title} ke wishlist"
+                  title="Simpan ke wishlist"
                 >
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="${isInWishlist(globalThis.localStorage, { appId: g.appId, title: g.title }) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
                   </svg>
-                  <span class="wishlist-btn-text">${isInWishlist(globalThis.localStorage, { appId: g.appId, title: g.title }) ? "Tersimpan" : "Wishlist"}</span>
+                  <span class="wishlist-btn-text">Wishlist</span>
                 </button>
               </div>
             </div>
-          </div>
-        `;
+          </div>`;
       });
-
-      const hasValidPricing = structured.games.some(
-        (g) => g.pricing && g.pricing.status && g.pricing.status !== "unknown"
-      );
-      if (hasValidPricing) {
-        html += `
-          <div class="steam-attribution">
-            <small>Harga dan ketersediaan dicek per waktu respon, dapat berubah sewaktu-waktu. Data dari Steam Storefront.</small>
-          </div>
-        `;
-      }
-
       html += `</div>`;
     }
 
@@ -526,99 +616,131 @@ function formatBotContent(raw) {
     return html;
   }
 
-  // Fallback markdown biasa
   return formatMarkdown(typeof raw === "string" ? raw : JSON.stringify(raw));
 }
 
-function addMessage(role, text, filterSummary = "") {
-  const wrap = document.createElement("div");
-  wrap.className = `msg ${role}`;
+function addMessage(role, content, activeFiltersSummary = "") {
+  const row = document.createElement("div");
+  row.className = `msg ${role}`;
 
   if (role === "bot") {
     const avatar = document.createElement("div");
     avatar.className = "avatar";
+    avatar.setAttribute("aria-hidden", "true");
     avatar.innerHTML = BOT_AVATAR;
-    wrap.appendChild(avatar);
+    row.appendChild(avatar);
   }
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  if (role === "bot") {
-    bubble.innerHTML = formatBotContent(text);
-  } else {
-    const textDiv = document.createElement("div");
-    textDiv.className = "user-msg-text";
-    textDiv.textContent = text;
-    bubble.appendChild(textDiv);
 
-    if (filterSummary) {
-      const badgeWrap = document.createElement("div");
-      badgeWrap.className = "user-active-filters";
-      badgeWrap.setAttribute("aria-label", "Filter aktif saat pesan dikirim");
-      const badge = document.createElement("span");
-      badge.className = "active-filter-badge";
-      badge.textContent = filterSummary;
-      badgeWrap.appendChild(badge);
-      bubble.appendChild(badgeWrap);
+  if (role === "bot") {
+    bubble.innerHTML = formatBotContent(content);
+  } else {
+    const textP = document.createElement("p");
+    textP.className = "user-msg-text";
+    textP.textContent = content;
+    bubble.appendChild(textP);
+
+    if (activeFiltersSummary) {
+      const filterWrap = document.createElement("div");
+      filterWrap.className = "user-active-filters";
+      filterWrap.setAttribute("aria-label", activeFiltersSummary);
+
+      const cleanFilters = activeFiltersSummary.replace(/^Filter:\s*/, "").split(", ");
+      cleanFilters.forEach((f) => {
+        const badge = document.createElement("span");
+        badge.className = "active-filter-badge";
+        badge.textContent = f.trim();
+        filterWrap.appendChild(badge);
+      });
+      bubble.appendChild(filterWrap);
     }
   }
-  wrap.appendChild(bubble);
 
-  els.messages.appendChild(wrap);
+  row.appendChild(bubble);
+  els.messages.appendChild(row);
   scrollToBottom();
-  return wrap;
+
+  if (role === "bot") {
+    updateAllWishlistCardButtons();
+  }
 }
 
-function showTyping() {
-  const wrap = document.createElement("div");
-  wrap.className = "msg bot";
-  wrap.innerHTML = `
-    <div class="avatar">${BOT_AVATAR}</div>
-    <div class="bubble" role="status" aria-label="SteamScout sedang mengetik">
-      <div class="typing"><span></span><span></span><span></span></div>
-    </div>`;
-  els.messages.appendChild(wrap);
-  scrollToBottom();
-  return wrap;
-}
+function addError(errorText) {
+  const row = document.createElement("div");
+  row.className = "msg bot error";
 
-function addError(message) {
-  const wrap = document.createElement("div");
-  wrap.className = "msg bot error";
-  wrap.innerHTML = `
-    <div class="avatar">${BOT_AVATAR}</div>
-    <div class="bubble">
-      <p>${escapeHtml(message)}</p>
-      <button type="button" class="retry" aria-label="Coba kirim ulang pesan terakhir">Coba lagi</button>
-    </div>`;
-  wrap.querySelector(".retry").addEventListener("click", () => {
-    wrap.remove();
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.setAttribute("aria-hidden", "true");
+  avatar.textContent = "!";
+  row.appendChild(avatar);
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+
+  const p = document.createElement("p");
+  p.textContent = errorText || "Terjadi kesalahan saat menghubungi server.";
+  bubble.appendChild(p);
+
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "retry";
+  retry.textContent = "Coba lagi";
+  retry.addEventListener("click", () => {
+    row.remove();
     requestReply();
   });
-  els.messages.appendChild(wrap);
+  bubble.appendChild(retry);
+
+  row.appendChild(bubble);
+  els.messages.appendChild(row);
   scrollToBottom();
 }
 
-/* Kirim dan terima pesan */
-function setLoading(state) {
-  isLoading = state;
-  els.sendBtn.disabled = state;
-  els.chips.querySelectorAll(".chip").forEach((chip) => (chip.disabled = state));
+function createTypingIndicator() {
+  const row = document.createElement("div");
+  row.className = "msg bot typing-row";
+
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.setAttribute("aria-hidden", "true");
+  avatar.innerHTML = BOT_AVATAR;
+  row.appendChild(avatar);
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+
+  const typing = document.createElement("div");
+  typing.className = "typing";
+  typing.setAttribute("aria-label", "SteamScout sedang mencari rekomendasi...");
+  typing.appendChild(document.createElement("span"));
+  typing.appendChild(document.createElement("span"));
+  typing.appendChild(document.createElement("span"));
+  bubble.appendChild(typing);
+
+  row.appendChild(bubble);
+  return row;
+}
+
+function setLoading(loading) {
+  isLoading = loading;
+  els.sendBtn.disabled = loading;
+  els.input.disabled = loading;
+  document.querySelectorAll(".chip").forEach((c) => (c.disabled = loading));
 }
 
 async function requestReply() {
-  const lastUser = [...history].reverse().find((h) => h.role === "user");
-  if (!lastUser) return;
-
   setLoading(true);
-  const typing = showTyping();
+  const typing = createTypingIndicator();
+  els.messages.appendChild(typing);
+  scrollToBottom();
 
-  // AbortController untuk timeout 45 detik
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   try {
-    // Coba streaming via SSE terlebih dahulu (/api/chat/stream)
     let finalData = null;
     let streamSuccess = false;
     let streamRawResult = null;
@@ -664,11 +786,9 @@ async function requestReply() {
         }
       }
     } catch {
-      // Jika streaming gagal, fallback ke endpoint reguler
       streamSuccess = false;
     }
 
-    // Fallback ke endpoint biasa jika SSE tidak selesai
     if (!streamSuccess || !finalData) {
       const res = await fetch(API_URL, {
         method: "POST",
@@ -694,7 +814,6 @@ async function requestReply() {
       throw new Error("Balasan dari server kosong.");
     }
 
-    // Ekstrak teks bersih tanpa data kartu/harga sementara agar payload riwayat tidak membengkak
     const cleanHistoryText = (() => {
       const source = streamRawResult || fallbackRawResult;
       if (typeof source === "string" && source.trim()) {
@@ -754,7 +873,7 @@ async function requestReply() {
     addError(displayMsg);
   } finally {
     setLoading(false);
-    els.input.focus();
+    els.input.focus({ preventScroll: true });
   }
 }
 
@@ -764,6 +883,12 @@ async function sendMessage(text) {
 
   const filterSummary = getActiveFilterSummary();
   setWelcomeVisible(false);
+
+  // REVISI 6: Sembunyikan otomatis baris filter setelah pesan pertama terkirim (jika belum di-toggle manual)
+  if (!hasUserToggledToolbar && !isToolbarCollapsed) {
+    setToolbarCollapsed(true);
+  }
+
   addMessage("user", text, filterSummary);
   history.push({ role: "user", text });
   saveHistoryToStorage();
@@ -777,7 +902,7 @@ async function sendMessage(text) {
 /* Input dan penghitung karakter */
 function autoResize() {
   els.input.style.height = "auto";
-  els.input.style.height = `${Math.min(els.input.scrollHeight, 160)}px`;
+  els.input.style.height = `${Math.min(els.input.scrollHeight, 120)}px`;
 }
 
 function updateCharCounter() {
@@ -823,8 +948,18 @@ els.resetBtn.addEventListener("click", () => {
   clearHistoryStorage();
   els.messages.innerHTML = "";
   setWelcomeVisible(true);
+
+  // Buka kembali toolbar dan bersihkan filter aktif
+  hasUserToggledToolbar = false;
+  activePreferences.spec = "any";
+  activePreferences.budget = "any";
+  activePreferences.mode = "any";
+  savePreferencesToStorage();
+  updateFilterUI();
+  setToolbarCollapsed(false);
+
   els.chat.scrollTo({ top: 0 });
-  els.input.focus();
+  els.input.focus({ preventScroll: true });
 });
 
 /* Logika dan UI Wishlist Lokal */
@@ -916,11 +1051,20 @@ function updateWishlistUI() {
         })
         .join("");
 
-      els.wishlistItems.querySelectorAll(".btn-item-delete").forEach((delBtn) => {
+      els.wishlistItems.querySelectorAll(".btn-item-delete").forEach((delBtn, idx) => {
         delBtn.addEventListener("click", () => {
           const key = delBtn.dataset.key;
           removeFromWishlist(globalThis.localStorage, key);
           updateWishlistUI();
+
+          // REVISI 5: Pindahkan fokus ke item berikutnya, atau tombol tutup jika daftar kosong
+          const remainingBtns = els.wishlistItems.querySelectorAll(".btn-item-delete");
+          if (remainingBtns.length > 0) {
+            const nextIdx = Math.min(idx, remainingBtns.length - 1);
+            remainingBtns[nextIdx].focus();
+          } else if (els.wishlistCloseBtn) {
+            els.wishlistCloseBtn.focus();
+          }
         });
       });
     }
@@ -947,7 +1091,6 @@ function closeWishlistPanel() {
   }
 }
 
-// Event listener drawer & backdrop
 if (els.wishlistBtn) {
   els.wishlistBtn.addEventListener("click", () => {
     if (els.wishlistPanel.hidden) {
@@ -966,7 +1109,6 @@ if (els.wishlistBackdrop) {
   els.wishlistBackdrop.addEventListener("click", closeWishlistPanel);
 }
 
-// Keyboard trap & ESC listener
 if (els.wishlistPanel) {
   els.wishlistPanel.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -976,10 +1118,23 @@ if (els.wishlistPanel) {
     }
 
     if (e.key === "Tab") {
-      const focusables = els.wishlistPanel.querySelectorAll(
-        'button:not([disabled]):not([hidden]), a[href]:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusables.length === 0) return;
+      const focusables = Array.from(
+        els.wishlistPanel.querySelectorAll(
+          'button:not([disabled]):not([hidden]), a[href]:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => el.offsetParent !== null || el === els.wishlistCloseBtn);
+
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      if (focusables.length === 1) {
+        // REVISI 5: Tahan fokus di tombol tutup jika hanya ada 1 elemen fokus
+        e.preventDefault();
+        focusables[0].focus();
+        return;
+      }
 
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
@@ -991,43 +1146,6 @@ if (els.wishlistPanel) {
         e.preventDefault();
         first.focus();
       }
-    }
-  });
-}
-
-// Salin daftar ke clipboard
-if (els.wishlistCopyBtn) {
-  els.wishlistCopyBtn.addEventListener("click", async () => {
-    const list = getWishlist(globalThis.localStorage);
-    if (list.length === 0) {
-      showToast("Wishlist kosong, belum ada game untuk disalin.");
-      return;
-    }
-
-    const textToCopy = formatWishlistForCopy(list);
-    try {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(textToCopy);
-      } else {
-        const tempTextarea = document.createElement("textarea");
-        tempTextarea.value = textToCopy;
-        tempTextarea.style.position = "fixed";
-        tempTextarea.style.opacity = "0";
-        document.body.appendChild(tempTextarea);
-        tempTextarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(tempTextarea);
-      }
-
-      if (els.wishlistCopyFeedback) {
-        els.wishlistCopyFeedback.hidden = false;
-        setTimeout(() => {
-          els.wishlistCopyFeedback.hidden = true;
-        }, 2500);
-      }
-    } catch (err) {
-      console.warn("Gagal menyalin ke clipboard:", err);
-      showToast("Gagal menyalin ke clipboard. Izin ditolak.");
     }
   });
 }
@@ -1077,49 +1195,47 @@ if (els.clearFiltersBtn) {
   });
 }
 
-/* Panel Filter Mobile: buka/tutup, tutup via Esc, dan kembalikan fokus */
-function closeFilterPanel() {
-  if (els.filterGroups?.classList.contains("is-open")) {
-    els.filterGroups.classList.remove("is-open");
-    if (els.filterToggleBtn) {
-      els.filterToggleBtn.setAttribute("aria-expanded", "false");
-      els.filterToggleBtn.focus();
-    }
-  }
-}
-
-function toggleFilterPanel() {
-  if (!els.filterGroups || !els.filterToggleBtn) return;
-  const isOpen = els.filterGroups.classList.toggle("is-open");
-  els.filterToggleBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
-}
-
+// REVISI 3 & 6: Tombol Toggle Filter di samping textarea
 if (els.filterToggleBtn) {
-  els.filterToggleBtn.addEventListener("click", toggleFilterPanel);
+  els.filterToggleBtn.addEventListener("click", () => {
+    hasUserToggledToolbar = true;
+    setToolbarCollapsed(!isToolbarCollapsed);
+  });
 }
 
-// Tutup panel filter saat tombol Esc ditekan
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && els.filterGroups?.classList.contains("is-open")) {
-    closeFilterPanel();
-  }
-});
+// REVISI 4: Wheel-to-horizontal-scroll & scroll listener pada toolbar
+if (els.quickToolbar) {
+  els.quickToolbar.addEventListener("scroll", updateToolbarScrollEdges, { passive: true });
 
-// Sinkronkan status panel filter saat layar melewati batas 520px (matchMedia)
-const mobileFilterMedia = window.matchMedia("(max-width: 520px)");
-mobileFilterMedia.addEventListener("change", (e) => {
-  // Jika berpindah ke desktop (> 520px), reset status panel mobile
-  if (!e.matches) {
-    if (els.filterGroups) {
-      els.filterGroups.classList.remove("is-open");
-    }
-    if (els.filterToggleBtn) {
-      els.filterToggleBtn.setAttribute("aria-expanded", "false");
-    }
-  }
-});
+  els.quickToolbar.addEventListener(
+    "wheel",
+    (e) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && els.quickToolbar.scrollWidth > els.quickToolbar.clientWidth) {
+        e.preventDefault();
+        els.quickToolbar.scrollLeft += e.deltaY;
+        updateToolbarScrollEdges();
+      }
+    },
+    { passive: false }
+  );
 
-// Deteksi keyboard virtual via visualViewport (sembunyikan catatan kaki hanya saat keyboard terbuka)
+  window.addEventListener("resize", updateToolbarScrollEdges, { passive: true });
+}
+
+// REVISI 5: Hindari loncatan scroll saat toolbar menutup/membuka
+if (els.quickToolbarWrap) {
+  els.quickToolbarWrap.addEventListener("transitionend", (e) => {
+    if (e.propertyName === "max-height" && els.chat) {
+      const distFromBottom = els.chat.scrollHeight - els.chat.scrollTop - els.chat.clientHeight;
+      if (distFromBottom < 80) {
+        els.chat.scrollTo({ top: els.chat.scrollHeight, behavior: "smooth" });
+      }
+      updateToolbarScrollEdges();
+    }
+  });
+}
+
+// Deteksi keyboard virtual via visualViewport
 if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", () => {
     const isKeyboardOpen = window.visualViewport.height < window.innerHeight - 150;
@@ -1128,10 +1244,12 @@ if (window.visualViewport) {
 }
 
 /* Inisialisasi dan muat riwayat sesi */
+migrateWishlist(globalThis.localStorage);
 renderQuickPrompts();
 updateWishlistUI();
 loadPreferencesFromStorage();
 updateFilterUI();
+setToolbarCollapsed(isToolbarCollapsed);
 
 const savedHistory = loadHistoryFromStorage();
 if (savedHistory.length > 0) {
@@ -1144,4 +1262,5 @@ if (savedHistory.length > 0) {
   setWelcomeVisible(true);
 }
 
-els.input.focus();
+requestAnimationFrame(updateToolbarScrollEdges);
+els.input.focus({ preventScroll: true });

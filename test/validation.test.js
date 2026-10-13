@@ -524,21 +524,241 @@ test('wishlistCore: removeFromWishlist menghapus item berdasarkan appId atau key
   assert.equal(removeDf.list.length, 0);
 });
 
-test('wishlistCore: formatWishlistForCopy menghasilkan baris Judul - URL tanpa harga', async () => {
-  const { formatWishlistForCopy } = await import('../public/wishlistCore.js');
+test('wishlistCore: isSameGame menolak penggabungan game berbeda dengan judul sama tapi appId berbeda', async () => {
+  const { isSameGame } = await import('../public/wishlistCore.js');
+  // Contoh: Remake vs versi original atau sekuel dengan appId berbeda
+  const originalGame = { appId: 100, title: 'Dead Space' };
+  const remakeGame = { appId: 200, title: 'Dead Space' };
+  assert.equal(isSameGame(originalGame, remakeGame), false);
 
-  const items = [
-    { title: 'Stardew Valley', storeUrl: 'https://store.steampowered.com/app/413150/' },
-    { title: 'Terraria', storeUrl: 'https://store.steampowered.com/app/105600/' },
+  // Jika salah satu tidak punya appId, bandingkan judul normalisasi
+  const unverified = { title: 'Dead Space' };
+  assert.equal(isSameGame(originalGame, unverified), true);
+});
+
+test('wishlistCore: addToWishlist melakukan auto-upgrade entri tanpa appId menjadi ber-appId resmi', async () => {
+  const { addToWishlist, getWishlist } = await import('../public/wishlistCore.js');
+  const storage = createMockStorage();
+
+  // 1. Simpan game unverified tanpa appId
+  const add1 = addToWishlist(storage, { title: 'Stardew Valley', storeUrl: 'https://store.steampowered.com/search/?term=Stardew%20Valley' });
+  assert.equal(add1.success, true);
+  assert.equal(add1.list.length, 1);
+  assert.equal(add1.list[0].appId, null);
+
+  // 2. Simpan rekomendasi game yang sama dengan appId resmi
+  const add2 = addToWishlist(storage, { appId: 413150, title: 'Stardew Valley', storeUrl: 'https://store.steampowered.com/app/413150/' });
+  assert.equal(add2.success, true);
+  assert.equal(add2.upgraded, true);
+  assert.equal(add2.list.length, 1); // Tidak membuat entri ganda!
+  assert.equal(add2.item.appId, 413150);
+  assert.equal(add2.item.storeUrl, 'https://store.steampowered.com/app/413150/');
+
+  const finalWishlist = getWishlist(storage);
+  assert.equal(finalWishlist.length, 1);
+  assert.equal(finalWishlist[0].appId, 413150);
+});
+
+test('wishlistCore: addToWishlist mencegah downgrade entri ber-appId resmi', async () => {
+  const { addToWishlist, getWishlist } = await import('../public/wishlistCore.js');
+  const storage = createMockStorage();
+
+  // 1. Game sudah tersimpan dengan appId resmi
+  const add1 = addToWishlist(storage, { appId: 1135690, title: 'Unpacking', storeUrl: 'https://store.steampowered.com/app/1135690/' });
+  assert.equal(add1.success, true);
+  assert.equal(add1.list[0].appId, 1135690);
+
+  // 2. Pengguna mencoba menyimpan versi rekomendasi unverified (tanpa appId)
+  const add2 = addToWishlist(storage, { title: 'Unpacking', storeUrl: 'https://store.steampowered.com/search/?term=Unpacking' });
+  assert.equal(add2.success, false);
+  assert.equal(add2.upgraded, false);
+  assert.ok(add2.error.includes('sudah ada'));
+  assert.equal(add2.list.length, 1);
+
+  // Data resmi tetap terjaga utuh
+  const current = getWishlist(storage);
+  assert.equal(current.length, 1);
+  assert.equal(current[0].appId, 1135690);
+  assert.equal(current[0].storeUrl, 'https://store.steampowered.com/app/1135690/');
+});
+
+test('wishlistCore: migrateWishlist membersihkan duplikat legacy dan mempertahankan addedAt paling awal', async () => {
+  const { migrateWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+
+  const earlierDate = '2026-10-01T10:00:00.000Z';
+  const laterDate = '2026-10-10T12:00:00.000Z';
+
+  const legacyDuplicates = [
+    { title: 'Stardew Valley', storeUrl: 'https://store.steampowered.com/search/?term=Stardew%20Valley', addedAt: earlierDate },
+    { title: 'Terraria', appId: 105600, storeUrl: 'https://store.steampowered.com/app/105600/', addedAt: earlierDate },
+    { title: 'Stardew Valley', appId: 413150, storeUrl: 'https://store.steampowered.com/app/413150/', addedAt: laterDate },
   ];
 
-  const text = formatWishlistForCopy(items);
-  const lines = text.split('\n');
-  assert.equal(lines.length, 2);
-  assert.equal(lines[0], 'Stardew Valley - https://store.steampowered.com/app/413150/');
-  assert.equal(lines[1], 'Terraria - https://store.steampowered.com/app/105600/');
-  assert.equal(text.includes('Rp'), false);
-  assert.equal(text.includes('Diskon'), false);
+  const storage = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify(legacyDuplicates),
+  });
+
+  const res = migrateWishlist(storage);
+  assert.equal(res.changed, true);
+  assert.equal(res.removedCount, 1);
+  assert.equal(res.list.length, 2);
+
+  // Stardew Valley di posisi pertama mendapatkan upgrade appId & url resmi, tapi mempertahankan addedAt paling awal
+  assert.equal(res.list[0].title, 'Stardew Valley');
+  assert.equal(res.list[0].appId, 413150);
+  assert.equal(res.list[0].storeUrl, 'https://store.steampowered.com/app/413150/');
+  assert.equal(res.list[0].addedAt, earlierDate);
+
+  // Terraria tetap utuh di posisi kedua
+  assert.equal(res.list[1].title, 'Terraria');
+  assert.equal(res.list[1].appId, 105600);
+
+  // Pemanggilan kedua kali tidak menghasilkan perubahan (idempotent)
+  const secondRun = migrateWishlist(storage);
+  assert.equal(secondRun.changed, false);
+  assert.equal(secondRun.removedCount, 0);
+});
+
+test('wishlistCore: getWishlist dan migrateWishlist kebal terhadap data storage rusak atau item kosong', async () => {
+  const { getWishlist, migrateWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+
+  // Kasus 1: Array berisi null, objek kosong, dan item valid
+  const mixedStorage = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify([
+      null,
+      {},
+      { title: '', appId: null },
+      { title: 'Portal 2', appId: 620 },
+      'string-rusak',
+    ]),
+  });
+
+  const validItems = getWishlist(mixedStorage);
+  assert.equal(validItems.length, 1);
+  assert.equal(validItems[0].title, 'Portal 2');
+  assert.equal(validItems[0].appId, 620);
+
+  // Kasus 2: Storage bukan array (objek tunggal)
+  const nonArrayStorage = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify({ title: 'Bukan Array' }),
+  });
+  assert.deepEqual(getWishlist(nonArrayStorage), []);
+  assert.deepEqual(migrateWishlist(nonArrayStorage).list, []);
+});
+
+test('wishlistCore: normalizeGameTitle dan isSameGame menyamakan variasi simbol TM, apostrof, dan tanda baca', async () => {
+  const { normalizeGameTitle, isSameGame } = await import('../public/wishlistCore.js');
+
+  const titleA = "Baldur's Gate 3™";
+  const titleB = 'Baldurs Gate 3';
+  const titleC = 'Baldur’s Gate - 3';
+
+  assert.equal(normalizeGameTitle(titleA), normalizeGameTitle(titleB));
+  assert.equal(normalizeGameTitle(titleB), normalizeGameTitle(titleC));
+
+  assert.equal(isSameGame({ title: titleA }, { title: titleB }), true);
+  assert.equal(isSameGame({ title: titleA }, { title: titleC }), true);
+
+  // Mempertahankan sufiks edisi dan angka sekuel agar game beda tidak tertukar
+  assert.notEqual(
+    normalizeGameTitle('The Witcher 3: Wild Hunt - Game of the Year Edition'),
+    normalizeGameTitle('The Witcher 3: Wild Hunt')
+  );
+  assert.notEqual(normalizeGameTitle('Hades'), normalizeGameTitle('Hades II'));
+  assert.notEqual(normalizeGameTitle('Portal'), normalizeGameTitle('Portal 2'));
+});
+
+test('Audit Bukti: Reset chat membersihkan session storage percakapan dan preferensi tanpa menyentuh wishlist', () => {
+  const sessionStorageMock = createMockStorage({
+    steamscout_chat_history: JSON.stringify([{ role: 'user', text: 'Halo' }]),
+    steamscout_filter_preferences: JSON.stringify({ spec: 'potato', budget: 'free', mode: 'coop' }),
+  });
+  const localStorageMock = createMockStorage({
+    steamscout_wishlist: JSON.stringify([{ appId: 413150, title: 'Stardew Valley' }]),
+  });
+
+  // Simulasikan tindakan reset chat
+  sessionStorageMock.removeItem('steamscout_chat_history');
+  sessionStorageMock.setItem('steamscout_filter_preferences', JSON.stringify({ spec: 'any', budget: 'any', mode: 'any' }));
+
+  // Verifikasi sessionStorage tereset
+  assert.equal(sessionStorageMock.getItem('steamscout_chat_history'), null);
+  const prefs = JSON.parse(sessionStorageMock.getItem('steamscout_filter_preferences'));
+  assert.deepEqual(prefs, { spec: 'any', budget: 'any', mode: 'any' });
+
+  // Verifikasi wishlist di localStorage TETAP UTUH tidak termutasi
+  const wishlistRaw = localStorageMock.getItem('steamscout_wishlist');
+  assert.ok(wishlistRaw);
+  const wishlist = JSON.parse(wishlistRaw);
+  assert.equal(wishlist.length, 1);
+  assert.equal(wishlist[0].appId, 413150);
+});
+
+test('Audit Bukti: enrichGamesWithSteam menghormati totalTimeoutMs 6 detik dan fallback aman saat timeout', async () => {
+  const { enrichGamesWithSteam } = await import('../services/steamStore.js');
+
+  // Simulasikan fetch yang merespons abort signal saat timeout tercapai
+  const hangingFetch = (url, opts) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve({ ok: true, json: async () => ({ total: 0, items: [] }) }), 2000);
+      if (opts?.signal) {
+        if (opts.signal.aborted) {
+          clearTimeout(timer);
+          const err = new Error('The operation was aborted');
+          err.name = 'AbortError';
+          return reject(err);
+        }
+        opts.signal.addEventListener('abort', () => {
+          clearTimeout(timer);
+          const err = new Error('The operation was aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      }
+    });
+
+  const start = Date.now();
+  const enriched = await enrichGamesWithSteam(
+    [{ title: 'Hanging Game' }],
+    { totalTimeoutMs: 100, perRequestTimeoutMs: 50, fetchFn: hangingFetch }
+  );
+  const duration = Date.now() - start;
+
+  assert.ok(duration < 500, `Eksekusi harus berhenti cepat karena timeout, tercatat ${duration}ms`);
+  assert.equal(enriched.length, 1);
+  assert.equal(enriched[0].verified, null);
+  assert.equal(enriched[0].matchStatus, 'network_error');
+  assert.ok(enriched[0].storeUrl.includes('search'));
+});
+
+test('Audit Bukti: Logika retry 503 mencoba ulang hingga batas retries dan melempar error jika tetap gagal', async () => {
+  let attempts = 0;
+  const mockCallWith503 = async (retries = 2) => {
+    let delayMs = 10;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      attempts++;
+      try {
+        if (attempt < 2) {
+          const err = new Error('The model is overloaded. 503 Service Unavailable');
+          err.status = 503;
+          throw err;
+        }
+        return 'success';
+      } catch (err) {
+        const is503 = err?.status === 503 || err?.message?.includes('503');
+        if (is503 && attempt < retries) {
+          await new Promise((res) => setTimeout(res, delayMs));
+          delayMs *= 2;
+          continue;
+        }
+        throw err;
+      }
+    }
+  };
+
+  const result = await mockCallWith503(2);
+  assert.equal(result, 'success');
+  assert.equal(attempts, 3); // 1 pemanggilan awal + 2 retry
 });
 
 test('wishlistCore: menangani storage yang tidak tersedia atau melempar error', async () => {

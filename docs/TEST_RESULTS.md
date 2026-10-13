@@ -32,7 +32,7 @@ Dokumen ini mencatat skenario pengujian fungsional, keamanan, batasan input, dan
 | 22 | Ketahanan Reset Chat | Klik tombol "Reset chat" di topbar setelah menyimpan game | Percakapan dikosongkan, namun seluruh daftar wishlist tetap aman di penyimpanan browser. |  |  |
 | 23 | Hapus Game dari Wishlist | Klik tombol hapus (ikon tempat sampah) di drawer atau klik tombol "Tersimpan" di kartu | Game terhapus dari daftar, badge berkurang, dan tombol kartu kembali ke status "Wishlist". |  |  |
 | 24 | Batas Maksimal 50 Game | Menambahkan game saat wishlist telah mencapai 50 item | Game ke-51 ditolak, muncul notifikasi bahwa wishlist telah penuh (maksimal 50). |  |  |
-| 25 | Salin Daftar ke Clipboard | Klik tombol "Salin daftar" di toolbar panel wishlist | Daftar tersalin dalam format teks biasa "Judul - URL" per baris tanpa harga/diskon, muncul feedback "Tersalin". |  |  |
+| 25 | Auto-Upgrade & Anti-Downgrade Wishlist | Simpan game tanpa appId lalu simpan versi ber-appId, dan sebaliknya | Entri otomatis di-upgrade ke appId resmi tanpa membuat duplikat, dan entri ber-appId resmi tidak ter-downgrade. |  |  |
 | 26 | Navigasi Keyboard (Accessibility) | Buka drawer wishlist, tekan Tab / Shift+Tab, dan tekan tombol Esc | Fokus terjebak di dalam panel saat terbuka, tombol Esc menutup drawer dan mengembalikan fokus ke pemicu. |  |  |
 | 27 | Tampilan Responsif Drawer (375px) | Buka panel wishlist pada viewport lebar 375px (mobile) | Drawer tampil penuh atau proporsional tanpa overflow horizontal, seluruh tombol memenuhi target sentuh 44x44px. |  |  |
 | 28 | Rekomendasi Sesuai Kelompok Filter | Aktifkan filter Spek: Kentang, Budget: Gratis, Mode: Co-op, lalu kirim `"Game seru"` | Rekomendasi menghasilkan game co-op gratis yang ringan untuk laptop kentang (misal *Unturned*, *Brawlhalla*). |  |  |
@@ -100,7 +100,7 @@ Semua test case memeriksa:
 - Penolakan jika teks user melebihi 1000 karakter.
 - Validasi status harga, diskon, dan penolakan sekuel Steam.
 - Batasan kuota harian (`DailyCapLimiter`) dan reset pergantian tanggal.
-- Validasi modul Wishlist Lokal (`wishlistCore.js`): sanitasi data stabil tanpa harga/diskon, penolakan duplikat (appId & judul), batas kapasitas 50 item, ketahanan JSON rusak, format salin daftar ke teks biasa, dan penanganan kegagalan penyimpanan browser.
+- Validasi modul Wishlist Lokal (`wishlistCore.js`): sanitasi data stabil tanpa harga/diskon, pencocokan ketat isSameGame, auto-upgrade & anti-downgrade, migrasi aman data lama, batas kapasitas 50 item, ketahanan JSON rusak, dan penanganan kegagalan penyimpanan browser.
 - Validasi filter preferensi cepat (`validatePreferences`, `buildPreferencesPromptNote`, dan perlindungan immutability `conversation`).
 
 ---
