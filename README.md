@@ -187,7 +187,7 @@ final_project/
    ```
 4. Buka file `.env` dan masukkan API Key Gemini Anda:
    ```env
-   GEMINI_API_KEY=AIzaSyContohApiKeyAnda
+   GEMINI_API_KEY=your_gemini_api_key_here
    ```
 5. Jalankan server dalam mode pengembangan:
    ```bash
