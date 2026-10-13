@@ -32,7 +32,7 @@ SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. M
 ## Teknologi yang Digunakan
 
 - **Backend**: Node.js, Express.js (ES Modules)
-- **AI SDK**: `@google/genai` (Google Gemini API, model `gemini-2.5-flash`)
+- **AI SDK**: `@google/genai` (Google Gemini API, model `gemini-3.1-flash-lite`)
 - **Keamanan & Middleware**: `helmet`, `express-rate-limit`, `dotenv`
 - **Frontend**: Vanilla HTML5, Vanilla CSS3 (CSS Variables, Flexbox, CSS Grid), Vanilla JavaScript (tanpa framework, tanpa build step)
 - **Testing**: Node.js built-in test runner (`node:test`, `node:assert`)
@@ -204,7 +204,7 @@ Aplikasi SteamScout siap di-deploy langsung ke penyedia hosting cloud seperti **
    - **Health Check Path**: `/api/health`
 4. Tambahkan **Environment Variables** di dashboard Render:
    - `GEMINI_API_KEY`: *(Kunci API Google Gemini Anda)*
-   - `GEMINI_MODEL`: `gemini-2.5-flash`
+   - `GEMINI_MODEL`: `gemini-3.1-flash-lite`
    - `NODE_ENV`: `production`
    - `DAILY_REQUEST_CAP`: `500`
    - `DAILY_REQUEST_CAP_PER_IP`: `60`
@@ -223,7 +223,7 @@ Aplikasi SteamScout siap di-deploy langsung ke penyedia hosting cloud seperti **
 | Variabel | Deskripsi | Default |
 |---|---|---|
 | `GEMINI_API_KEY` | Kunci autentikasi Google Gemini API | *(Wajib diisi)* |
-| `GEMINI_MODEL` | Nama model AI yang digunakan | `gemini-2.5-flash` |
+| `GEMINI_MODEL` | Nama model AI yang digunakan | `gemini-3.1-flash-lite` |
 | `GEMINI_TEMPERATURE` | Tingkat kreativitas variasi jawaban AI | `0.75` |
 | `PORT` | Port server lokal Express | `3000` |
 | `NODE_ENV` | Mode lingkungan aplikasi (`production` / `development`) | `development` |
@@ -261,6 +261,11 @@ SteamScout memverifikasi judul rekomendasi ke API publik Steam Storefront untuk 
    * **Anggaran Waktu & Fallback**: Pengayaan Steam dibatasi total 6 detik dengan `Promise.allSettled`. Gangguan koneksi atau timeout Steam tidak akan pernah menggagalkan balasan kurasi Gemini.
    * **Pencocokan Judul & Penolakan Sekuel**: Sistem membedakan judul dengan nomor sekuel berbeda (seperti *Hades* vs *Hades II* atau *Portal* vs *Portal 2*), menolak DLC/soundtrack, dan menormalisasi aksen Unicode.
    * **Caching Cerdas**: Data harga di-cache selama 10 menit (dan 1 menit untuk status unknown) dengan batas maksimal 200 entri untuk mencegah beban berlebih ke server Steam.
+3. **Status Verifikasi Game (`verified` dan `matchStatus`)**:
+   * **Terverifikasi (`verified: true`, `matchStatus: 'matched'`)**: Judul game cocok dan lolos verifikasi tipe game di Steam. Menampilkan cover art resmi, harga resmi (atau Free to Play / Segera Hadir), dan tombol "Buka di Steam Store".
+   * **Tidak Ditemukan (`verified: false`, `matchStatus: 'not_found'`)**: Judul game tidak ditemukan di katalog Steam. Kartu menampilkan badge peringatan "Belum terverifikasi di Steam", menyembunyikan banner cover dan harga, serta mengubah tombol menjadi "Cari di Steam".
+   * **DLC Ditolak (`verified: false`, `matchStatus: 'rejected_dlc'`)**: Hasil pencarian Steam teratas merupakan konten tambahan (DLC/soundtrack) dan bukan game utama sehingga ditolak agar data tetap relevan.
+   * **Galat Jaringan (`verified: null`, `matchStatus: 'network_error'`)**: Terjadi batas waktu (timeout) atau gangguan jaringan ke server Steam. Kartu beralih aman ke tautan pencarian tanpa memberikan badge penolakan keliru.
 
 ---
 

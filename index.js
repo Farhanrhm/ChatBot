@@ -32,7 +32,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Konfigurasi model dan parameter dari environment
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 const GEMINI_TEMPERATURE = Number(process.env.GEMINI_TEMPERATURE) || 0.75;
 const PORT = process.env.PORT || 3000;
 
