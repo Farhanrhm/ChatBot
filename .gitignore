@@ -20,6 +20,7 @@ lerna-debug.log*
 Thumbs.db
 __MACOSX/
 anti-slop
+.vercel
 
 # Editor directories and files
 .vscode/

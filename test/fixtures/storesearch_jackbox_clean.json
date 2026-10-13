@@ -1,0 +1,187 @@
+{
+  "total": 10,
+  "items": [
+    {
+      "type": "app",
+      "name": "The Jackbox Party Pack 3",
+      "id": 434170,
+      "price": {
+        "currency": "IDR",
+        "initial": 20699900,
+        "final": 20699900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/434170/capsule_231x87.jpg?t=1728584278",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false,
+      "controller_support": "full"
+    },
+    {
+      "type": "app",
+      "name": "The Jackbox Party Pack 11",
+      "id": 3364070,
+      "price": {
+        "currency": "IDR",
+        "initial": 24599900,
+        "final": 24599900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3364070/40ee0eb018b102e1e336044274f070cd94dc01b9/capsule_231x87.jpg?t=1774630140",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false,
+      "controller_support": "full"
+    },
+    {
+      "type": "app",
+      "name": "The Jackbox Party Pack 7",
+      "id": 1211630,
+      "price": {
+        "currency": "IDR",
+        "initial": 24599900,
+        "final": 24599900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1211630/capsule_231x87.jpg?t=1728584652",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false,
+      "controller_support": "full"
+    },
+    {
+      "type": "app",
+      "name": "The Jackbox Party Pack 6",
+      "id": 1005300,
+      "price": {
+        "currency": "IDR",
+        "initial": 24599900,
+        "final": 24599900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1005300/capsule_231x87.jpg?t=1728584590",
+      "metascore": "80",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false,
+      "controller_support": "full"
+    },
+    {
+      "type": "app",
+      "name": "The Jackbox Party Pack 4",
+      "id": 610180,
+      "price": {
+        "currency": "IDR",
+        "initial": 20699900,
+        "final": 20699900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/610180/capsule_231x87.jpg?t=1728584458",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false,
+      "controller_support": "full"
+    },
+    {
+      "type": "app",
+      "name": "The Jackbox Party Pack 8",
+      "id": 1552350,
+      "price": {
+        "currency": "IDR",
+        "initial": 24599900,
+        "final": 24599900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1552350/capsule_231x87.jpg?t=1728584688",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false
+    },
+    {
+      "type": "app",
+      "name": "The Jackbox Party Pack 9",
+      "id": 1850960,
+      "price": {
+        "currency": "IDR",
+        "initial": 24599900,
+        "final": 24599900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1850960/capsule_231x87.jpg?t=1728584761",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false
+    },
+    {
+      "type": "app",
+      "name": "The Jackbox Party Pack 5",
+      "id": 774461,
+      "price": {
+        "currency": "IDR",
+        "initial": 24599900,
+        "final": 24599900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/774461/capsule_231x87.jpg?t=1728584545",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false,
+      "controller_support": "full"
+    },
+    {
+      "type": "app",
+      "name": "The Jackbox Party Pack",
+      "id": 331670,
+      "price": {
+        "currency": "IDR",
+        "initial": 20699900,
+        "final": 20699900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/331670/capsule_231x87.jpg?t=1728584088",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false
+    },
+    {
+      "type": "app",
+      "name": "The Jackbox Party Pack 12",
+      "id": 4199960,
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4199960/19b9f4ce4730f02a1b083f1bc4b104a55cfeb60d/capsule_231x87.jpg?t=1790867823",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false,
+      "controller_support": "full"
+    }
+  ]
+}

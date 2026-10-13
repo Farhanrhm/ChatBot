@@ -644,3 +644,127 @@ test('Filter Preferensi: riwayat conversation asli tidak tercemar dan tidak term
   assert.equal(JSON.stringify(rawConversation), snapshotBefore);
   assert.equal(rawConversation[rawConversation.length - 1].text, 'Ada yang grafis pixel?');
 });
+
+// --- Pengujian Karakterisasi & Regresi Offline Temuan Evaluasi (Post-Hoc Analysis Fixtures) ---
+
+test('Tes Karakterisasi Historis: mencatat observasi kegagalan pencarian sebelum perbaikan kueri dan edisi', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { titleCache, appDetailsCache } = await import('../services/steamStore.js');
+  titleCache.clear();
+  appDetailsCache.clear();
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const discoHyphenFixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'storesearch_disco_elysium_hyphen.json'), 'utf8'));
+  const jackboxSeriesFixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'storesearch_jackbox_series.json'), 'utf8'));
+  const forzaFixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'storesearch_forza_horizon_4.json'), 'utf8'));
+
+  // Karakterisasi: observasi empiris bahwa query tanda hubung literal ' - ' dan anotasi '(Series)' menghasilkan 0 item di Steam
+  assert.equal(discoHyphenFixture.total, 0);
+  assert.equal(discoHyphenFixture.items.length, 0);
+
+  assert.equal(jackboxSeriesFixture.total, 0);
+  assert.equal(jackboxSeriesFixture.items.length, 0);
+
+  // Karakterisasi: game delisted Forza Horizon 4 tidak lagi muncul di StoreSearch Steam, hanya menyisakan item sekuel lain/DLC
+  assert.ok(forzaFixture.items.length > 0);
+  for (const item of forzaFixture.items) {
+    assert.ok(item.name.startsWith('Forza Horizon'));
+    assert.notEqual(item.name, 'Forza Horizon 4');
+  }
+});
+
+test('Regresi Sukses Pasca-Perbaikan: Sea of Stars, Disco Elysium, dan Jackbox berhasil diverifikasi secara akurat', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { getSteamGameDetails, titleCache, appDetailsCache } = await import('../services/steamStore.js');
+  titleCache.clear();
+  appDetailsCache.clear();
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const seaSearchFixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'storesearch_sea_of_stars.json'), 'utf8'));
+  const seaGameFixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'appdetails_sea_of_stars_game.json'), 'utf8'));
+  const seaOstFixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'appdetails_sea_of_stars_ost.json'), 'utf8'));
+
+  const discoCleanFixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'storesearch_disco_elysium_clean.json'), 'utf8'));
+  const jackboxCleanFixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'storesearch_jackbox_clean.json'), 'utf8'));
+  const forzaFixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'storesearch_forza_horizon_4.json'), 'utf8'));
+
+  // 1. Sea of Stars: kini berhasil mengenali 'Sea of Stars: Sunset Edition' sebagai edisi resmi dari daftar tertutup
+  const mockFetchSea = async (url) => {
+    if (url.includes('storesearch')) return { ok: true, json: async () => seaSearchFixture };
+    if (url.includes('appdetails?appids=1244090')) return { ok: true, json: async () => seaGameFixture };
+    if (url.includes('appdetails?appids=2550490')) return { ok: true, json: async () => seaOstFixture };
+    return { ok: false };
+  };
+  const resSea = await getSteamGameDetails('Sea of Stars', { fetchFn: mockFetchSea });
+  assert.equal(resSea.appId, 1244090);
+  assert.equal(resSea.verified, true);
+  assert.equal(resSea.matchStatus, 'matched');
+
+  // 2. Disco Elysium - The Final Cut: pembersihan tanda hubung mengirim query bersih dan mencocokkan ID 632470
+  const mockFetchDisco = async (url) => {
+    if (url.includes('storesearch')) return { ok: true, json: async () => discoCleanFixture };
+    if (url.includes('appdetails?appids=632470')) {
+      return {
+        ok: true,
+        json: async () => ({
+          '632470': { success: true, data: { type: 'game', name: 'Disco Elysium - The Final Cut', is_free: false } },
+        }),
+      };
+    }
+    return { ok: false };
+  };
+  const resDisco = await getSteamGameDetails('Disco Elysium - The Final Cut', { fetchFn: mockFetchDisco });
+  assert.equal(resDisco.appId, 632470);
+  assert.equal(resDisco.verified, true);
+  assert.equal(resDisco.matchStatus, 'matched');
+
+  // 3. Jackbox Party Pack (Series): pembersihan anotasi kurung mengirim query 'Jackbox Party Pack' dan mencocokkan ID 331670
+  const mockFetchJackbox = async (url) => {
+    if (url.includes('storesearch')) return { ok: true, json: async () => jackboxCleanFixture };
+    if (url.includes('appdetails?appids=331670')) {
+      return {
+        ok: true,
+        json: async () => ({
+          '331670': { success: true, data: { type: 'game', name: 'The Jackbox Party Pack', is_free: false } },
+        }),
+      };
+    }
+    return { ok: false };
+  };
+  const resJackbox = await getSteamGameDetails('Jackbox Party Pack (Series)', { fetchFn: mockFetchJackbox });
+  assert.equal(resJackbox.appId, 331670);
+  assert.equal(resJackbox.verified, true);
+  assert.equal(resJackbox.matchStatus, 'matched');
+
+  // 4. Forza Horizon 4: game delisted tetap ditolak dengan benar karena DLC sekuel 5 ditolak
+  const mockFetchForza = async () => ({ ok: true, json: async () => forzaFixture });
+  const resForza = await getSteamGameDetails('Forza Horizon 4', { fetchFn: mockFetchForza });
+  assert.equal(resForza.appId, null);
+  assert.equal(resForza.matchStatus, 'not_found');
+});
+
+test('Tes Negatif Ketat: menolak pasangan game yang berbeda, sekuel non-numerik, atau mod non-edisi', async () => {
+  const { matchTitleNarrow, calculateTitleSimilarity } = await import('../services/steamStore.js');
+
+  const negativePairs = [
+    { target: 'Hades', candidate: 'Hades II' },
+    { target: 'Hollow Knight', candidate: 'Hollow Knight: Silksong' },
+    { target: 'Hollow Knight', candidate: 'Silksong' },
+    { target: 'Doom', candidate: 'Doom Eternal' },
+    { target: 'Resident Evil', candidate: 'Resident Evil Village' },
+    { target: 'Portal', candidate: 'Portal Stories: Mel' },
+    { target: 'Portal', candidate: 'Portal 2' },
+  ];
+
+  for (const { target, candidate } of negativePairs) {
+    const narrowRes = matchTitleNarrow(target, candidate);
+    assert.equal(narrowRes.match, false, `Seharusnya menolak: ${target} vs ${candidate}`);
+    const simScore = calculateTitleSimilarity(target, candidate);
+    assert.equal(simScore, 0, `Skor kemiripan harus 0 untuk: ${target} vs ${candidate}`);
+  }
+});
+

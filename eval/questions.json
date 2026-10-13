@@ -325,5 +325,74 @@
     "title": "Input dominan emoji dan simbol petualangan",
     "prompt": "🎮🕹️⚔️🐉🏰 (rekomendasikan game yang cocok dengan emoji ini)",
     "expectedGamesCount": [2, 3]
+  },
+  {
+    "id": "pref-01",
+    "category": "preferences",
+    "title": "Filter kombinasi PC gaming dan budget ketat",
+    "prompt": "Rekomendasi game balap atau aksi mobil yang seru",
+    "preferences": {
+      "spec": "gaming",
+      "budget": "under100k"
+    },
+    "expectedGamesCount": [2, 3]
+  },
+  {
+    "id": "real-01",
+    "category": "realtime",
+    "title": "Informasi harga dan status diskon Steam terkini",
+    "prompt": "Berapa harga game Cyberpunk 2077 atau Black Myth: Wukong di Steam sekarang dan apakah lagi diskon?",
+    "expectedGamesCount": [2, 3]
+  },
+  {
+    "id": "hold-01",
+    "category": "holdout",
+    "title": "Holdout: Detektif misteri naratif",
+    "prompt": "Rekomendasi game detektif misteri naratif santai di PC",
+    "expectedGamesCount": [2, 3]
+  },
+  {
+    "id": "hold-02",
+    "category": "holdout",
+    "title": "Holdout: Tower defense laptop lawas",
+    "prompt": "Game tower defense pixel art atau minimalis ramah laptop lawas",
+    "preferences": {
+      "spec": "potato"
+    },
+    "expectedGamesCount": [2, 3]
+  },
+  {
+    "id": "hold-03",
+    "category": "holdout",
+    "title": "Holdout: Shooter co-op berempat",
+    "prompt": "Game shooter aksi co-op PvE seru buat mabar berempat",
+    "preferences": {
+      "mode": "coop"
+    },
+    "expectedGamesCount": [2, 3]
+  },
+  {
+    "id": "hold-04",
+    "category": "holdout",
+    "title": "Holdout: Eksplorasi luar angkasa cozy",
+    "prompt": "Game petualangan eksplorasi luar angkasa bernuansa cozy dan rileks",
+    "expectedGamesCount": [2, 3]
+  },
+  {
+    "id": "hold-05",
+    "category": "holdout",
+    "title": "Holdout: Rhythm musik puzzle adiktif",
+    "prompt": "Rekomendasi game rhythm musik atau puzzle adiktif di Steam",
+    "expectedGamesCount": [2, 3]
+  },
+  {
+    "id": "hold-06",
+    "category": "holdout",
+    "title": "Holdout: Hack and slash grafis memukau",
+    "prompt": "Game hack and slash aksi cepat dengan visual memukau di PC",
+    "preferences": {
+      "spec": "gaming"
+    },
+    "expectedGamesCount": [2, 3]
   }
 ]
