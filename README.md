@@ -1,7 +1,7 @@
 # SteamScout: Your Personal Game Curator
 
 [![CI Test Suite](https://github.com/Farhanrhm/ChatBot/actions/workflows/ci.yml/badge.svg)](https://github.com/Farhanrhm/ChatBot/actions/workflows/ci.yml)
-[![Demo](https://img.shields.io/badge/demo-online-blue)](https://steamscout.netlify.app/)
+[![Demo](https://img.shields.io/badge/demo-online-blue)](https://chat-bot-three-gold.vercel.app/)
 
 SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. Menggunakan persona kurator game berbahasa Indonesia santai khas gamer, SteamScout membantu pemain menemukan 2-3 game yang relevan berdasarkan genre, spesifikasi perangkat (laptop kentang atau PC gaming), mode bermain (single-player atau co-op), budget, dan suasana hati.
 
