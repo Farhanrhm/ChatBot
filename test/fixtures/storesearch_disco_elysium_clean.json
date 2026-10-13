@@ -1,0 +1,60 @@
+{
+  "total": 3,
+  "items": [
+    {
+      "type": "app",
+      "name": "Disco Elysium - The Final Cut",
+      "id": 632470,
+      "price": {
+        "currency": "IDR",
+        "initial": 30900000,
+        "final": 30900000
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/632470/e2afca9fe9b3e70e0da58b3006c893f6d07d10d6/capsule_231x87.jpg?t=1780913406",
+      "metascore": "97",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": false
+      },
+      "streamingvideo": false,
+      "controller_support": "full"
+    },
+    {
+      "type": "app",
+      "name": "Disco Elysium - Soundtrack and Artbooklet",
+      "id": 1173140,
+      "price": {
+        "currency": "IDR",
+        "initial": 10899900,
+        "final": 10899900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1173140/capsule_231x87.jpg?t=1695395285",
+      "metascore": "91",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false
+    },
+    {
+      "type": "app",
+      "name": "Disco Elysium - The Final Cut Soundtrack",
+      "id": 1233220,
+      "price": {
+        "currency": "IDR",
+        "initial": 9599900,
+        "final": 9599900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1233220/capsule_231x87.jpg?t=1695395149",
+      "metascore": "91",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false
+    }
+  ]
+}

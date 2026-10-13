@@ -1,0 +1,112 @@
+{
+  "2550490": {
+    "success": true,
+    "data": {
+      "type": "music",
+      "name": "Sea of Stars - OST",
+      "steam_appid": 2550490,
+      "required_age": 0,
+      "is_free": false,
+      "detailed_description": "<p class=\"bb_paragraph\" >The Sea of Stars Original Soundtrack includes the complete package (200 tracks) from Day &amp; Night cycles, acoustic pirate band covers, and over 10 tracks from guest composer Yasunori Mitsuda.</p><p class=\"bb_paragraph\" ></p><p class=\"bb_paragraph\" >With the release of Throes of the Watchmaker, this package now includes 47 additional tracks from the free DLC.</p><p class=\"bb_paragraph\" ></p><p class=\"bb_paragraph\" ></p><p class=\"bb_paragraph\" ><strong>We recommend playing the game before sifting through the files in order to avoid spoilers!</strong></p><p class=\"bb_paragraph\" ></p><p class=\"bb_paragraph\" ></p><p class=\"bb_paragraph\" >Main Composer</p><ul class=\"bb_ul\"><li><p class=\"bb_paragraph\" >Eric W. Brown</p></li></ul><p class=\"bb_paragraph\" >Guest Composers</p><ul class=\"bb_ul\"><li><p class=\"bb_paragraph\" >Yasunori Mitsuda</p></li><li><p class=\"bb_paragraph\" >Vincent Jackson Jones II</p></li></ul><p class=\"bb_paragraph\" >Musician</p><ul class=\"bb_ul\"><li><p class=\"bb_paragraph\" >Reece Miller</p></li></ul>",
+      "about_the_game": "<p class=\"bb_paragraph\" >The Sea of Stars Original Soundtrack includes the complete package (200 tracks) from Day &amp; Night cycles, acoustic pirate band covers, and over 10 tracks from guest composer Yasunori Mitsuda.</p><p class=\"bb_paragraph\" ></p><p class=\"bb_paragraph\" >With the release of Throes of the Watchmaker, this package now includes 47 additional tracks from the free DLC.</p><p class=\"bb_paragraph\" ></p><p class=\"bb_paragraph\" ></p><p class=\"bb_paragraph\" ><strong>We recommend playing the game before sifting through the files in order to avoid spoilers!</strong></p><p class=\"bb_paragraph\" ></p><p class=\"bb_paragraph\" ></p><p class=\"bb_paragraph\" >Main Composer</p><ul class=\"bb_ul\"><li><p class=\"bb_paragraph\" >Eric W. Brown</p></li></ul><p class=\"bb_paragraph\" >Guest Composers</p><ul class=\"bb_ul\"><li><p class=\"bb_paragraph\" >Yasunori Mitsuda</p></li><li><p class=\"bb_paragraph\" >Vincent Jackson Jones II</p></li></ul><p class=\"bb_paragraph\" >Musician</p><ul class=\"bb_ul\"><li><p class=\"bb_paragraph\" >Reece Miller</p></li></ul>",
+      "short_description": "This package includes every single track from the Sea of Stars OST and its DLC!",
+      "fullgame": {
+        "appid": "1244090",
+        "name": "Sea of Stars: Sunset Edition"
+      },
+      "header_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2550490/header.jpg?t=1747749613",
+      "capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2550490/capsule_231x87.jpg?t=1747749613",
+      "capsule_imagev5": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2550490/capsule_184x69.jpg?t=1747749613",
+      "website": null,
+      "pc_requirements": [],
+      "mac_requirements": [],
+      "linux_requirements": [],
+      "developers": [
+        "Sabotage Studio"
+      ],
+      "price_overview": {
+        "currency": "IDR",
+        "initial": 9099900,
+        "final": 9099900,
+        "discount_percent": 0,
+        "initial_formatted": "",
+        "final_formatted": "Rp 90 999"
+      },
+      "packages": [
+        916156
+      ],
+      "package_groups": [
+        {
+          "name": "default",
+          "title": "Beli Sea of Stars - OST",
+          "description": "",
+          "selection_text": "Pilih opsi pembelian",
+          "save_text": "",
+          "display_type": 0,
+          "is_recurring_subscription": "false",
+          "subs": [
+            {
+              "packageid": 916156,
+              "percent_savings_text": " ",
+              "percent_savings": 0,
+              "option_text": "Sea of Stars Soundtrack - Rp 90 999",
+              "option_description": "",
+              "can_get_free_license": "0",
+              "is_free_license": false,
+              "price_in_cents_with_discount": 9099900
+            }
+          ]
+        }
+      ],
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "screenshots": [
+        {
+          "id": 0,
+          "path_thumbnail": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2550490/f5fe186a457c81cb0297d4c0f185134180831919/ss_f5fe186a457c81cb0297d4c0f185134180831919.600x338.jpg?t=1747749613",
+          "path_full": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2550490/f5fe186a457c81cb0297d4c0f185134180831919/ss_f5fe186a457c81cb0297d4c0f185134180831919.1920x1080.jpg?t=1747749613"
+        },
+        {
+          "id": 1,
+          "path_thumbnail": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2550490/ss_8a196c4fc247a083a9580873d2c81a336c2543a3.600x338.jpg?t=1747749613",
+          "path_full": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2550490/ss_8a196c4fc247a083a9580873d2c81a336c2543a3.1920x1080.jpg?t=1747749613"
+        }
+      ],
+      "release_date": {
+        "coming_soon": false,
+        "date": "28 Agu 2023"
+      },
+      "support_info": {
+        "url": "https://sabotagestudio.com",
+        "email": "info@sabotagestudio.com"
+      },
+      "background": "https://store.akamai.steamstatic.com/images/storepagebackground/app/2550490?t=1747749613",
+      "background_raw": "https://store.akamai.steamstatic.com/images/storepagebackground/app/2550490?t=1747749613",
+      "content_descriptors": {
+        "ids": [],
+        "notes": null
+      },
+      "ratings": {
+        "dejus": {
+          "rating_generated": "1",
+          "rating": "l",
+          "required_age": "0",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": ""
+        },
+        "steam_germany": {
+          "rating_generated": "1",
+          "rating": "0",
+          "required_age": "0",
+          "banned": "0",
+          "use_age_gate": "0",
+          "descriptors": ""
+        }
+      }
+    }
+  }
+}

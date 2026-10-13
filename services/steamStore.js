@@ -149,54 +149,110 @@ export function hasMatchingSequelTokens(target, candidate) {
 }
 
 /**
- * Menghitung tingkat kemiripan (0.0 - 1.0) antara dua judul setelah dinormalisasi.
+ * Daftar tertutup sufiks edisi resmi yang diizinkan untuk toleransi pencocokan judul.
+ * Kata tambahan di luar daftar ini (seperti subjudul game baru atau spin-off) ditolak.
+ */
+export const ALLOWED_EDITION_SUFFIXES = [
+  'sunset edition',
+  'final cut',
+  'the final cut',
+  'deluxe edition',
+  'digital deluxe edition',
+  'definitive edition',
+  'game of the year edition',
+  'goty',
+  'goty edition',
+  'special edition',
+  'anniversary edition',
+  'complete edition',
+  'enhanced edition',
+  'standard edition',
+  'remastered',
+  'hd remastered',
+  'directors cut',
+  'director s cut',
+  'royal edition',
+  'legendary edition',
+];
+
+/**
+ * Membersihkan judul untuk kueri pencarian Steam:
+ * - Menghilangkan anotasi kurung seperti (Series), (Franchise), (Collection), (Bundle)
+ * - Mengganti tanda hubung dengan spasi ' - ' menjadi spasi tunggal agar tidak menjadi negasi
+ */
+export function cleanTitleForSteamSearch(str) {
+  if (!str || typeof str !== 'string') return '';
+  let clean = str.trim();
+  clean = clean.replace(/\s*\((?:series|franchise|collection|edition|bundle)\)\s*/gi, ' ');
+  clean = clean.replace(/\s+-\s+/g, ' ');
+  return clean.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Memvalidasi apakah kandidat game Steam cocok secara sempit dengan judul yang dicari:
+ * - Mengharuskan kesesuaian penanda sekuel (Hades vs Hades II tolak).
+ * - Menerima jika persis sama setelah normalisasi (termasuk toleransi artikel "the ").
+ * - Jika terdapat kata tambahan, HANYA diterima jika kata tambahan merupakan
+ *   sufiks edisi resmi dari daftar tertutup (ALLOWED_EDITION_SUFFIXES).
+ * - Menolak kata tambahan non-edisi (Silksong, Eternal, Village, Stories Mel).
+ *
+ * @param {string} targetTitle
+ * @param {string} candidateTitle
+ * @returns {{ match: boolean, isExact: boolean, reason?: string, edition?: string }}
+ */
+export function matchTitleNarrow(targetTitle, candidateTitle) {
+  const normA = normalizeTitle(targetTitle);
+  const normB = normalizeTitle(candidateTitle);
+  if (!normA || !normB) return { match: false, isExact: false };
+
+  // 1. Cek penanda sekuel wajib cocok
+  if (!hasMatchingSequelTokens(targetTitle, candidateTitle)) {
+    return { match: false, isExact: false, reason: 'sequel_mismatch' };
+  }
+
+  // Normalisasi artikel "the " di awal judul
+  const stripThe = (s) => s.replace(/^the\s+/i, '').trim();
+  const artA = stripThe(normA);
+  const artB = stripThe(normB);
+
+  // 2. Cocok persis
+  if (normA === normB || artA === artB) {
+    return { match: true, isExact: true };
+  }
+
+  // 3. Target termuat di awal kandidat (kandidat memiliki kata tambahan)
+  if (normB.startsWith(normA + ' ') || artB.startsWith(artA + ' ')) {
+    const extra = (normB.startsWith(normA + ' ') ? normB.slice(normA.length) : artB.slice(artA.length)).trim();
+    if (ALLOWED_EDITION_SUFFIXES.includes(extra)) {
+      return { match: true, isExact: false, edition: extra };
+    }
+    return { match: false, isExact: false, reason: 'non_edition_extra' };
+  }
+
+  // 4. Kandidat termuat di awal target (target memiliki kata tambahan)
+  if (normA.startsWith(normB + ' ') || artA.startsWith(artB + ' ')) {
+    const extra = (normA.startsWith(normB + ' ') ? normA.slice(normB.length) : artA.slice(artB.length)).trim();
+    if (ALLOWED_EDITION_SUFFIXES.includes(extra)) {
+      return { match: true, isExact: false, edition: extra };
+    }
+    return { match: false, isExact: false, reason: 'non_edition_extra' };
+  }
+
+  return { match: false, isExact: false, reason: 'no_match' };
+}
+
+/**
+ * Menghitung tingkat kemiripan (0.0 - 1.0) dengan verifikasi ketat berbasis daftar edisi tertutup.
  *
  * @param {string} strA
  * @param {string} strB
  * @returns {number}
  */
 export function calculateTitleSimilarity(strA, strB) {
-  const a = normalizeTitle(strA);
-  const b = normalizeTitle(strB);
-  if (!a || !b) return 0;
-  if (a === b) return 1;
-
-  // Jika penanda sekuel berbeda, skor langsung 0
-  if (!hasMatchingSequelTokens(strA, strB)) {
-    return 0;
-  }
-
-  const wordsA = a.split(' ').filter(Boolean);
-  const wordsB = b.split(' ').filter(Boolean);
-  if (wordsA.length === 0 || wordsB.length === 0) return 0;
-
-  const setA = new Set(wordsA);
-  const setB = new Set(wordsB);
-
-  let wordIntersection = 0;
-  for (const w of setA) {
-    if (setB.has(w)) wordIntersection++;
-  }
-  const wordUnion = new Set([...wordsA, ...wordsB]).size;
-  const wordScore = wordUnion > 0 ? wordIntersection / wordUnion : 0;
-
-  const getBigrams = (s) => {
-    const bigrams = new Set();
-    for (let i = 0; i < s.length - 1; i++) {
-      bigrams.add(s.slice(i, i + 2));
-    }
-    return bigrams;
-  };
-
-  const bgA = getBigrams(a);
-  const bgB = getBigrams(b);
-  let bgIntersection = 0;
-  for (const bg of bgA) {
-    if (bgB.has(bg)) bgIntersection++;
-  }
-  const bgScore = bgA.size + bgB.size > 0 ? (2 * bgIntersection) / (bgA.size + bgB.size) : 0;
-
-  return Math.max(wordScore, bgScore);
+  const narrow = matchTitleNarrow(strA, strB);
+  if (!narrow.match) return 0;
+  if (narrow.isExact) return 1.0;
+  return 0.85;
 }
 
 /**
@@ -293,10 +349,11 @@ export async function getSteamGameDetails(
     return cached;
   }
 
-  const searchUrl = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(cleanTitle)}&l=indonesian&cc=id`;
+  const primarySearchQuery = cleanTitleForSteamSearch(cleanTitle);
+  const searchUrl = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(primarySearchQuery)}&l=indonesian&cc=id`;
 
   try {
-    const res = await fetchWithTimeout(searchUrl, {
+    let res = await fetchWithTimeout(searchUrl, {
       signal,
       timeoutMs: perRequestTimeoutMs,
       fetchFn,
@@ -308,8 +365,33 @@ export async function getSteamGameDetails(
       return fallback;
     }
 
-    const searchData = await res.json();
-    const rawCandidates = Array.isArray(searchData?.items) ? searchData.items.slice(0, 5) : [];
+    let searchData = await res.json();
+    let rawCandidates = Array.isArray(searchData?.items) ? searchData.items.slice(0, 10) : [];
+
+    // Jika pencarian utama menghasilkan 0 kandidat dan judul memiliki subjudul (tanda hubung atau titik dua),
+    // jalankan pencarian cadangan (fallback search) dengan memotong subjudul
+    if (rawCandidates.length === 0 && /[:\-]/.test(cleanTitle)) {
+      const subTitleFallback = cleanTitle.split(/[:\-]/)[0].trim();
+      const cleanFallbackQuery = cleanTitleForSteamSearch(subTitleFallback);
+      if (cleanFallbackQuery && cleanFallbackQuery.length >= 3 && cleanFallbackQuery !== primarySearchQuery) {
+        const fallbackUrl = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(cleanFallbackQuery)}&l=indonesian&cc=id`;
+        try {
+          const fallbackRes = await fetchWithTimeout(fallbackUrl, {
+            signal,
+            timeoutMs: perRequestTimeoutMs,
+            fetchFn,
+          });
+          if (fallbackRes.ok) {
+            const fallbackData = await fallbackRes.json();
+            if (Array.isArray(fallbackData?.items) && fallbackData.items.length > 0) {
+              rawCandidates = fallbackData.items.slice(0, 10);
+            }
+          }
+        } catch {
+          // Abaikan kesalahan pada panggilan fallback, lanjutkan ke pengecekan kandidat
+        }
+      }
+    }
 
     if (rawCandidates.length === 0) {
       const fallback = makeFallback(cleanTitle, false, 'not_found');
@@ -335,11 +417,15 @@ export async function getSteamGameDetails(
       return fallback;
     }
 
+    // Prioritaskan kecocokan eksak tunggal jika ada
+    const exactMatches = scoredCandidates.filter((c) => c.sim === 1.0);
+    const candidatesToInspect = exactMatches.length > 0 ? exactMatches : scoredCandidates;
+
     let hasRejectedDlc = false;
     let hasNetworkError = false;
 
     // Periksa kandidat terbaik secara berurutan
-    for (const { item: candidate } of scoredCandidates) {
+    for (const { item: candidate } of candidatesToInspect) {
       const appData = await getAppDetails(candidate.id, {
         signal,
         fetchFn,

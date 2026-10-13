@@ -1,0 +1,110 @@
+{
+  "total": 6,
+  "items": [
+    {
+      "type": "app",
+      "name": "Sea of Stars: Sunset Edition",
+      "id": 1244090,
+      "price": {
+        "currency": "IDR",
+        "initial": 28499900,
+        "final": 28499900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1244090/07c31553c860220fcdae733c9a42b2c20eb23fda/capsule_231x87.jpg?t=1780931183",
+      "metascore": "87",
+      "platforms": {
+        "windows": true,
+        "mac": false,
+        "linux": false
+      },
+      "streamingvideo": false,
+      "controller_support": "full"
+    },
+    {
+      "type": "app",
+      "name": "Sea of Stars - OST",
+      "id": 2550490,
+      "price": {
+        "currency": "IDR",
+        "initial": 9099900,
+        "final": 9099900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2550490/capsule_231x87.jpg?t=1747749613",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false
+    },
+    {
+      "type": "app",
+      "name": "Sea of Stars - Digital Artbook",
+      "id": 2550500,
+      "price": {
+        "currency": "IDR",
+        "initial": 4749900,
+        "final": 4749900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2550500/capsule_231x87.jpg?t=1693280167",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": true
+      },
+      "streamingvideo": false
+    },
+    {
+      "type": "app",
+      "name": "Sea of Stars: Throes of the Watchmaker",
+      "id": 3457510,
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3457510/220a36678bf96bfbc27d693f9f4ad75333633b94/capsule_231x87.jpg?t=1756218354",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": false,
+        "linux": false
+      },
+      "streamingvideo": false,
+      "controller_support": "full"
+    },
+    {
+      "type": "app",
+      "name": "Infinite Space III: Sea of Stars",
+      "id": 269990,
+      "price": {
+        "currency": "IDR",
+        "initial": 3999900,
+        "final": 3999900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/269990/capsule_231x87.jpg?t=1748130263",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": true,
+        "linux": false
+      },
+      "streamingvideo": false
+    },
+    {
+      "type": "app",
+      "name": "Sea of Stars - Soundtrack",
+      "id": 383600,
+      "price": {
+        "currency": "IDR",
+        "initial": 3999900,
+        "final": 3999900
+      },
+      "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/383600/capsule_231x87.jpg?t=1749515597",
+      "metascore": "",
+      "platforms": {
+        "windows": true,
+        "mac": false,
+        "linux": false
+      },
+      "streamingvideo": false
+    }
+  ]
+}
