@@ -154,7 +154,7 @@ final_project/
 │   ├── verify-behavior.mjs   # Skrip pengujian otomatis perilaku headless browser
 │   └── verify-layout.mjs     # Skrip verifikasi 0px page scroll pada 5 resolusi layar
 ├── services/
-│   ├── dailyCap.js           # Middleware pembatasan kuota permintaan harian (global & per IP)
+│   ├── dailyCap.js           # Middleware pembatasan kuota permintaan harian (per instance & per IP)
 │   └── steamStore.js         # Pengayaan data cover art, harga, dan verifikasi katalog Steam
 ├── test/
 │   ├── fixtures/             # Data tiruan respon Steam Storefront untuk pengujian
@@ -239,9 +239,9 @@ Proyek ini dilengkapi dengan rangkaian pengujian otomatis untuk memverifikasi lo
 | `PORT` | Port server lokal Express | `3000` |
 | `NODE_ENV` | Mode lingkungan aplikasi (`production` / `development`) | `development` |
 | `RATE_LIMIT_WINDOW_MS` | Jendela waktu rate limit (dalam milidetik) | `60000` (1 menit) |
-| `RATE_LIMIT_MAX` | Maksimal request yang diizinkan per menit per IP | `20` |
-| `DAILY_REQUEST_CAP` | Batas maksimal total request per hari secara global | `500` |
-| `DAILY_REQUEST_CAP_PER_IP` | Batas maksimal pesan per hari per alamat IP | `60` |
+| `RATE_LIMIT_MAX` | Maksimal request per menit per IP (in-memory per instance server) | `20` |
+| `DAILY_REQUEST_CAP` | Batas maksimal total request per hari per instance server (in-memory, best-effort) | `500` |
+| `DAILY_REQUEST_CAP_PER_IP` | Batas maksimal pesan per hari per alamat IP (in-memory per instance server) | `60` |
 | `CHROME_PATH` | Path file eksekusi Google Chrome / Chromium untuk pengujian headless | *(Opsional untuk pengujian)* |
 
 ---
@@ -252,7 +252,7 @@ Proyek ini dilengkapi dengan rangkaian pengujian otomatis untuk memverifikasi lo
 2. **Validasi Anti-Injeksi (`toContents`)**: Riwayat percakapan divalidasi ketat (maksimal 20 turn terakhir, membuang role selain `user` dan `model`, memangkas pesan user di atas 1000 karakter, dan menolak urutan percakapan ilegal).
 3. **Pencegahan Denial of Service (DoS)**:
    - Pembatasan ukuran payload JSON dibatasi ke `100kb` untuk mengakomodasi riwayat multi-turn hingga 20 turn secara aman tanpa memicu error 413.
-   - Penerapan `express-rate-limit` (20 request per menit per IP) dan `trust proxy` untuk mencegah eksploitasi kuota API.
+   - Penerapan `express-rate-limit` (20 request per menit per IP per instance server) dan `trust proxy` untuk mitigasi lonjakan permintaan API.
 4. **Header Keamanan (Helmet)**: Menerapkan Content Security Policy (CSP) ketat yang hanya mengizinkan resource lokal serta Google Fonts resmi.
 5. **Ketahanan Koneksi (Resilience)**: Panggilan Gemini dilengkapi batas timeout serta mekanisme retry otomatis 2x dengan exponential backoff jika server Google mengalami status 503.
 6. **Penyajian Single Origin**: Frontend disajikan langsung dari folder `./public/` oleh server Express sehingga tidak memerlukan konfigurasi CORS tambahan yang berisiko.
@@ -301,7 +301,7 @@ SteamScout memverifikasi judul rekomendasi ke API publik Steam Storefront untuk 
    - *Solusi*: Ubah nilai `PORT` pada berkas `.env` (misalnya menjadi `PORT=3001` atau `PORT=8080`).
 3. **Error 429 (Terlalu Banyak Permintaan)**:
    - *Gejala*: Balasan bot menampilkan pesan bahwa batas laju request tercapai.
-   - *Solusi*: Tunggu 1 menit hingga jendela waktu rate limit (20 request/menit) ter-reset, atau periksa batas kuota harian pada variabel `DAILY_REQUEST_CAP`.
+   - *Solusi*: Tunggu 1 menit hingga jendela waktu rate limit (20 request/menit) ter-reset, atau periksa batas kuota harian instance pada variabel `DAILY_REQUEST_CAP`.
 4. **Pengujian Browser Headless Tidak Berjalan**:
    - *Gejala*: Perintah `npm run test:layout` atau `npm run test:behavior` gagal menemukan executable browser Chrome atau Chromium.
    - *Solusi*: Tentukan lokasi file eksekusi peramban secara manual menggunakan variabel lingkungan `CHROME_PATH`. Contoh di Windows (PowerShell): `$env:CHROME_PATH = "C:\Program Files\Google\Chrome\Application\chrome.exe"`, atau di Linux / macOS: `export CHROME_PATH="/usr/bin/google-chrome"`. Sebagai alternatif, Anda dapat menjalankan unit test logika melalui `npm test` yang tidak membutuhkan peramban.
@@ -314,6 +314,7 @@ SteamScout memverifikasi judul rekomendasi ke API publik Steam Storefront untuk 
 - **Dinamika Harga Toko Steam**: Informasi harga game, event diskon (Steam Sale), dan status rilis dapat berubah sewaktu-waktu. Harga di aplikasi merupakan hasil pengecekan saat permintaan diproses dan dapat berbeda dari halaman toko langsung.
 - **Penyimpanan Wishlist Lokal di Browser**: Data wishlist disimpan di `localStorage` peramban web pengguna dan tidak terhubung ke akun cloud. Sinkronisasi hanya berlaku antar-tab pada peramban dan perangkat yang sama. Data akan hilang jika pengguna menghapus riwayat situs browser atau menggunakan mode penjelajahan pribadi (Incognito).
 - **Deteksi Jaringan Mengandalkan Peramban**: Deteksi status luring memanfaatkan `navigator.onLine` dan event jaringan peramban, yang mendeteksi keterhubungan ke antarmuka jaringan lokal namun tidak dapat menjamin ketersediaan akses internet penuh di tingkat penyedia layanan (ISP).
+- **Pembatasan Laju & Kuota Harian di Serverless**: Pembatasan laju request (20 req/menit) dan kuota harian (500 total, 60 per IP) disimpan langsung di memori proses (*in-memory*). Pada platform hosting serverless multi-instance (seperti Vercel), batasan ini bersifat per instance (best-effort), bukan kuota terpusat, dan dapat mereset saat proses mengalami cold start. Untuk perlindungan penggunaan dan batas biaya yang sesungguhnya, gunakan pengaturan batas kuota (quota cap) atau peringatan biaya di sisi Google AI Studio.
 
 ---
 
