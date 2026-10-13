@@ -271,15 +271,17 @@ export async function getSteamGameDetails(
   { signal, fetchFn = globalThis.fetch, perRequestTimeoutMs = PER_REQUEST_TIMEOUT_MS } = {}
 ) {
   const fetchedAt = new Date().toISOString();
-  const fallback = {
+  const makeFallback = (cleanTitle, verified = false, matchStatus = 'not_found') => ({
     appId: null,
     headerImage: null,
-    storeUrl: `https://store.steampowered.com/search/?term=${encodeURIComponent(typeof title === 'string' ? title.trim() : '')}`,
+    storeUrl: `https://store.steampowered.com/search/?term=${encodeURIComponent(cleanTitle || '')}`,
     pricing: { status: 'unknown', fetchedAt },
-  };
+    verified,
+    matchStatus,
+  });
 
   if (!title || typeof title !== 'string' || !title.trim()) {
-    return fallback;
+    return makeFallback('', false, 'not_found');
   }
 
   // Batasi panjang query maksimal untuk mencegah payload berlebih
@@ -301,6 +303,7 @@ export async function getSteamGameDetails(
     });
 
     if (!res.ok) {
+      const fallback = makeFallback(cleanTitle, null, 'network_error');
       titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
       return fallback;
     }
@@ -309,6 +312,7 @@ export async function getSteamGameDetails(
     const rawCandidates = Array.isArray(searchData?.items) ? searchData.items.slice(0, 5) : [];
 
     if (rawCandidates.length === 0) {
+      const fallback = makeFallback(cleanTitle, false, 'not_found');
       titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
       return fallback;
     }
@@ -326,9 +330,13 @@ export async function getSteamGameDetails(
     scoredCandidates.sort((a, b) => b.sim - a.sim);
 
     if (scoredCandidates.length === 0) {
+      const fallback = makeFallback(cleanTitle, false, 'not_found');
       titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
       return fallback;
     }
+
+    let hasRejectedDlc = false;
+    let hasNetworkError = false;
 
     // Periksa kandidat terbaik secara berurutan
     for (const { item: candidate } of scoredCandidates) {
@@ -338,8 +346,14 @@ export async function getSteamGameDetails(
         timeoutMs: perRequestTimeoutMs,
       });
 
+      if (!appData) {
+        hasNetworkError = true;
+        continue;
+      }
+
       // Hanya terima hasil bertipe 'game' (bukan DLC, demo, atau soundtrack)
-      if (!appData || appData.type !== 'game') {
+      if (appData.type !== 'game') {
+        hasRejectedDlc = true;
         continue;
       }
 
@@ -388,6 +402,8 @@ export async function getSteamGameDetails(
         headerImage: `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${candidate.id}/header.jpg`,
         storeUrl: `https://store.steampowered.com/app/${candidate.id}/`,
         pricing,
+        verified: true,
+        matchStatus: 'matched',
       };
 
       const ttl = pricing.status === 'unknown' ? TTL_UNKNOWN_MS : TTL_SUCCESS_MS;
@@ -396,10 +412,23 @@ export async function getSteamGameDetails(
     }
 
     // Tidak ada kandidat yang lolos tipe 'game'
+    let finalStatus = 'not_found';
+    let finalVerified = false;
+
+    if (hasRejectedDlc) {
+      finalStatus = 'rejected_dlc';
+      finalVerified = false;
+    } else if (hasNetworkError) {
+      finalStatus = 'network_error';
+      finalVerified = null;
+    }
+
+    const fallback = makeFallback(cleanTitle, finalVerified, finalStatus);
     titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
     return fallback;
   } catch (err) {
     console.error(`[Steam StoreSearch Error] ${cleanTitle}:`, err?.message || err);
+    const fallback = makeFallback(cleanTitle, null, 'network_error');
     titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
     return fallback;
   }
@@ -446,6 +475,8 @@ export async function enrichGamesWithSteam(
           headerImage: steamDetails.headerImage,
           storeUrl: steamDetails.storeUrl,
           pricing: steamDetails.pricing,
+          verified: steamDetails.verified ?? null,
+          matchStatus: steamDetails.matchStatus ?? 'network_error',
         };
       } catch (err) {
         console.error(`[Steam Game Enrichment Error] ${title}:`, err?.message || err);
@@ -455,6 +486,8 @@ export async function enrichGamesWithSteam(
           headerImage: null,
           storeUrl: `https://store.steampowered.com/search/?term=${encodeURIComponent(title)}`,
           pricing: { status: 'unknown', fetchedAt: new Date().toISOString() },
+          verified: null,
+          matchStatus: 'network_error',
         };
       }
     });
@@ -472,6 +505,8 @@ export async function enrichGamesWithSteam(
         headerImage: null,
         storeUrl: `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || '')}`,
         pricing: { status: 'unknown', fetchedAt: new Date().toISOString() },
+        verified: null,
+        matchStatus: 'network_error',
       };
     });
   } finally {
