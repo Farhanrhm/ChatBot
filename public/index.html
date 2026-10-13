@@ -14,7 +14,7 @@
 </head>
 <body>
   <!-- SVG Sprite (Lucide Icons, Lisensi ISC) -->
-  <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <svg xmlns="http://www.w3.org/2000/svg" style="display: none;" width="0" height="0" aria-hidden="true">
     <symbol id="icon-compass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="10" />
       <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
@@ -159,86 +159,73 @@
 
       <footer class="composer">
         <div class="composer-inner">
-          <section id="filter-bar" class="filter-bar" aria-label="Filter preferensi cepat">
-            <div class="filter-mobile-trigger">
-              <button
-                type="button"
-                id="filter-toggle-btn"
-                class="filter-toggle-btn"
-                aria-expanded="false"
-                aria-controls="filter-groups"
-                aria-label="Buka filter preferensi"
-              >
-                <svg class="filter-toggle-icon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <use href="#icon-sliders"></use>
-                </svg>
-                <span id="filter-toggle-label">Filter</span>
-                <span id="filter-active-count" class="filter-active-badge" hidden>0</span>
-              </button>
-              <span id="filter-summary-text" class="filter-summary-text" aria-live="polite">Semua</span>
-              <button type="button" id="clear-filters-btn" class="clear-filters-btn" aria-label="Hapus semua filter" hidden>
-                Hapus filter
-              </button>
+          <!-- Toolbar horizontal kompak: Filter preferensi dan saran cepat dalam 1 baris geser -->
+          <div id="quick-toolbar-wrap" class="quick-toolbar-wrap">
+            <div id="quick-toolbar" class="quick-toolbar" role="region" aria-label="Filter preferensi dan saran cepat">
+              <div id="filter-groups" class="toolbar-group filter-chips-group" role="group" aria-label="Filter preferensi">
+                <button type="button" class="filter-chip" data-group="spec" data-value="potato" aria-pressed="false" title="Filter spek laptop kentang">
+                  <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <use href="#icon-laptop"></use>
+                  </svg>
+                  <span>Kentang</span>
+                </button>
+                <button type="button" class="filter-chip" data-group="spec" data-value="gaming" aria-pressed="false" title="Filter PC gaming">
+                  <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <use href="#icon-zap"></use>
+                  </svg>
+                  <span>Gaming</span>
+                </button>
+                <button type="button" class="filter-chip" data-group="budget" data-value="free" aria-pressed="false" title="Filter game gratis">
+                  <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <use href="#icon-gift"></use>
+                  </svg>
+                  <span>Gratis</span>
+                </button>
+                <button type="button" class="filter-chip" data-group="budget" data-value="under100k" aria-pressed="false" title="Filter budget di bawah 100 ribu">
+                  <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <use href="#icon-tag"></use>
+                  </svg>
+                  <span>&lt; 100rb</span>
+                </button>
+                <button type="button" class="filter-chip" data-group="mode" data-value="single" aria-pressed="false" title="Filter single-player">
+                  <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <use href="#icon-user"></use>
+                  </svg>
+                  <span>Single</span>
+                </button>
+                <button type="button" class="filter-chip" data-group="mode" data-value="coop" aria-pressed="false" title="Filter co-op">
+                  <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <use href="#icon-users"></use>
+                  </svg>
+                  <span>Co-op</span>
+                </button>
+                <button type="button" id="clear-filters-btn" class="clear-filters-btn" aria-label="Hapus semua filter" hidden>
+                  Hapus filter
+                </button>
+              </div>
+
+              <div class="toolbar-divider" aria-hidden="true"></div>
+
+              <div id="chips" class="toolbar-group suggestion-chips-group" role="group" aria-label="Saran cepat"></div>
             </div>
+          </div>
 
-            <div id="filter-groups" class="filter-groups">
-              <div class="filter-group" role="group" aria-labelledby="filter-spec-label">
-                <span id="filter-spec-label" class="filter-group-label">Spek:</span>
-                <div class="filter-chips">
-                  <button type="button" class="filter-chip" data-group="spec" data-value="potato" aria-pressed="false">
-                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <use href="#icon-laptop"></use>
-                    </svg>
-                    <span>Kentang</span>
-                  </button>
-                  <button type="button" class="filter-chip" data-group="spec" data-value="gaming" aria-pressed="false">
-                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <use href="#icon-zap"></use>
-                    </svg>
-                    <span>Gaming</span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="filter-group" role="group" aria-labelledby="filter-budget-label">
-                <span id="filter-budget-label" class="filter-group-label">Budget:</span>
-                <div class="filter-chips">
-                  <button type="button" class="filter-chip" data-group="budget" data-value="free" aria-pressed="false">
-                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <use href="#icon-gift"></use>
-                    </svg>
-                    <span>Gratis</span>
-                  </button>
-                  <button type="button" class="filter-chip" data-group="budget" data-value="under100k" aria-pressed="false">
-                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <use href="#icon-tag"></use>
-                    </svg>
-                    <span>&lt; 100rb</span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="filter-group" role="group" aria-labelledby="filter-mode-label">
-                <span id="filter-mode-label" class="filter-group-label">Mode:</span>
-                <div class="filter-chips">
-                  <button type="button" class="filter-chip" data-group="mode" data-value="single" aria-pressed="false">
-                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <use href="#icon-user"></use>
-                    </svg>
-                    <span>Single</span>
-                  </button>
-                  <button type="button" class="filter-chip" data-group="mode" data-value="coop" aria-pressed="false">
-                    <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <use href="#icon-users"></use>
-                    </svg>
-                    <span>Co-op</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-          <div id="chips" class="chips" hidden aria-label="Saran cepat"></div>
           <form id="chat-form" autocomplete="off">
+            <button
+              type="button"
+              id="filter-toggle-btn"
+              class="btn-filter-toggle"
+              aria-expanded="true"
+              aria-controls="quick-toolbar-wrap"
+              aria-label="Sembunyikan filter dan saran"
+              title="Toggle baris filter & saran"
+            >
+              <svg class="filter-toggle-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <use href="#icon-sliders"></use>
+              </svg>
+              <span id="filter-active-count-badge" class="filter-active-count-badge" hidden>0</span>
+            </button>
+
             <div class="input-wrap">
               <textarea
                 id="user-input"
@@ -249,13 +236,15 @@
               ></textarea>
               <span id="char-counter" class="char-counter" aria-live="polite" hidden>0/1000</span>
             </div>
+
             <button type="submit" id="send-btn" class="btn-send" aria-label="Kirim pesan">
-              Kirim
+              <span class="btn-send-text">Kirim</span>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" />
               </svg>
             </button>
           </form>
+
           <div class="meta-hints">
             <p class="hint">Harga Steam dapat berubah. Proyek edukasi, tidak berafiliasi dengan Valve.</p>
           </div>
@@ -292,17 +281,6 @@
 
     <div class="wishlist-notice">
       <small>Harga tidak disimpan. Cek harga terbaru di halaman Steam.</small>
-    </div>
-
-    <div class="wishlist-toolbar">
-      <button type="button" id="wishlist-copy-btn" class="btn-ghost" aria-label="Salin daftar wishlist ke clipboard">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-        </svg>
-        Salin daftar
-      </button>
-      <span id="wishlist-copy-feedback" class="copy-feedback" role="status" aria-live="polite" hidden>Tersalin</span>
     </div>
 
     <div id="wishlist-content" class="wishlist-body">
