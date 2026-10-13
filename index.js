@@ -17,9 +17,8 @@ const isTestMode =
 
 // Verifikasi ketersediaan GEMINI_API_KEY saat startup (dilewati saat unit testing)
 if (!isTestMode && !process.env.GEMINI_API_KEY) {
-  console.error('FATAL: Variabel lingkungan GEMINI_API_KEY belum disetel di file .env.');
-  console.error('Silakan salin .env.example menjadi .env dan masukkan API key Anda.');
-  process.exit(1);
+  console.warn('PERINGATAN: Variabel lingkungan GEMINI_API_KEY belum disetel.');
+  console.warn('Pastikan menyetel GEMINI_API_KEY di .env (lokal) atau di Dashboard Environment Variables (Vercel).');
 }
 
 // Setup __dirname untuk ES Modules
@@ -78,6 +77,14 @@ app.use((err, req, res, next) => {
 
 // Sajikan frontend dari satu origin (folder public)
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Normalisasi rute untuk lingkungan serverless (Vercel) jika prefix /api terpotong
+app.use((req, res, next) => {
+  if (!req.url.startsWith('/api') && (req.url.startsWith('/chat') || req.url.startsWith('/health'))) {
+    req.url = '/api' + req.url;
+  }
+  next();
+});
 
 // Rate limiter untuk endpoint chat (default: 20 request per menit per IP)
 const chatRateLimiter = rateLimit({
@@ -373,10 +380,16 @@ app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req,
     // Catat error di server tanpa membocorkan API key atau data user
     console.error('[SteamScout Error]', err?.name || 'Error', err?.message || err);
 
-    // 2. Pemetaan error Gemini ke pesan ramah pengguna
     if (err?.message === 'REQUEST_TIMEOUT') {
       return res.status(504).json({
         error: 'Permintaan memakan waktu terlalu lama (timeout). Mohon periksa koneksi dan coba lagi.',
+      });
+    }
+
+    if (err?.status === 404 || err?.message?.includes('404') || err?.message?.includes('NOT_FOUND')) {
+      console.error(`[SteamScout Model Error] Model '${GEMINI_MODEL}' tidak ditemukan (HTTP 404 NOT_FOUND). Model mungkin telah dihentikan (deprecated) atau nama model salah. Gunakan model aktif seperti 'gemini-3.1-flash-lite' di .env.`);
+      return res.status(502).json({
+        error: `Model AI '${GEMINI_MODEL}' tidak ditemukan atau telah dihentikan. Silakan periksa konfigurasi GEMINI_MODEL di server.`,
       });
     }
 
@@ -472,7 +485,10 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
   }
 });
 
-if (!isTestMode) {
+// Jalankan server HTTP hanya jika dijalankan langsung di lokal/VPS (bukan di lingkungan serverless Vercel atau unit test)
+const isServerless = Boolean(process.env.VERCEL);
+
+if (!isTestMode && !isServerless) {
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`SteamScout server ready on http://0.0.0.0:${PORT}`);
   });
@@ -494,3 +510,5 @@ if (!isTestMode) {
   process.on('SIGINT', () => handleShutdown('SIGINT'));
   process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 }
+
+export default app;
