@@ -41,6 +41,9 @@ Dokumen ini mencatat skenario pengujian fungsional, keamanan, batasan input, dan
 | 31 | Tombol Hapus Semua Filter | Klik tombol "Hapus filter" di baris composer saat ada filter aktif | Seluruh filter kembali ke default (`any`), tombol "Hapus filter" menghilang, storage diperbarui. |  |  |
 | 32 | Integritas Payload DevTools | Buka Network tab di browser, kirim pesan dengan filter aktif | Request payload memuat field `preferences` terpisah, array `conversation` tetap murni tanpa polusi filter. |  |  |
 | 33 | Tampilan Responsif Filter Bar (375px) | Buka baris filter pada viewport ponsel 375px | Baris filter chip dapat digulir horizontal secara halus tanpa overflow horizontal pada dokumen. |  |  |
+| 34 | Badge "Belum terverifikasi di Steam" (Judul Tidak Cocok) | Rekomendasi game fiktif atau judul indie yang tidak terdaftar di Steam | Menampilkan badge oranye "Belum terverifikasi di Steam", menyembunyikan cover art dan baris harga, tombol berubah menjadi "Cari di Steam". |  |  |
+| 35 | Penolakan Konten DLC (matchStatus: rejected_dlc) | Rekomendasi mencocokkan item DLC (bukan game penuh) | Item DLC ditolak dari penautan langsung, kartu menampilkan badge "Belum terverifikasi di Steam" dan tombol pencarian aman. |  |  |
+| 36 | Ketahanan Jaringan Steam (matchStatus: network_error) | Terjadi timeout atau error jaringan saat cek ke Steam API | Kartu tidak menampilkan badge penolakan keliru, tombol fallback ke pencarian Steam tanpa harga palsu. |  |  |
 
 ---
 

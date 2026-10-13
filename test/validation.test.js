@@ -163,6 +163,8 @@ test('getSteamGameDetails: game berbayar reguler (Stardew Valley) via fixture of
   assert.equal(res.pricing.discountPercent, 0);
   assert.equal(res.pricing.onSale, false);
   assert.equal(res.pricing.finalFormatted, 'Rp 115 999');
+  assert.equal(res.verified, true);
+  assert.equal(res.matchStatus, 'matched');
 });
 
 test('getSteamGameDetails: game diskon (Terraria 50%) via fixture offline', async () => {
@@ -263,6 +265,82 @@ test('getSteamGameDetails: menolak item bertipe DLC dan fallback aman', async ()
   // Karena hanya ada DLC dan tidak ada kandidat game, harus fallback ke unknown
   assert.equal(res.appId, null);
   assert.equal(res.pricing.status, 'unknown');
+  assert.equal(res.verified, false);
+  assert.equal(res.matchStatus, 'rejected_dlc');
+});
+
+test('getSteamGameDetails: game cocok tanpa informasi harga menghasilkan verified: true, matchStatus: matched, pricing: unknown', async () => {
+  const { getSteamGameDetails, titleCache, appDetailsCache } = await import('../services/steamStore.js');
+  titleCache.clear();
+  appDetailsCache.clear();
+
+  const mockFetch = async (url) => {
+    if (url.includes('storesearch')) {
+      return {
+        ok: true,
+        json: async () => ({
+          total: 1,
+          items: [{ id: 999999, name: 'Special Indie Game', tiny_image: '' }],
+        }),
+      };
+    }
+    if (url.includes('appdetails')) {
+      return {
+        ok: true,
+        json: async () => ({
+          '999999': {
+            success: true,
+            data: {
+              type: 'game',
+              name: 'Special Indie Game',
+              is_free: false,
+            },
+          },
+        }),
+      };
+    }
+    return { ok: false };
+  };
+
+  const res = await getSteamGameDetails('Special Indie Game', { fetchFn: mockFetch });
+  assert.equal(res.appId, 999999);
+  assert.equal(res.verified, true);
+  assert.equal(res.matchStatus, 'matched');
+  assert.equal(res.pricing.status, 'unknown');
+});
+
+test('getSteamGameDetails: pencarian kosong menghasilkan verified: false dan matchStatus: not_found', async () => {
+  const { getSteamGameDetails, titleCache, appDetailsCache } = await import('../services/steamStore.js');
+  titleCache.clear();
+  appDetailsCache.clear();
+
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({ total: 0, items: [] }),
+  });
+
+  const res = await getSteamGameDetails('Game Super Fiktif 99999', { fetchFn: mockFetch });
+  assert.equal(res.appId, null);
+  assert.equal(res.verified, false);
+  assert.equal(res.matchStatus, 'not_found');
+  assert.equal(res.pricing.status, 'unknown');
+  assert.ok(res.storeUrl.includes('search'));
+});
+
+test('getSteamGameDetails: kegagalan jaringan atau timeout menghasilkan verified: null dan matchStatus: network_error', async () => {
+  const { getSteamGameDetails, titleCache, appDetailsCache } = await import('../services/steamStore.js');
+  titleCache.clear();
+  appDetailsCache.clear();
+
+  const mockFetch = async () => {
+    throw new Error('ETIMEDOUT');
+  };
+
+  const res = await getSteamGameDetails('Hades', { fetchFn: mockFetch });
+  assert.equal(res.appId, null);
+  assert.equal(res.verified, null);
+  assert.equal(res.matchStatus, 'network_error');
+  assert.equal(res.pricing.status, 'unknown');
 });
 
 test('enrichGamesWithSteam: memperkaya beberapa game secara paralel tanpa kegagalan total', async () => {
@@ -279,6 +357,10 @@ test('enrichGamesWithSteam: memperkaya beberapa game secara paralel tanpa kegaga
   assert.equal(enriched.length, 2);
   assert.equal(enriched[0].pricing.status, 'unknown');
   assert.equal(enriched[1].pricing.status, 'unknown');
+  assert.equal(enriched[0].verified, null);
+  assert.equal(enriched[0].matchStatus, 'network_error');
+  assert.equal(enriched[1].verified, null);
+  assert.equal(enriched[1].matchStatus, 'network_error');
   assert.ok(enriched[0].storeUrl.includes('search'));
 });
 
