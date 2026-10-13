@@ -20,6 +20,7 @@ lerna-debug.log*
 Thumbs.db
 __MACOSX/
 anti-slop
+.vercel
 
 # Editor directories and files
 .vscode/
@@ -34,3 +35,7 @@ anti-slop
 # Evaluation output results
 eval/results/*
 !eval/results/.gitkeep
+
+# Temporary testing scripts and screenshot artifacts
+scratch/
+scripts/screenshots/
