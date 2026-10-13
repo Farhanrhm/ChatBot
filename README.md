@@ -24,7 +24,7 @@ SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. M
 7. **Parser Markdown Aman**: Merender format tebal, miring, list, dan link dengan sanitasi HTML ketat untuk mencegah serangan XSS.
 8. **Ketahanan Sesi (sessionStorage)**: Percakapan tidak hilang saat halaman dimuat ulang (refresh), dan dapat dikosongkan dengan tombol Reset chat.
 9. **Indikator Responsif dan Penanganan Error**: Animasi typing indicator, penghitung karakter input (maksimal 1000 karakter), serta bubble error interaktif dengan tombol Coba lagi.
-10. **Wishlist Lokal (Browser Storage)**: Simpan game favorit langsung dari kartu ke daftar pribadi pengguna (maksimal 50 game), dilengkapi tombol drawer di topbar, navigasi keyboard lengkap (`Esc`, focus trap), tombol "Salin daftar", dan ketahanan data saat chat di-reset.
+10. **Wishlist Lokal (Browser Storage)**: Simpan game favorit langsung dari kartu ke daftar pribadi pengguna (maksimal 50 game), dilengkapi tombol drawer di topbar, navigasi keyboard lengkap (`Esc`, focus trap), serta ketahanan data saat chat di-reset.
 11. **Filter Preferensi Cepat (Quick Filter Bar)**: Tombol toggle chip di atas area input (Spek: Kentang / Gaming, Budget: Gratis / < 100rb, Mode: Single / Co-op) yang dikirim terpisah melalui field `preferences`, divalidasi server, dirakit ke prompt note tanpa merusak riwayat, dan menerapkan aturan konflik (permintaan teks pengguna menang).
 
 ---
