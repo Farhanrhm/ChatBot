@@ -404,12 +404,13 @@ function formatBotContent(raw) {
         const storeUrl = g.storeUrl || `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || "")}`;
         const headerImg = g.headerImage ? escapeHtml(g.headerImage) : null;
 
+        const isUnverified = g.verified === false;
         const discountBadgeHtml =
-          g.pricing?.status === "paid" && g.pricing?.onSale && g.pricing?.discountPercent > 0
+          !isUnverified && g.pricing?.status === "paid" && g.pricing?.onSale && g.pricing?.discountPercent > 0
             ? `<span class="discount-badge" aria-label="Diskon ${escapeHtml(String(g.pricing.discountPercent))} persen">-${escapeHtml(String(g.pricing.discountPercent))}%</span>`
             : "";
 
-        const bannerHtml = headerImg
+        const bannerHtml = !isUnverified && headerImg
           ? `<div class="game-card-banner">
               ${discountBadgeHtml}
               <img src="${headerImg}" alt="Poster resmi ${title}" loading="lazy" onerror="this.parentElement.style.display='none'">
@@ -417,7 +418,7 @@ function formatBotContent(raw) {
           : "";
 
         let priceHtml = "";
-        if (g.pricing && typeof g.pricing === "object") {
+        if (!isUnverified && g.pricing && typeof g.pricing === "object") {
           if (g.pricing.status === "paid") {
             if (g.pricing.onSale && g.pricing.initialFormatted && g.pricing.finalFormatted) {
               priceHtml = `
@@ -452,12 +453,23 @@ function formatBotContent(raw) {
           ? `<div class="game-card-tags">${g.genres.map((t) => `<span class="game-tag">${escapeHtml(t)}</span>`).join("")}</div>`
           : "";
 
+        const unverifiedBadgeHtml = isUnverified
+          ? `<span class="unverified-badge" role="status">Belum terverifikasi di Steam</span>`
+          : "";
+
+        const isSearchLink = isUnverified || !g.appId;
+        const btnLabel = isSearchLink ? "Cari di Steam" : "Buka di Steam Store";
+        const btnAriaLabel = isSearchLink ? `Cari ${title} di Steam` : `Buka ${title} di Steam`;
+
         html += `
-          <div class="game-card">
+          <div class="game-card${isUnverified ? " is-unverified" : ""}">
             ${bannerHtml}
             <div class="game-card-inner">
               <div class="game-card-head">
-                <h4 class="game-card-title">${title}</h4>
+                <div class="game-card-title-group">
+                  <h4 class="game-card-title">${title}</h4>
+                  ${unverifiedBadgeHtml}
+                </div>
                 ${metaStr ? `<span class="game-card-meta">${metaStr}</span>` : ""}
               </div>
               ${priceHtml}
@@ -467,11 +479,11 @@ function formatBotContent(raw) {
                 ${g.specsAndBudget ? `<p class="game-card-specs"><strong>Spek & budget:</strong> ${inline(g.specsAndBudget)}</p>` : ""}
               </div>
               <div class="game-card-actions">
-                <a href="${storeUrl}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="Buka ${title} di Steam">
+                <a href="${storeUrl}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="${btnAriaLabel}">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
                     <path d="M12 2a10 10 0 0 0-9.95 9l5.65 2.33a2.89 2.89 0 0 1 1.76-.6c.23 0 .45.03.66.08l2.67-3.87A4.27 4.27 0 0 1 12.5 8a4.5 4.5 0 1 1 0 9c-.27 0-.53-.02-.79-.07l-2.73 3.96c-.22.06-.46.11-.71.11a3.25 3.25 0 0 1-3.23-3l-3.08-1.28A10 10 0 1 0 12 2z"/>
                   </svg>
-                  Buka di Steam Store
+                  ${btnLabel}
                 </a>
                 <button
                   type="button"
