@@ -9,23 +9,32 @@ SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. M
 
 ## Antarmuka Aplikasi
 
-![Tampilan Antarmuka SteamScout](./docs/screenshots/image.png)
+### 1. Tampilan Utama Desktop
+![Tampilan Utama Desktop SteamScout](./docs/screenshots/image.png)
+*Navigasi sidebar, status koneksi, percakapan rekomendasi game terstruktur, dan toolbar filter preferensi.*
+
+### 2. Drawer Modal Wishlist
+![Tampilan Drawer Modal Wishlist SteamScout](./docs/screenshots/wishlist_drawer.png)
+*Panel drawer wishlist tersimpan dengan focus trap keyboard, navigasi tautan toko Steam, dan tombol hapus.*
+
+### 3. Tampilan Responsif Ponsel (Mobile)
+![Tampilan Responsif Mobile SteamScout](./docs/screenshots/mobile_preview.png)
+*Tata letak responsif pada viewport layar ponsel dengan target sentuh optimal dan navigasi anti-scroll.*
 
 ---
 
 ## Fitur Utama
 
-1. **Persona Kurator Steam Khusus**: Memberikan rekomendasi terstruktur (Judul, Genre/Tag, Alasan Cocok, Spek & Budget) dengan batas maksimal 2-3 game per balasan agar tidak membebani pengguna.
-2. **Tombol "Cari di Steam" per Game**: Tautan instan pencarian toko resmi Steam (`https://store.steampowered.com/search/?term=...`) yang otomatis terpasang pada setiap judul game yang direkomendasikan.
-3. **Memori Percakapan Bertingkat (Multi-turn)**: Mengingat konteks dan preferensi pengguna selama sesi obrolan berlangsung (misalnya: *"yang di bawah 100 ribu aja"* atau *"ada versi pixel art-nya?"*).
+1. **Persona Kurator Steam Khusus**: Memberikan rekomendasi terstruktur (Judul, Genre/Tag, Alasan Cocok, Spek & Budget) dengan batas maksimal 2-3 game per balasan agar tidak membebani pengguna. Tombol aksi mengarahkan langsung: "Buka di Steam Store" untuk game yang terverifikasi di katalog Steam, dan "Cari di Steam" untuk judul yang belum terverifikasi.
+2. **Filter Preferensi Cepat (Quick Filter Bar)**: Toolbar horizontal di atas area composer (Spek: Kentang / Gaming, Budget: Gratis / < 100rb, Mode: Single / Co-op) yang dapat disembunyikan atau ditampilkan sewaktu-waktu. Preferensi dikirim terpisah melalui field `preferences`, divalidasi server, dan dirakit ke catatan permintaan tanpa merusak riwayat percakapan.
+3. **Memori Percakapan Bertingkat (Multi-turn)**: Mengingat konteks dan preferensi pengguna selama sesi obrolan berlangsung (hingga 20 turn terakhir) dengan perlindungan payload aman.
 4. **Kartu dan Chip Saran Cepat (Quick Prompts)**: Tombol interaktif untuk memulai pencarian instan seperti Laptop kentang, Co-op santai, Menantang (Souls-like), dan Cozy.
-5. **Desain Steam Dark Theme**: Palet warna autentik ekosistem Steam (`#171a21`, `#1b2838`, aksen cyan `#66c0f4`) dengan tipografi Barlow.
-6. **Aksesibilitas Teruji (Lighthouse 100/100)**: Memenuhi standar aksesibilitas web dengan kontras warna teks (WCAG AA), ukuran target sentuh tombol minimal 44x44px, navigasi keyboard (`:focus-visible`), dan penamaan label ARIA yang selaras.
-7. **Parser Markdown Aman**: Merender format tebal, miring, list, dan link dengan sanitasi HTML ketat untuk mencegah serangan XSS.
-8. **Ketahanan Sesi (sessionStorage)**: Percakapan tidak hilang saat halaman dimuat ulang (refresh), dan dapat dikosongkan dengan tombol Reset chat.
-9. **Indikator Responsif dan Penanganan Error**: Animasi typing indicator, penghitung karakter input (maksimal 1000 karakter), serta bubble error interaktif dengan tombol Coba lagi.
-10. **Wishlist Lokal (Browser Storage)**: Simpan game favorit langsung dari kartu ke daftar pribadi pengguna (maksimal 50 game), dilengkapi tombol drawer di topbar, navigasi keyboard lengkap (`Esc`, focus trap), serta ketahanan data saat chat di-reset.
-11. **Filter Preferensi Cepat (Quick Filter Bar)**: Tombol toggle chip di atas area input (Spek: Kentang / Gaming, Budget: Gratis / < 100rb, Mode: Single / Co-op) yang dikirim terpisah melalui field `preferences`, divalidasi server, dirakit ke prompt note tanpa merusak riwayat, dan menerapkan aturan konflik (permintaan teks pengguna menang).
+5. **Desain Steam Dark Theme & Layout Terkunci**: Palet warna autentik ekosistem Steam (`#171a21`, `#1b2838`, aksen cyan `#66c0f4`) dengan tipografi Barlow. Tata letak terkunci rapi pada viewport (0px page scroll overflow) dan kartu game tersusun rapi secara horizontal pada layar desktop.
+6. **Peningkatan Aksesibilitas**: Meraih skor Lighthouse Accessibility 100/100 (audit otomatis). Dilengkapi target sentuh tombol minimal 44x44px, navigasi keyboard lengkap dengan indikator visual `:focus-visible`, sinkronisasi atribut `aria-pressed`, region live tersembunyi (`#live-announcer`) untuk pembaca layar, dan preferensi `prefers-reduced-motion`.
+7. **Wishlist Lokal Tanpa Duplikasi**: Menyimpan game favorit langsung dari kartu obrolan ke browser storage (maksimal 50 game). Menerapkan deduplikasi ketat (`isSameGame` yang membedakan game berbeda ber-App ID berbeda), auto-upgrade entri tanpa App ID saat ditemukan rekomendasi resmi, proteksi anti-downgrade, sinkronisasi instan antar-tab pada peramban yang sama, modal drawer dengan focus trap (`Tab`, `Shift+Tab`, `Esc`), serta kebal terhadap data storage rusak.
+8. **Ketahanan Streaming AI (Watchdog Resilient)**: Streaming Server-Sent Events (`/api/chat/stream`) dilindungi oleh dual-timer watchdog (batas 30 detik untuk chunk pertama dan 15 detik antar-chunk). Jika stream macet sebelum token pertama tampil, klien otomatis fallback ke `POST /api/chat`. Jika terputus setelah teks parsial tampil, teks dipertahankan di layar dan ditampilkan kotak notifikasi ramah beserta tombol "Coba lagi" (tanpa fallback diam-diam dan tanpa menduplikasi pesan pengguna).
+9. **Deteksi Mode Offline Reaktif**: Memeriksa status koneksi secara otomatis dan mendengarkan event jaringan. Saat offline, tombol Kirim dan chip dinonaktifkan (`aria-disabled="true"`), banner status overlay ditampilkan tanpa merusak tata letak, dan teks yang sedang diketik pengguna di textarea tetap aman tersimpan.
+10. **Storefront Grounding & Cache App ID**: Verifikasi otomatis ke endpoint Steam Storefront untuk menyajikan cover art resmi, status harga aktual (diskon, Free to Play, Segera Hadir), serta cache ringan App ID di sisi peramban untuk mempercepat resolusi tautan toko resmi.
 
 ---
 
@@ -35,8 +44,8 @@ SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. M
 - **AI SDK**: `@google/genai` (Google Gemini API, model `gemini-3.1-flash-lite`)
 - **Keamanan & Middleware**: `helmet`, `express-rate-limit`, `dotenv`
 - **Frontend**: Vanilla HTML5, Vanilla CSS3 (CSS Variables, Flexbox, CSS Grid), Vanilla JavaScript (tanpa framework, tanpa build step)
-- **Testing**: Node.js built-in test runner (`node:test`, `node:assert`)
-- **CI/CD**: GitHub Actions (otomatisasi pengujian `npm test` pada branch `main`)
+- **Testing**: Node.js built-in test runner (`node:test`, `node:assert`), Puppeteer Core (`puppeteer-core`) untuk pengujian layout dan perilaku headless browser
+- **CI/CD**: GitHub Actions (otomatisasi pengujian `npm test` pada event `push` dan `pull_request` ke branch `main`)
 
 ---
 
@@ -50,67 +59,66 @@ sequenceDiagram
     actor Gamer as Pengguna (Browser)
     participant UI as SteamScout UI (public/)
     participant Express as Backend Server (index.js)
+    participant Steam as Steam Storefront API
     participant Gemini as Google Gemini API
 
-    Gamer->>UI: Ketik preferensi atau klik Quick Capsule
-    UI->>UI: Simpan ke sessionStorage & tampilkan pesan user
-    UI->>Express: POST /api/chat { conversation: [...] }
+    Gamer->>UI: Ketik preferensi atau klik chip filter
+    UI->>UI: Simpan ke sessionStorage & render pesan user
+    UI->>Express: POST /api/chat/stream { conversation, preferences }
     Note over Express: Rate limiting, trust proxy & validasi toContents()
-    Express->>Gemini: generateContent({ model, contents, systemInstruction })
-    alt Respon Berhasil
-        Gemini-->>Express: 200 OK (Teks rekomendasi)
-        Express-->>UI: 200 OK { result: "..." }
-        UI->>UI: Render Markdown + tombol "Cari di Steam" & simpan ke riwayat
+    Express->>Gemini: generateContentStream({ model, contents, systemInstruction })
+    alt Streaming Berjalan Normal
+        Gemini-->>Express: Aliran token teks JSON
+        Express-->>UI: Event SSE data: { chunk }
+        UI->>UI: Render intro parsial progresif
+        Express->>Steam: enrichGamesWithSteam (cover, harga, batas 6s)
+        Steam-->>Express: Data cover art & harga terverifikasi
+        Express-->>UI: Event SSE data: { done: true, data }
+        UI->>UI: Render kartu rekomendasi lengkap & update wishlist
+    else Stream Macet Sebelum Token Pertama
+        Note over UI: Watchdog 30s timeout tanpa token
+        UI->>Express: Fallback otomatis POST /api/chat
+        Express->>Gemini: generateContent()
+        Gemini-->>Express: Respon lengkap
+        Express-->>UI: 200 OK { result, data }
+        UI->>UI: Render balasan bot hasil fallback
+    else Stream Macet Setelah Token Parsial
+        Note over UI: Watchdog 15s timeout antar-chunk
+        UI->>UI: Pertahankan teks parsial, tampilkan notifikasi & tombol Coba lagi
+        Note over UI: Dilarang fallback diam-diam (cegah respon ganda)
     else Layanan Sibuk (503)
         Express->>Gemini: Retry otomatis hingga 2x (exponential backoff)
-    else Terjadi Kesalahan / Timeout
-        Express-->>UI: HTTP Error { error: "Pesan ramah" }
-        UI->>UI: Tampilkan error bubble + tombol Coba lagi
     end
 ```
 
-### Kontrak Endpoint API
+### Kontrak Endpoint API Ringkas
 
-#### 1. `POST /api/chat` dan `POST /api/chat/stream`
-- **Request Headers**: `Content-Type: application/json`
-- **Request Body**:
-  ```json
-  {
-    "conversation": [
-      { "role": "user", "text": "Game santai yang seru" }
-    ],
-    "preferences": {
-      "spec": "potato",
-      "budget": "free",
-      "mode": "coop"
-    }
+| Method | Endpoint | Deskripsi |
+|---|---|---|
+| `POST` | `/api/chat` | Endpoint percakapan utama non-streaming dan jalur fallback otomatis saat stream macet |
+| `POST` | `/api/chat/stream` | Endpoint rekomendasi streaming real-time via Server-Sent Events (SSE) |
+| `GET` | `/api/health` | Pemeriksaan kesehatan server (mengembalikan `{ "status": "ok" }`) |
+
+#### Format Request Body (`POST /api/chat` & `POST /api/chat/stream`)
+
+```json
+{
+  "conversation": [
+    { "role": "user", "text": "Game co-op santai untuk laptop kentang" }
+  ],
+  "preferences": {
+    "spec": "potato",
+    "budget": "free",
+    "mode": "coop"
   }
-  ```
-  *Keterangan Field `preferences` (Opsional)*:
+}
+```
+
+- **Nilai Sah Field `preferences` (Opsional)**:
   - `spec`: `"any"` | `"potato"` (laptop kentang) | `"gaming"` (PC gaming)
   - `budget`: `"any"` | `"free"` (gratis / F2P) | `"under100k"` (di bawah Rp100 ribu)
   - `mode`: `"any"` | `"single"` (single-player) | `"coop"` (co-op / mabar)
-  - Field tidak dikenal atau tipe data selain string menghasilkan respons `HTTP 400 Bad Request`. Filter dirakit ke catatan permintaan Gemini di server tanpa memutasi riwayat percakapan.
-- **Response Sukses (HTTP 200)**:
-  ```json
-  {
-    "result": "Siap, laptop kentang bukan halangan buat dapat game seru!\n\n**Vampire Survivors** (2022, poncle)\n- **Genre & tag utama:** Roguelite, Action, Pixel Art\n- **Kenapa cocok:** Grafis 2D ringan tapi gameplay adiktif.\n- **Spek & budget:** Sangat ramah laptop kentang, di bawah Rp100 ribu.\n\nKamu lebih suka yang aksi cepat atau yang santai?"
-  }
-  ```
-- **Response Error (HTTP 400 / 429 / 500 / 504)**:
-  ```json
-  {
-    "error": "Pesan pengguna melebihi batas maksimal 1000 karakter."
-  }
-  ```
-
-#### 2. `GET /api/health`
-- **Response Sukses (HTTP 200)**:
-  ```json
-  {
-    "status": "ok"
-  }
-  ```
+- **Format Respon Error**: Objek JSON `{ "error": "Pesan deskripsi kesalahan" }` dengan kode status HTTP yang relevan (`400` untuk input salah, `413` untuk payload melebihi 100kb, `429` untuk batas laju request, `503` jika layanan AI sibuk, atau `504` untuk timeout).
 
 ---
 
@@ -120,25 +128,39 @@ sequenceDiagram
 final_project/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml            # Otomatisasi pengujian CI via GitHub Actions
+│       └── ci.yml            # Otomatisasi pengujian CI via GitHub Actions (npm test)
 ├── .env.example              # Template variabel lingkungan
-├── .gitignore                # Daftar pengecualian Git
-├── AGENTS.md                 # Konfigurasi pointer antislop
-├── index.js                  # Server Express, middleware keamanan & integrasi Gemini API
-├── package.json              # Konfigurasi dependensi dan skrip proyek
+├── .gitignore                # Konfigurasi pengabaian berkas Git
+├── AGENTS.md                 # Konfigurasi panduan agen AI
+├── api/
+│   └── index.js              # Entrypoint serverless untuk platform cloud (Vercel)
+├── docs/
+│   ├── EVALUATION.md         # Laporan evaluasi rekomendasi AI
+│   ├── TEST_RESULTS.md       # Matriks pengujian kualitas & skenario cURL
+│   ├── lighthouse-a11y.json  # Laporan hasil audit aksesibilitas otomatis (100/100)
+│   └── screenshots/          # Tangkapan layar antarmuka aplikasi
+├── eval/                     # Dataset pertanyaan & skrip benchmark evaluasi AI
+├── index.js                  # Server Express, middleware keamanan, rate limit & endpoint chat
+├── package.json              # Dependensi dan skrip proyek
 ├── package-lock.json
 ├── prompts/
-│   └── systemPrompt.js       # Definisi terisolasi System Instruction SteamScout
+│   └── systemPrompt.js       # Definisi System Instruction kurator SteamScout
 ├── public/                   # Frontend statis disajikan dari satu origin
-│   ├── index.html            # Struktur antarmuka SteamScout
-│   ├── script.js             # Logika interaktif, parser, dan manajemen sesi
-│   └── style.css             # Tema Steam Dark dan tata letak responsif
+│   ├── index.html            # Struktur markup aplikasi, live announcer, dan SVG sprite
+│   ├── script.js             # Logika interaktif, streaming watchdog, offline, dan manajemen UI
+│   ├── style.css             # Desain Steam Dark Theme, layout anti-scroll, dan respon viewport
+│   └── wishlistCore.js       # Modul inti logika wishlist lokal, deduplikasi, dan migrasi
+├── scripts/
+│   ├── verify-behavior.mjs   # Skrip pengujian otomatis perilaku headless browser
+│   └── verify-layout.mjs     # Skrip verifikasi 0px page scroll pada 5 resolusi layar
+├── services/
+│   ├── dailyCap.js           # Middleware pembatasan kuota permintaan harian (global & per IP)
+│   └── steamStore.js         # Pengayaan data cover art, harga, dan verifikasi katalog Steam
 ├── test/
-│   └── validation.test.js    # Unit testing validasi input toContents()
-└── docs/
-    ├── TEST_RESULTS.md       # Matriks 13 skenario pengujian kualitas & cURL
-    ├── lighthouse-a11y.json  # Laporan hasil audit aksesibilitas Google Lighthouse (100/100)
-    └── screenshots/          # Tangkapan layar antarmuka aplikasi
+│   ├── fixtures/             # Data tiruan respon Steam Storefront untuk pengujian
+│   ├── eval-logic.test.js    # Unit test modul penilaian evaluasi
+│   └── validation.test.js    # Unit test validasi input, preferensi, prompt, dan wishlist
+└── vercel.json               # Konfigurasi routing serverless Vercel
 ```
 
 ---
@@ -146,8 +168,8 @@ final_project/
 ## Cara Instalasi & Menjalankan
 
 ### 1. Prasyarat
-- Node.js versi 18.0.0 atau lebih tinggi.
-- Kunci API Google Gemini (dapat diperoleh gratis di [Google AI Studio](https://aistudio.google.com/)).
+- Node.js versi 20.0.0 atau lebih tinggi.
+- Kunci API Google Gemini (dapat diperoleh di [Google AI Studio](https://aistudio.google.com/)).
 
 ### 2. Langkah Pemasangan
 1. Kloning repositori dan masuk ke folder proyek:
@@ -171,50 +193,39 @@ final_project/
    ```bash
    npm run dev
    ```
-6. Buka browser di alamat:
+6. Buka peramban di alamat:
    ```text
    http://localhost:3000
    ```
 
 ---
 
-## Live Demo
+## Menjalankan Pengujian
 
-Aplikasi dapat diakses secara publik melalui tautan demo berikut:
-[https://steamscout.onrender.com](https://steamscout.onrender.com)
+Proyek ini dilengkapi dengan rangkaian pengujian otomatis untuk memverifikasi logika backend, ketahanan tata letak antarmuka, dan perilaku interaktif peramban:
+
+1. **Unit Test Logika & Modul Inti**:
+   ```bash
+   npm test
+   ```
+   Menjalankan unit test bawaan Node.js untuk memverifikasi validasi input `toContents()`, sanitasi data, perakitan prompt preferensi, penanganan retry 503, serta aturan deduplikasi dan auto-upgrade pada `wishlistCore.js`.
+2. **Verifikasi Tata Letak & Viewport**:
+   ```bash
+   npm run test:layout
+   ```
+   Menjalankan pengujian otomatis menggunakan browser headless untuk memastikan tata letak terkunci presisi tanpa page scroll overflow (0px) pada 5 resolusi standar (desktop lebar, laptop standar, layar pendek, dan ponsel).
+3. **Verifikasi Perilaku DOM & Aksesibilitas**:
+   ```bash
+   npm run test:behavior
+   ```
+   Menjalankan pengujian otomatis perilaku peramban (Puppeteer) yang mencakup sinkronisasi wishlist multi-tab, deteksi mode offline, watchdog fallback streaming, preservasi teks parsial saat koneksi terputus, focus trap pada modal drawer, dan respon screen reader live region.
 
 > [!NOTE]
-> * **Cold Start pada Layanan Gratis**: Pada penyedia hosting cloud gratis (seperti Render Free Instance), server akan tidur (*sleep*) jika tidak ada lalu lintas. Permintaan pertama mungkin membutuhkan waktu 30-50 detik untuk merespons kembali.
-> * **Batas Kuota Demo**: Untuk melindungi kuota Google AI Studio, demo publik dibatasi maksimal 500 permintaan per hari secara global dan 60 pesan per hari per IP.
-
----
-
-## Panduan Deploy ke Cloud
-
-Aplikasi SteamScout siap di-deploy langsung ke penyedia hosting cloud seperti **Render** atau **Railway**.
-
-### 1. Deploy ke Render (Web Service)
-1. Hubungkan repositori GitHub Anda ke akun Render.
-2. Buat **New Web Service** dan pilih repositori `ChatBot`.
-3. Atur konfigurasi build dan start:
-   - **Environment**: `Node`
-   - **Branch**: `main`
-   - **Build Command**: `npm ci`
-   - **Start Command**: `npm start`
-   - **Health Check Path**: `/api/health`
-4. Tambahkan **Environment Variables** di dashboard Render:
-   - `GEMINI_API_KEY`: *(Kunci API Google Gemini Anda)*
-   - `GEMINI_MODEL`: `gemini-3.1-flash-lite`
-   - `NODE_ENV`: `production`
-   - `DAILY_REQUEST_CAP`: `500`
-   - `DAILY_REQUEST_CAP_PER_IP`: `60`
-5. Klik **Create Web Service**.
-
-### 2. Deploy ke Railway
-1. Buat **New Project** di Railway dan pilih **Deploy from GitHub repo**.
-2. Buka tab **Settings** dan atur **Healthcheck Path** ke `/api/health`.
-3. Buka tab **Variables** dan masukkan variabel lingkungan yang sama (`GEMINI_API_KEY`, `GEMINI_MODEL`, `NODE_ENV`, `DAILY_REQUEST_CAP`, `DAILY_REQUEST_CAP_PER_IP`).
-4. Pada tab **Networking**, klik **Generate Domain** untuk mendapatkan URL publik HTTPS.
+> * **Kemandirian Server Pengujian**: Skrip `npm run test:layout` dan `npm run test:behavior` menyalakan server HTTP statis mandiri secara otomatis (masing-masing pada port 3588 dan 3589). Pengujian dapat dijalankan langsung tanpa perlu menyalakan `npm run dev` terlebih dahulu.
+> * **Resolusi Jalur Peramban (Chrome / Chromium)**: Skrip pengujian peramban secara otomatis mendeteksi instalasi Google Chrome atau Chromium pada path umum di Windows, macOS, dan Linux. Jika peramban terpasang di lokasi kustom atau tidak terdeteksi otomatis, tentukan lokasinya melalui variabel lingkungan `CHROME_PATH`.
+>   - Windows (PowerShell): `$env:CHROME_PATH = "C:\Program Files\Google\Chrome\Application\chrome.exe"`
+>   - Linux / macOS: `export CHROME_PATH="/usr/bin/google-chrome"`
+> * **Lingkungan CI (GitHub Actions)**: Sesuai blok `on:` pada `.github/workflows/ci.yml`, pengujian otomatis (`npm test`) dijalankan pada event `push` dan `pull_request` ke branch `main`.
 
 ---
 
@@ -229,21 +240,22 @@ Aplikasi SteamScout siap di-deploy langsung ke penyedia hosting cloud seperti **
 | `NODE_ENV` | Mode lingkungan aplikasi (`production` / `development`) | `development` |
 | `RATE_LIMIT_WINDOW_MS` | Jendela waktu rate limit (dalam milidetik) | `60000` (1 menit) |
 | `RATE_LIMIT_MAX` | Maksimal request yang diizinkan per menit per IP | `20` |
-| `DAILY_REQUEST_CAP` | Batas maksimal total request demo per hari secara global | `500` |
-| `DAILY_REQUEST_CAP_PER_IP` | Batas maksimal pesan demo per hari per alamat IP | `60` |
+| `DAILY_REQUEST_CAP` | Batas maksimal total request per hari secara global | `500` |
+| `DAILY_REQUEST_CAP_PER_IP` | Batas maksimal pesan per hari per alamat IP | `60` |
+| `CHROME_PATH` | Path file eksekusi Google Chrome / Chromium untuk pengujian headless | *(Opsional untuk pengujian)* |
 
 ---
 
 ## Langkah Keamanan & Hardening
 
 1. **Perlindungan Kredensial**: File `.env` masuk ke `.gitignore` sehingga API key tidak terunggah ke repositori publik. Server membatalkan proses startup jika API key belum dikonfigurasi saat mode produksi.
-2. **Validasi Anti-Injeksi (`toContents`)**: Riwayat percakapan dari browser divalidasi ketat (maksimal 20 turn terakhir, membuang role selain `user` dan `model`, memangkas pesan user > 1000 karakter, dan menolak urutan ilegal).
+2. **Validasi Anti-Injeksi (`toContents`)**: Riwayat percakapan divalidasi ketat (maksimal 20 turn terakhir, membuang role selain `user` dan `model`, memangkas pesan user di atas 1000 karakter, dan menolak urutan percakapan ilegal).
 3. **Pencegahan Denial of Service (DoS)**:
-   - Pembatasan ukuran payload JSON dinaikkan ke batas aman `100kb` untuk mengakomodasi riwayat multi-turn hingga 20 turn tanpa memicu error 413.
-   - Penerapan `express-rate-limit` (20 request per menit per IP) dan `trust proxy` untuk mencegah eksploitasi kuota API di lingkungan cloud hosting.
+   - Pembatasan ukuran payload JSON dibatasi ke `100kb` untuk mengakomodasi riwayat multi-turn hingga 20 turn secara aman tanpa memicu error 413.
+   - Penerapan `express-rate-limit` (20 request per menit per IP) dan `trust proxy` untuk mencegah eksploitasi kuota API.
 4. **Header Keamanan (Helmet)**: Menerapkan Content Security Policy (CSP) ketat yang hanya mengizinkan resource lokal serta Google Fonts resmi.
-5. **Ketahanan Koneksi (Resilience)**: Panggilan Gemini dilengkapi batas timeout 30 detik serta mekanisme retry otomatis 2x dengan exponential backoff jika server Google mengalami status 503.
-6. **Penyajian Single Origin**: Frontend disajikan langsung dari folder `./public/` oleh server Express sehingga tidak memerlukan konfigurasi CORS yang berisiko.
+5. **Ketahanan Koneksi (Resilience)**: Panggilan Gemini dilengkapi batas timeout serta mekanisme retry otomatis 2x dengan exponential backoff jika server Google mengalami status 503.
+6. **Penyajian Single Origin**: Frontend disajikan langsung dari folder `./public/` oleh server Express sehingga tidak memerlukan konfigurasi CORS tambahan yang berisiko.
 7. **Graceful Shutdown**: Server Express menangani sinyal `SIGINT` dan `SIGTERM` dengan batas waktu paksa 10 detik agar koneksi tertutup bersih saat proses dihentikan.
 
 ---
@@ -251,42 +263,66 @@ Aplikasi SteamScout siap di-deploy langsung ke penyedia hosting cloud seperti **
 ## Fitur Harga & Diskon Steam (Storefront Grounding)
 
 SteamScout memverifikasi judul rekomendasi ke API publik Steam Storefront untuk menyajikan data harga dan status game secara langsung pada kartu:
-1. **Model Status Tiga Keadaan**:
-   * **Game Berbayar (`paid`)**: Menampilkan harga normal, serta harga awal yang dicoret dan badge diskon hijau (contoh: `-50%`) jika sedang berlangsung Steam Sale.
-   * **Free to Play (`free`)**: Menampilkan label "Free to Play" hanya jika Steam mengonfirmasi status gratis (`is_free: true`).
-   * **Segera Hadir (`upcoming`)**: Menampilkan label "Segera Hadir" untuk judul yang belum dirilis.
-   * **Tidak Diketahui (`unknown`)**: Jika data harga tidak ada, kartu tetap tampil utuh tanpa baris harga (fallback anggun).
+
+1. **Model Status Empat Keadaan**:
+   - **Game Berbayar (`paid`)**: Menampilkan harga normal, serta harga awal yang dicoret dan badge diskon hijau (contoh: `-50%`) jika sedang berlangsung Steam Sale.
+   - **Free to Play (`free`)**: Menampilkan label "Free to Play" hanya jika Steam mengonfirmasi status gratis (`is_free: true`).
+   - **Segera Hadir (`upcoming`)**: Menampilkan label "Segera Hadir" untuk judul yang belum dirilis.
+   - **Tidak Diketahui (`unknown`)**: Jika data harga tidak ada, kartu tetap tampil utuh tanpa baris harga (fallback anggun).
 2. **Keandalan & Ketahanan (Resilience)**:
-   * **Endpoint Tidak Resmi**: Data harga diambil dari endpoint publik Steam (`storesearch` dan `appdetails`). Endpoint ini tidak berdokumen resmi dan dapat membatasi laju permintaan sewaktu-waktu.
-   * **Anggaran Waktu & Fallback**: Pengayaan Steam dibatasi total 6 detik dengan `Promise.allSettled`. Gangguan koneksi atau timeout Steam tidak akan pernah menggagalkan balasan kurasi Gemini.
-   * **Pencocokan Judul & Penolakan Sekuel**: Sistem membedakan judul dengan nomor sekuel berbeda (seperti *Hades* vs *Hades II* atau *Portal* vs *Portal 2*), menolak DLC/soundtrack, dan menormalisasi aksen Unicode.
-   * **Caching Cerdas**: Data harga di-cache selama 10 menit (dan 1 menit untuk status unknown) dengan batas maksimal 200 entri untuk mencegah beban berlebih ke server Steam.
+   - **Anggaran Waktu & Fallback**: Pengayaan data Steam dibatasi total 6 detik menggunakan `Promise.allSettled`. Gangguan koneksi atau timeout Steam tidak akan menggagalkan kurasi rekomendasi utama Gemini.
+   - **Pencocokan Judul & Penolakan Sekuel**: Sistem membedakan judul dengan nomor sekuel berbeda (seperti *Hades* vs *Hades II* atau *Portal* vs *Portal 2*), menolak DLC/soundtrack, dan menormalisasi simbol tanda baca.
+   - **Caching Cerdas**: Data harga di-cache selama 10 menit (dan 1 menit untuk status unknown) dengan batas maksimal 200 entri untuk mencegah beban berlebih ke server Steam.
 3. **Status Verifikasi Game (`verified` dan `matchStatus`)**:
-   * **Terverifikasi (`verified: true`, `matchStatus: 'matched'`)**: Judul game cocok dan lolos verifikasi tipe game di Steam. Menampilkan cover art resmi, harga resmi (atau Free to Play / Segera Hadir), dan tombol "Buka di Steam Store".
-   * **Tidak Ditemukan (`verified: false`, `matchStatus: 'not_found'`)**: Judul game tidak ditemukan di katalog Steam. Kartu menampilkan badge peringatan "Belum terverifikasi di Steam", menyembunyikan banner cover dan harga, serta mengubah tombol menjadi "Cari di Steam".
-   * **DLC Ditolak (`verified: false`, `matchStatus: 'rejected_dlc'`)**: Hasil pencarian Steam teratas merupakan konten tambahan (DLC/soundtrack) dan bukan game utama sehingga ditolak agar data tetap relevan.
-   * **Galat Jaringan (`verified: null`, `matchStatus: 'network_error'`)**: Terjadi batas waktu (timeout) atau gangguan jaringan ke server Steam. Kartu beralih aman ke tautan pencarian tanpa memberikan badge penolakan keliru.
+   - **Terverifikasi (`verified: true`, `matchStatus: 'matched'`)**: Judul game cocok dan lolos verifikasi katalog Steam. Menampilkan cover art resmi, info harga, dan tombol "Buka di Steam Store".
+   - **Tidak Ditemukan (`verified: false`, `matchStatus: 'not_found'`)**: Judul tidak ditemukan di katalog Steam. Kartu menampilkan badge "Belum terverifikasi di Steam", menyembunyikan banner cover, dan mengubah tombol menjadi "Cari di Steam".
+   - **DLC Ditolak (`verified: false`, `matchStatus: 'rejected_dlc'`)**: Hasil pencarian Steam teratas merupakan DLC/soundtrack dan bukan game utama sehingga ditolak agar data tetap akurat.
+   - **Galat Jaringan (`verified: null`, `matchStatus: 'network_error'`)**: Terjadi timeout atau gangguan jaringan ke server Steam. Kartu beralih aman ke tautan pencarian tanpa memberikan badge penolakan keliru.
+
+---
+
+## Keputusan Desain
+
+1. **Pemisahan Field Preferensi dari Riwayat Percakapan**: Filter cepat dikirimkan melalui objek `preferences` terpisah di body request dan dirakit di server menjadi catatan instruksi model, menjaga riwayat obrolan `conversation` tetap bersih tanpa polusi teks sistem.
+2. **Prinsip Teks Pengguna Memiliki Prioritas**: Jika terdapat pertentangan antara toggle filter aktif dan permintaan eksplisit yang diketik pengguna di dalam kotak input, sistem dirancang agar instruksi eksplisit pengguna yang dimenangkan.
+3. **Arsitektur Frontend Tanpa Build Step**: Dibangun sepenuhnya dengan Vanilla HTML, CSS, dan JavaScript modern (ES Modules) tanpa bundler atau framework, memastikan waktu muat instan, kemudahan pemeliharaan, dan inspeksi langsung di peramban.
+4. **Isolasi Kegagalan Layanan Pihak Ketiga**: Pengayaan data toko Steam dibatasi anggaran waktu ketat (6 detik) dan berjalan terpisah dari inferensi AI. Kegagalan API eksternal Steam tidak pernah memutus hasil rekomendasi kurator.
+5. **Watchdog Klien Dua Timer**: Penanganan koneksi streaming diatur di sisi klien dengan batas waktu terpisah (30 detik untuk respon awal dan 15 detik antar-chunk) guna mengantisipasi ketiadaan heartbeat SSE server tanpa memicu false-positive stall.
+
+---
+
+## Troubleshooting
+
+1. **`GEMINI_API_KEY` Belum Dikonfigurasi**:
+   - *Gejala*: Server gagal melakukan startup saat dijalankan dalam mode produksi atau muncul pesan kesalahan autentikasi API.
+   - *Solusi*: Pastikan berkas `.env` telah dibuat dan berisi nilai `GEMINI_API_KEY` yang valid dari Google AI Studio.
+2. **Konflik Port (`EADDRINUSE: address already in use`)**:
+   - *Gejala*: Server gagal berjalan karena port 3000 sedang digunakan oleh aplikasi lain.
+   - *Solusi*: Ubah nilai `PORT` pada berkas `.env` (misalnya menjadi `PORT=3001` atau `PORT=8080`).
+3. **Error 429 (Terlalu Banyak Permintaan)**:
+   - *Gejala*: Balasan bot menampilkan pesan bahwa batas laju request tercapai.
+   - *Solusi*: Tunggu 1 menit hingga jendela waktu rate limit (20 request/menit) ter-reset, atau periksa batas kuota harian pada variabel `DAILY_REQUEST_CAP`.
+4. **Pengujian Browser Headless Tidak Berjalan**:
+   - *Gejala*: Perintah `npm run test:layout` atau `npm run test:behavior` gagal menemukan executable browser Chrome atau Chromium.
+   - *Solusi*: Tentukan lokasi file eksekusi peramban secara manual menggunakan variabel lingkungan `CHROME_PATH`. Contoh di Windows (PowerShell): `$env:CHROME_PATH = "C:\Program Files\Google\Chrome\Application\chrome.exe"`, atau di Linux / macOS: `export CHROME_PATH="/usr/bin/google-chrome"`. Sebagai alternatif, Anda dapat menjalankan unit test logika melalui `npm test` yang tidak membutuhkan peramban.
 
 ---
 
 ## Keterbatasan Sistem
 
 - **Akurasi AI**: Rekomendasi dihasilkan oleh LLM dan dapat sewaktu-waktu mengalami ketidakakuratan data mengenai detail tahun rilis atau developer game indie tertentu.
-- **Dinamika Harga Toko Steam**: Informasi harga game, event diskon (Steam Sale), dan status Early Access dapat berubah sewaktu-waktu. Harga di aplikasi merupakan hasil pengecekan saat permintaan diproses dan dapat berbeda dari halaman toko langsung. Pengguna disarankan untuk memeriksa halaman toko resmi Steam sebelum membeli game.
-- **Penyimpanan Wishlist Lokal di Browser**: Data wishlist disimpan di `localStorage` peramban web pengguna dan tidak terhubung ke akun Steam pribadi atau server cloud. Daftar wishlist akan hilang jika pengguna menghapus riwayat/data situs browser atau menggunakan mode penjelajahan pribadi (Incognito).
-- **Waktu Bangun Hosting Gratis (Cold Start)**: Jika di-deploy pada layanan cloud gratis yang menerapkan penonaktifan sementara saat tidak ada lalu lintas, permintaan pertama mungkin membutuhkan waktu beberapa detik lebih lama untuk merespons.
+- **Dinamika Harga Toko Steam**: Informasi harga game, event diskon (Steam Sale), dan status rilis dapat berubah sewaktu-waktu. Harga di aplikasi merupakan hasil pengecekan saat permintaan diproses dan dapat berbeda dari halaman toko langsung.
+- **Penyimpanan Wishlist Lokal di Browser**: Data wishlist disimpan di `localStorage` peramban web pengguna dan tidak terhubung ke akun cloud. Sinkronisasi hanya berlaku antar-tab pada peramban dan perangkat yang sama. Data akan hilang jika pengguna menghapus riwayat situs browser atau menggunakan mode penjelajahan pribadi (Incognito).
+- **Deteksi Jaringan Mengandalkan Peramban**: Deteksi status luring memanfaatkan `navigator.onLine` dan event jaringan peramban, yang mendeteksi keterhubungan ke antarmuka jaringan lokal namun tidak dapat menjamin ketersediaan akses internet penuh di tingkat penyedia layanan (ISP).
 
 ---
 
 ## Rencana Pengembangan Selanjutnya
 
-- [x] **Tombol "Cari di Steam" per Game**: Tautan pencarian langsung ke toko resmi Steam per rekomendasi game.
-- [x] **Structured JSON Output (Response Schema)**: Objek data terstruktur (`intro`, `games`, `followUp`) yang dirender ke dalam kartu game interaktif.
-- [x] **Verifikasi Storefront Steam / Grounding**: Cek judul game ke Steam Storefront API untuk menampilkan cover art resmi dan link halaman resmi.
-- [x] **Real-time Streaming (SSE)**: Mengirim balasan respon melalui Server-Sent Events (`/api/chat/stream`) agar proses pembuatan rekomendasi responsif.
-- [x] **Informasi Harga & Deteksi Diskon Steam Sale**: Menampilkan badge diskon hijau, harga asli dicoret, status Free to Play, dan Segera Hadir.
-- [x] **Opsi B: Fitur Wishlist & Backlog Lokal**: Menyimpan game rekomendasi favorit ke penyimpanan lokal browser (`localStorage`) dan mengekspor daftar game.
-- [x] **Opsi C: Quick Preference Filter Bar**: Preset toggle cepat di atas area input (misal: "Laptop Kentang", "Di Bawah Rp100k", "Co-op / Mabar").
+- [ ] **Pengurutan dan Penyaringan Wishlist**: Menambahkan opsi filter dan pengurutan di dalam drawer wishlist (berdasarkan tanggal ditambahkan atau abjad judul).
+- [ ] **Perbandingan Game Berdampingan**: Fitur komparasi visual spesifikasi dan kecocokan antara dua rekomendasi game secara berdampingan di layar obrolan.
+- [ ] **Riset Kelayakan Integrasi Profil Steam**: Melakukan riset kelayakan otentikasi Steam OpenID (status saat ini belum terbukti karena ketersediaan API resmi Valve untuk memodifikasi wishlist akun pribadi masih terbatas).
+- [ ] **Progressive Web App (PWA) Terbatas**: Penambahan web app manifest dan service worker untuk instalasi aplikasi serta caching aset statis antarmuka (tidak mencakup inferensi rekomendasi offline karena ketergantungan pada Gemini API).
 
 ---
 
@@ -299,6 +335,5 @@ Proyek ini dibuat untuk tujuan edukasi dan portofolio. Aplikasi ini **tidak bera
 ## Atribusi & Lisensi
 
 - **Ikon UI**: Menggunakan ikon SVG dari [Lucide Icons](https://lucide.dev) yang dilisensikan di bawah [ISC License](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
-- **Font**: Inter dan Outfit dari [Google Fonts](https://fonts.google.com) (SIL Open Font License).
+- **Font**: **Barlow** dan **Barlow Semi Condensed** dari [Google Fonts](https://fonts.google.com) karya Jeremy Tribby yang dilisensikan di bawah [SIL Open Font License](https://openfontlicense.org/).
 - **Lisensi Proyek**: Proyek ini dilisensikan di bawah lisensi MIT.
-

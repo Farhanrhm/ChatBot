@@ -1,5 +1,3 @@
-/* SteamScout: Frontend logic */
-
 import {
   getWishlist,
   addToWishlist,
@@ -9,10 +7,15 @@ import {
   normalizeGameTitle,
   getItemKey,
   MAX_WISHLIST_ITEMS,
+  WISHLIST_STORAGE_KEY,
 } from "./wishlistCore.js";
 
 const API_URL = "/api/chat";
 const STORAGE_KEY = "steamscout_chat_history";
+
+/* Batas waktu watchdog streaming (Revisi 1) */
+const STREAM_FIRST_CHUNK_TIMEOUT_MS = Number(globalThis.__STREAM_FIRST_TIMEOUT_MS) || 30000;
+const STREAM_INTER_CHUNK_TIMEOUT_MS = Number(globalThis.__STREAM_INTER_TIMEOUT_MS) || 15000;
 
 const PREFERENCES_STORAGE_KEY = "steamscout_filter_preferences";
 
@@ -252,10 +255,65 @@ const els = {
   wishlistItems: $("#wishlist-items"),
   filterGroups: $("#filter-groups"),
   clearFiltersBtn: $("#clear-filters-btn"),
+  liveAnnouncer: $("#live-announcer"),
+  offlineBanner: $("#offline-banner"),
 };
 
 let history = [];
 let isLoading = false;
+let currentRequestController = null;
+let currentRequestEpoch = 0;
+
+/* Peningkatan Aksesibilitas: Pengumuman region live screen reader */
+let announcerTimer = null;
+function announceMessage(message) {
+  if (!message) return;
+  const el = els.liveAnnouncer || document.getElementById("live-announcer");
+  if (!el) return;
+  el.textContent = "";
+  clearTimeout(announcerTimer);
+  announcerTimer = setTimeout(() => {
+    el.textContent = message;
+  }, 60);
+}
+
+/* Deteksi status jaringan dan mode offline (Revisi 4) */
+let isSystemOffline = typeof navigator !== "undefined" && !navigator.onLine;
+
+function updateOnlineStatus() {
+  const offline = typeof navigator !== "undefined" && !navigator.onLine;
+  const statusChanged = isSystemOffline !== offline;
+  isSystemOffline = offline;
+
+  const banner = els.offlineBanner || document.getElementById("offline-banner");
+  if (banner) {
+    banner.hidden = !offline;
+  }
+
+  if (offline) {
+    els.sendBtn.disabled = true;
+    els.sendBtn.setAttribute("aria-disabled", "true");
+    document.querySelectorAll(".chip, .capsule").forEach((el) => {
+      el.disabled = true;
+      el.setAttribute("aria-disabled", "true");
+    });
+    if (statusChanged) {
+      announceMessage("Koneksi internet terputus. Mode luring aktif.");
+    }
+  } else {
+    if (!isLoading) {
+      els.sendBtn.disabled = false;
+      els.sendBtn.removeAttribute("aria-disabled");
+      document.querySelectorAll(".chip, .capsule").forEach((el) => {
+        el.disabled = false;
+        el.removeAttribute("aria-disabled");
+      });
+    }
+    if (statusChanged) {
+      announceMessage("Koneksi internet kembali normal.");
+    }
+  }
+}
 
 /* Penyimpanan Riwayat Sesi (sessionStorage) */
 function saveHistoryToStorage() {
@@ -726,43 +784,132 @@ function createTypingIndicator() {
 
 function setLoading(loading) {
   isLoading = loading;
-  els.sendBtn.disabled = loading;
+  if (isSystemOffline) {
+    els.sendBtn.disabled = true;
+    els.sendBtn.setAttribute("aria-disabled", "true");
+  } else {
+    els.sendBtn.disabled = loading;
+    if (loading) {
+      els.sendBtn.setAttribute("aria-disabled", "true");
+    } else {
+      els.sendBtn.removeAttribute("aria-disabled");
+    }
+  }
   els.input.disabled = loading;
-  document.querySelectorAll(".chip").forEach((c) => (c.disabled = loading));
+  document.querySelectorAll(".chip, .capsule").forEach((c) => {
+    if (isSystemOffline) {
+      c.disabled = true;
+      c.setAttribute("aria-disabled", "true");
+    } else {
+      c.disabled = loading;
+    }
+  });
 }
 
-async function requestReply() {
+/**
+ * Ekstraksi teks pembuka intro dari potongan JSON parsial saat streaming berlangsung.
+ * Mendukung teks intro bertahap maupun teks biasa non-JSON.
+ */
+function extractPartialText(rawJson) {
+  if (!rawJson) return "";
+  const trimmed = rawJson.trim();
+  if (!trimmed.startsWith("{")) {
+    return trimmed;
+  }
+  const match = trimmed.match(/"intro"\s*:\s*"((?:\\.|[^"\\])*)/);
+  if (match && match[1]) {
+    try {
+      return JSON.parse(`"${match[1]}"`);
+    } catch {
+      return match[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');
+    }
+  }
+  return "";
+}
+
+async function requestReply(isRetry = false) {
+  // Jika pengiriman ulang setelah gagal, bersihkan baris error atau notifikasi terputus sebelumnya
+  if (isRetry) {
+    const failedRows = els.messages.querySelectorAll(".msg.bot.error, .msg.bot:has(.stream-disconnected-notice)");
+    failedRows.forEach((r) => r.remove());
+  }
+
+  // Batalkan stream sebelumnya jika masih berjalan agar tidak ada token lama yang masuk
+  if (currentRequestController) {
+    currentRequestController.abort();
+    currentRequestController = null;
+  }
+
+  const controller = new AbortController();
+  currentRequestController = controller;
+  currentRequestEpoch++;
+  const thisEpoch = currentRequestEpoch;
+
+  let watchdogTimer = null;
+  function clearWatchdog() {
+    if (watchdogTimer) {
+      clearTimeout(watchdogTimer);
+      watchdogTimer = null;
+    }
+  }
+
+  function armWatchdog(timeoutMs, onTimeout) {
+    clearWatchdog();
+    watchdogTimer = setTimeout(() => {
+      watchdogTimer = null;
+      onTimeout();
+    }, timeoutMs);
+  }
+
   setLoading(true);
   const typing = createTypingIndicator();
   els.messages.appendChild(typing);
   scrollToBottom();
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 45000);
+  let finalData = null;
+  let streamSuccess = false;
+  let streamRawResult = null;
+  let fallbackRawResult = null;
+  let hasDisplayedPartial = false;
+  let partialBotRow = null;
+  let partialBotBubble = null;
+  let streamAbortedByWatchdog = false;
+
+  const streamController = new AbortController();
+  const onMainAbort = () => streamController.abort();
+  controller.signal.addEventListener("abort", onMainAbort, { once: true });
+
+  const onStreamStall = () => {
+    streamAbortedByWatchdog = true;
+    try {
+      streamController.abort();
+    } catch {}
+  };
 
   try {
-    let finalData = null;
-    let streamSuccess = false;
-    let streamRawResult = null;
-    let fallbackRawResult = null;
-
     try {
+      armWatchdog(STREAM_FIRST_CHUNK_TIMEOUT_MS, onStreamStall);
+
       const streamRes = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildRequestBody(history)),
-        signal: controller.signal,
+        signal: streamController.signal,
       });
 
       if (streamRes.ok && streamRes.body) {
-        clearTimeout(timeoutId);
         const reader = streamRes.body.getReader();
         const decoder = new TextDecoder("utf-8");
         let buffer = "";
+        let streamAccumulatedText = "";
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          if (thisEpoch !== currentRequestEpoch || controller.signal.aborted) break;
+
+          // Reset timer watchdog setiap ada data chunk masuk
+          armWatchdog(STREAM_INTER_CHUNK_TIMEOUT_MS, onStreamStall);
 
           buffer += decoder.decode(value, { stream: true });
           const parts = buffer.split("\n\n");
@@ -774,6 +921,36 @@ async function requestReply() {
             try {
               const payload = JSON.parse(line.slice(6));
               if (payload.error) throw new Error(payload.error);
+
+              if (payload.chunk) {
+                streamAccumulatedText += payload.chunk;
+                const partialText = extractPartialText(streamAccumulatedText);
+                if (partialText) {
+                  hasDisplayedPartial = true;
+                  if (typing.parentElement) typing.remove();
+
+                  if (!partialBotRow) {
+                    partialBotRow = document.createElement("div");
+                    partialBotRow.className = "msg bot";
+
+                    const avatar = document.createElement("div");
+                    avatar.className = "avatar";
+                    avatar.setAttribute("aria-hidden", "true");
+                    avatar.innerHTML = BOT_AVATAR;
+                    partialBotRow.appendChild(avatar);
+
+                    partialBotBubble = document.createElement("div");
+                    partialBotBubble.className = "bubble";
+                    partialBotRow.appendChild(partialBotBubble);
+
+                    els.messages.appendChild(partialBotRow);
+                  }
+
+                  partialBotBubble.innerHTML = `<p class="bot-intro">${inline(partialText)}</p>`;
+                  scrollToBottom();
+                }
+              }
+
               if (payload.done && payload.data) {
                 finalData = payload.data;
                 streamRawResult = payload.result || null;
@@ -787,9 +964,42 @@ async function requestReply() {
       }
     } catch {
       streamSuccess = false;
+    } finally {
+      clearWatchdog();
     }
 
+    if (thisEpoch !== currentRequestEpoch || controller.signal.aborted) {
+      return;
+    }
+
+    // Penanganan kondisi macet atau error pada streaming
     if (!streamSuccess || !finalData) {
+      if (hasDisplayedPartial && partialBotBubble) {
+        // SUDAH ada teks parsial: pertahankan di layar, beri notifikasi ramah dan tombol Coba lagi
+        if (typing.parentElement) typing.remove();
+        if (!partialBotBubble.querySelector(".stream-disconnected-notice")) {
+          const notice = document.createElement("div");
+          notice.className = "stream-disconnected-notice";
+          notice.setAttribute("role", "status");
+          notice.innerHTML = `
+            <p>Koneksi terputus saat memuat rekomendasi.</p>
+            <button type="button" class="btn-retry-stream">Coba lagi</button>
+          `;
+          const retryBtn = notice.querySelector(".btn-retry-stream");
+          retryBtn.addEventListener("click", () => {
+            if (partialBotRow) partialBotRow.remove();
+            requestReply(true);
+          });
+          partialBotBubble.appendChild(notice);
+          announceMessage("Koneksi terputus saat memuat rekomendasi. Silakan coba lagi.");
+          scrollToBottom();
+        }
+        return;
+      }
+
+      // BELUM ada token sama sekali yang tampil: fallback otomatis ke POST /api/chat (1 kali)
+      armWatchdog(STREAM_FIRST_CHUNK_TIMEOUT_MS, () => controller.abort());
+
       const res = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -797,7 +1007,7 @@ async function requestReply() {
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
+      clearWatchdog();
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
@@ -809,7 +1019,9 @@ async function requestReply() {
       fallbackRawResult = data?.result || null;
     }
 
-    typing.remove();
+    if (typing.parentElement) typing.remove();
+    if (thisEpoch !== currentRequestEpoch || controller.signal.aborted) return;
+
     if (!finalData) {
       throw new Error("Balasan dari server kosong.");
     }
@@ -858,20 +1070,54 @@ async function requestReply() {
 
     history.push({ role: "model", text: cleanHistoryText });
     saveHistoryToStorage();
-    addMessage("bot", finalData);
+
+    if (partialBotRow && partialBotBubble) {
+      partialBotBubble.innerHTML = formatBotContent(finalData);
+      scrollToBottom();
+      updateAllWishlistCardButtons();
+    } else {
+      addMessage("bot", finalData);
+    }
   } catch (err) {
-    clearTimeout(timeoutId);
-    typing.remove();
+    clearWatchdog();
+    if (typing.parentElement) typing.remove();
+    if (thisEpoch !== currentRequestEpoch || controller.signal.aborted) return;
+
+    if (hasDisplayedPartial && partialBotBubble) {
+      if (!partialBotBubble.querySelector(".stream-disconnected-notice")) {
+        const notice = document.createElement("div");
+        notice.className = "stream-disconnected-notice";
+        notice.setAttribute("role", "status");
+        notice.innerHTML = `
+          <p>Koneksi terputus saat memuat rekomendasi.</p>
+          <button type="button" class="btn-retry-stream">Coba lagi</button>
+        `;
+        const retryBtn = notice.querySelector(".btn-retry-stream");
+        retryBtn.addEventListener("click", () => {
+          if (partialBotRow) partialBotRow.remove();
+          requestReply(true);
+        });
+        partialBotBubble.appendChild(notice);
+        announceMessage("Koneksi terputus saat memuat rekomendasi. Silakan coba lagi.");
+        scrollToBottom();
+      }
+      return;
+    }
 
     let displayMsg = err.message;
     if (err.name === "AbortError") {
-      displayMsg = "Waktu permintaan habis (timeout 45 detik). Mohon periksa koneksi dan coba lagi.";
+      displayMsg = "Waktu permintaan habis (timeout). Mohon periksa koneksi dan coba lagi.";
     } else if (err instanceof TypeError) {
-      displayMsg = "Tidak dapat terhubung ke server. Pastikan server lokal menyala, lalu coba lagi.";
+      displayMsg = "Tidak dapat terhubung ke server. Pastikan koneksi aktif dan server lokal menyala, lalu coba lagi.";
     }
 
     addError(displayMsg);
   } finally {
+    clearWatchdog();
+    if (typing.parentElement) typing.remove();
+    if (currentRequestController === controller) {
+      currentRequestController = null;
+    }
     setLoading(false);
     els.input.focus({ preventScroll: true });
   }
@@ -881,10 +1127,21 @@ async function sendMessage(text) {
   text = text.trim();
   if (!text || isLoading) return;
 
+  if (isSystemOffline) {
+    announceMessage("Tidak dapat mengirim pesan saat offline. Mohon periksa koneksi internet.");
+    return;
+  }
+
+  // Batalkan stream aktif sebelumnya jika ada pesan baru yang dikirim
+  if (currentRequestController) {
+    currentRequestController.abort();
+    currentRequestController = null;
+  }
+
   const filterSummary = getActiveFilterSummary();
   setWelcomeVisible(false);
 
-  // REVISI 6: Sembunyikan otomatis baris filter setelah pesan pertama terkirim (jika belum di-toggle manual)
+  // Sembunyikan otomatis baris filter setelah pesan pertama terkirim (jika belum di-toggle manual)
   if (!hasUserToggledToolbar && !isToolbarCollapsed) {
     setToolbarCollapsed(true);
   }
@@ -944,6 +1201,13 @@ els.form.addEventListener("submit", (e) => {
 /* Reset chat */
 els.resetBtn.addEventListener("click", () => {
   if (history.length > 0 && !confirm("Hapus seluruh obrolan dan mulai pencarian baru?")) return;
+
+  // Batalkan stream aktif jika pengguna menekan Reset chat
+  if (currentRequestController) {
+    currentRequestController.abort();
+    currentRequestController = null;
+  }
+
   history = [];
   clearHistoryStorage();
   els.messages.innerHTML = "";
@@ -1011,9 +1275,17 @@ function updateWishlistUI() {
   }
 
   if (els.wishlistEmpty && els.wishlistItems) {
+    // Catat elemen yang sedang aktif di dalam panel untuk menjaga fokus tidak hilang ke body
+    const activeEl = document.activeElement;
+    const isFocusInItems = Boolean(activeEl && els.wishlistItems.contains(activeEl));
+    const focusedKey = isFocusInItems && activeEl.dataset ? activeEl.dataset.key : null;
+
     if (count === 0) {
       els.wishlistEmpty.hidden = false;
       els.wishlistItems.innerHTML = "";
+      if (isFocusInItems && els.wishlistCloseBtn && !els.wishlistPanel.hidden) {
+        els.wishlistCloseBtn.focus();
+      }
     } else {
       els.wishlistEmpty.hidden = true;
       els.wishlistItems.innerHTML = list
@@ -1054,10 +1326,11 @@ function updateWishlistUI() {
       els.wishlistItems.querySelectorAll(".btn-item-delete").forEach((delBtn, idx) => {
         delBtn.addEventListener("click", () => {
           const key = delBtn.dataset.key;
+          const itemTitle = delBtn.dataset.title || "Game";
           removeFromWishlist(globalThis.localStorage, key);
+          announceMessage(`${itemTitle} dihapus dari wishlist`);
           updateWishlistUI();
 
-          // REVISI 5: Pindahkan fokus ke item berikutnya, atau tombol tutup jika daftar kosong
           const remainingBtns = els.wishlistItems.querySelectorAll(".btn-item-delete");
           if (remainingBtns.length > 0) {
             const nextIdx = Math.min(idx, remainingBtns.length - 1);
@@ -1067,6 +1340,26 @@ function updateWishlistUI() {
           }
         });
       });
+
+      // Pulihkan fokus jika drawer sedang terbuka agar fokus tidak hilang ke body
+      if (isFocusInItems && !els.wishlistPanel.hidden) {
+        let restored = false;
+        if (focusedKey) {
+          const matchingBtn = els.wishlistItems.querySelector(`.btn-item-delete[data-key="${focusedKey}"]`);
+          if (matchingBtn) {
+            matchingBtn.focus();
+            restored = true;
+          }
+        }
+        if (!restored) {
+          const firstDelete = els.wishlistItems.querySelector(".btn-item-delete");
+          if (firstDelete) {
+            firstDelete.focus();
+          } else if (els.wishlistCloseBtn) {
+            els.wishlistCloseBtn.focus();
+          }
+        }
+      }
     }
   }
 
@@ -1130,7 +1423,6 @@ if (els.wishlistPanel) {
       }
 
       if (focusables.length === 1) {
-        // REVISI 5: Tahan fokus di tombol tutup jika hanya ada 1 elemen fokus
         e.preventDefault();
         focusables[0].focus();
         return;
@@ -1162,15 +1454,37 @@ els.messages.addEventListener("click", (e) => {
   const isCurrentlySaved = isInWishlist(globalThis.localStorage, { appId, title });
   if (isCurrentlySaved) {
     removeFromWishlist(globalThis.localStorage, { appId, title });
+    announceMessage(`${title} dihapus dari wishlist`);
   } else {
     const addResult = addToWishlist(globalThis.localStorage, { appId, title, storeUrl });
     if (!addResult.success && addResult.error) {
       showToast(addResult.error);
+      announceMessage(addResult.error);
+    } else {
+      announceMessage(`${title} ditambahkan ke wishlist`);
     }
   }
 
   updateWishlistUI();
 });
+
+/* REVISI 2: Sinkronisasi wishlist antar-tab (Storage Event) */
+window.addEventListener("storage", (e) => {
+  // Hanya proses jika kunci steamscout_wishlist atau null (akibat localStorage.clear())
+  if (e.key !== WISHLIST_STORAGE_KEY && e.key !== null) return;
+
+  // PENTING: Hanya MEMBACA dan memperbarui tampilan.
+  // DILARANG menulis ke localStorage atau memanggil fungsi migrasi/deduplikasi di sini!
+  try {
+    updateWishlistUI();
+  } catch (err) {
+    console.warn("Gagal memperbarui UI wishlist saat storage event:", err);
+  }
+});
+
+/* REVISI 4: Deteksi event status jaringan online / offline */
+window.addEventListener("online", updateOnlineStatus);
+window.addEventListener("offline", updateOnlineStatus);
 
 // Event listener chip filter preferensi
 document.querySelectorAll(".filter-chip").forEach((chip) => {
@@ -1246,6 +1560,7 @@ if (window.visualViewport) {
 /* Inisialisasi dan muat riwayat sesi */
 migrateWishlist(globalThis.localStorage);
 renderQuickPrompts();
+updateOnlineStatus();
 updateWishlistUI();
 loadPreferencesFromStorage();
 updateFilterUI();
