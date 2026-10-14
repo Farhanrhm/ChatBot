@@ -45,7 +45,7 @@ SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. M
 - **Keamanan & Middleware**: `helmet`, `express-rate-limit`, `dotenv`
 - **Frontend**: Vanilla HTML5, Vanilla CSS3 (CSS Variables, Flexbox, CSS Grid), Vanilla JavaScript (tanpa framework, tanpa build step)
 - **Testing**: Node.js built-in test runner (`node:test`, `node:assert`), Puppeteer Core (`puppeteer-core`) untuk pengujian layout dan perilaku headless browser
-- **CI/CD**: GitHub Actions (otomatisasi pengujian `npm test` pada event `push` dan `pull_request` ke branch `main`)
+- **CI/CD**: GitHub Actions (otomatisasi pengujian `npm test`, `test:layout`, dan `test:behavior` pada event `push` dan `pull_request` ke branch `main`)
 
 ---
 
@@ -128,7 +128,7 @@ sequenceDiagram
 final_project/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml            # Otomatisasi pengujian CI via GitHub Actions (npm test)
+│       └── ci.yml            # Otomatisasi pipeline CI via GitHub Actions (unit test, layout, behavior)
 ├── .env.example              # Template variabel lingkungan
 ├── .gitignore                # Konfigurasi pengabaian berkas Git
 ├── AGENTS.md                 # Konfigurasi panduan agen AI
@@ -225,7 +225,7 @@ Proyek ini dilengkapi dengan rangkaian pengujian otomatis untuk memverifikasi lo
 > * **Resolusi Jalur Peramban (Chrome / Chromium)**: Skrip pengujian peramban secara otomatis mendeteksi instalasi Google Chrome atau Chromium pada path umum di Windows, macOS, dan Linux. Jika peramban terpasang di lokasi kustom atau tidak terdeteksi otomatis, tentukan lokasinya melalui variabel lingkungan `CHROME_PATH`.
 >   - Windows (PowerShell): `$env:CHROME_PATH = "C:\Program Files\Google\Chrome\Application\chrome.exe"`
 >   - Linux / macOS: `export CHROME_PATH="/usr/bin/google-chrome"`
-> * **Lingkungan CI (GitHub Actions)**: Sesuai blok `on:` pada `.github/workflows/ci.yml`, pengujian otomatis (`npm test`) dijalankan pada event `push` dan `pull_request` ke branch `main`.
+> * **Lingkungan CI (GitHub Actions)**: Sesuai konfigurasi `.github/workflows/ci.yml`, seluruh pipeline pengujian (`npm test`, `npm run test:layout`, dan `npm run test:behavior`) dijalankan secara otomatis pada event `push` dan `pull_request` ke branch `main` menggunakan Google Chrome headless.
 
 ---
 

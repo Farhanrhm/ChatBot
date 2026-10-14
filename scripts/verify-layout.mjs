@@ -14,6 +14,23 @@ if (!fs.existsSync(screenshotDir)) {
   fs.mkdirSync(screenshotDir, { recursive: true });
 }
 
+const logFile = path.join(screenshotDir, 'layout.log');
+fs.writeFileSync(logFile, `=== VERIFIKASI LAYOUT STEAMSCOUT (${new Date().toISOString()}) ===\n`);
+
+function log(msg) {
+  console.log(msg);
+  try {
+    fs.appendFileSync(logFile, msg + '\n');
+  } catch {}
+}
+
+function logError(msg) {
+  console.error(msg);
+  try {
+    fs.appendFileSync(logFile, `[ERROR] ${msg}\n`);
+  } catch {}
+}
+
 // Static server lokal untuk pengujian layout
 const mimeTypes = {
   '.html': 'text/html',
@@ -44,9 +61,21 @@ const PORT = 3588;
 await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve));
 
 function resolveChromePath() {
-  if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
-    return process.env.CHROME_PATH;
+  const isCI = Boolean(process.env.CI);
+
+  if (process.env.CHROME_PATH) {
+    if (fs.existsSync(process.env.CHROME_PATH)) {
+      return process.env.CHROME_PATH;
+    }
+    if (isCI) {
+      logError(`\n[ERROR CI] CHROME_PATH ditentukan sebagai "${process.env.CHROME_PATH}", namun berkas tidak ditemukan di runner CI.`);
+      logError('CI mewajibkan jalur binary Chrome/Chromium yang valid tanpa fallback diam-diam.');
+      server.close();
+      process.exit(1);
+    }
+    logError(`[WARN] Path di CHROME_PATH tidak ditemukan: "${process.env.CHROME_PATH}". Mencari path standar lokal...`);
   }
+
   if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
@@ -82,19 +111,32 @@ function resolveChromePath() {
     }
   }
 
-  console.error('\n[ERROR] Peramban Google Chrome / Chromium tidak ditemukan di sistem.');
-  console.error('Silakan pasang Google Chrome atau tentukan path binary secara manual via variabel lingkungan CHROME_PATH.');
-  console.error('Contoh di Windows (PowerShell): $env:CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"');
-  console.error('Contoh di Linux / macOS: export CHROME_PATH="/usr/bin/google-chrome"\n');
+  logError('\n[ERROR] Peramban Google Chrome / Chromium tidak ditemukan di sistem.');
+  logError('Silakan pasang Google Chrome atau tentukan path binary secara manual via variabel lingkungan CHROME_PATH.');
+  logError('Contoh di Windows (PowerShell): $env:CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"');
+  logError('Contoh di Linux / macOS: export CHROME_PATH="/usr/bin/google-chrome"\n');
+  server.close();
   process.exit(1);
 }
 
 const chromePath = resolveChromePath();
-const browser = await puppeteer.launch({
-  executablePath: chromePath,
-  headless: true,
-  args: ['--no-sandbox', '--disable-setuid-sandbox'],
-});
+const isCI = Boolean(process.env.CI);
+const browserArgs = isCI ? ['--no-sandbox', '--disable-setuid-sandbox'] : [];
+
+let browser;
+try {
+  browser = await puppeteer.launch({
+    executablePath: chromePath,
+    headless: true,
+    args: browserArgs,
+  });
+} catch (err) {
+  logError('\n[ERROR] Gagal menjalankan peramban Google Chrome / Chromium.');
+  logError(`Path: ${chromePath}`);
+  logError(`Pesan: ${err.message}`);
+  server.close();
+  process.exit(1);
+}
 
 const viewports = [
   { width: 1366, height: 768, name: '1366x768', isDesktop: true },
@@ -107,14 +149,17 @@ const viewports = [
 let allPassed = true;
 const summaryResults = [];
 
-console.log('====================================================');
-console.log('MEMULAI VERIFIKASI LAYOUT & VIEWPORT STEAMSCOUT');
-console.log('====================================================');
+log('====================================================');
+log('MEMULAI VERIFIKASI LAYOUT & VIEWPORT STEAMSCOUT');
+log('====================================================');
 
 for (const vp of viewports) {
   const page = await browser.newPage();
   await page.setViewport({ width: vp.width, height: vp.height });
   await page.goto(`http://127.0.0.1:${PORT}`, { waitUntil: 'networkidle0' });
+
+  // Tunggu Google Fonts dan font fallback siap dihitung
+  await page.evaluate(() => document.fonts?.ready);
 
   // 1. Uji State Awal
   const initialMetrics = await page.evaluate((isDesktop) => {
@@ -210,12 +255,39 @@ for (const vp of viewports) {
     messages.appendChild(botMsg);
   });
 
-  // 3. Uji interaksi toolbar: tutup toolbar dan verifikasi persentase chat area
-  await page.evaluate(() => {
+  // Tunggu font pada kartu selesai dirender
+  await page.evaluate(() => document.fonts?.ready);
+
+  // 3. Uji interaksi toolbar: tutup toolbar dan tunggu transisi CSS selesai secara andal
+  await page.evaluate(async () => {
     const wrap = document.getElementById('quick-toolbar-wrap');
-    if (wrap) wrap.classList.add('is-collapsed');
+    if (!wrap) return;
+
+    await new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (!done) {
+          done = true;
+          wrap.removeEventListener('transitionend', onEnd);
+          resolve();
+        }
+      };
+      const onEnd = (e) => {
+        if (e.target === wrap && (e.propertyName === 'max-height' || e.propertyName === 'opacity')) {
+          finish();
+        }
+      };
+      wrap.addEventListener('transitionend', onEnd);
+      // Batas waktu maksimum 500ms jika transitionend tidak terpancing
+      setTimeout(finish, 500);
+      wrap.classList.add('is-collapsed');
+    });
   });
-  await new Promise((r) => setTimeout(r, 260));
+
+  // Tunggu 2 frame rendering berturut-turut agar layout stabil
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
 
   const collapsedMetrics = await page.evaluate((isDesktop) => {
     const docEl = document.documentElement;
@@ -249,7 +321,12 @@ for (const vp of viewports) {
     collapsedMetrics.noVerticalPageOverflow &&
     collapsedMetrics.composerSticksToBottom;
 
-  if (!passed) allPassed = false;
+  if (!passed) {
+    allPassed = false;
+    const failShotPath = path.join(screenshotDir, `layout_fail_${vp.name}.png`);
+    await page.screenshot({ path: failShotPath });
+    logError(`Pengujian layout gagal pada viewport ${vp.name}. Screenshot kegagalan disimpan di: ${path.relative(projectRoot, failShotPath)}`);
+  }
 
   summaryResults.push({
     viewport: vp.name,
@@ -262,14 +339,14 @@ for (const vp of viewports) {
     screenshot: path.relative(projectRoot, shotPath),
   });
 
-  console.log(`\n[VIEWPORT] ${vp.name} -> ${passed ? 'PASS (100% Sesuai Spesifikasi)' : 'FAIL'}`);
-  console.log(`  - Page Scroll Overflow:  ${initialMetrics.noVerticalPageOverflow ? 'TIDAK ADA (Terkunci Sempurna)' : 'ADA MASALAH'}`);
-  console.log(`  - Horizontal Overflow:   ${initialMetrics.noHorizontalOverflow ? 'TIDAK ADA' : 'ADA MASALAH'}`);
-  console.log(`  - Sidebar Penuh ke Dasar:${initialMetrics.railStretchesFullHeight ? 'YA (Penuh)' : 'TIDAK'}`);
-  console.log(`  - Composer Menempel Dasar:${collapsedMetrics.composerSticksToBottom ? 'YA (0 gap)' : 'TIDAK'}`);
-  console.log(`  - Chat Height Ratio:     ${collapsedMetrics.chatRatio.toFixed(1)}% (Target >= 60%)`);
-  console.log(`  - Tinggi Kartu Game:     ${collapsedMetrics.cardHeight?.toFixed(1)}px (Satu kartu terlihat utuh)`);
-  console.log(`  - Screenshot:            ${path.relative(projectRoot, shotPath)}`);
+  log(`\n[VIEWPORT] ${vp.name} -> ${passed ? 'PASS (100% Sesuai Spesifikasi)' : 'FAIL'}`);
+  log(`  - Page Scroll Overflow:  ${initialMetrics.noVerticalPageOverflow ? 'TIDAK ADA (Terkunci Sempurna)' : 'ADA MASALAH'}`);
+  log(`  - Horizontal Overflow:   ${initialMetrics.noHorizontalOverflow ? 'TIDAK ADA' : 'ADA MASALAH'}`);
+  log(`  - Sidebar Penuh ke Dasar:${initialMetrics.railStretchesFullHeight ? 'YA (Penuh)' : 'TIDAK'}`);
+  log(`  - Composer Menempel Dasar:${collapsedMetrics.composerSticksToBottom ? 'YA (0 gap)' : 'TIDAK'}`);
+  log(`  - Chat Height Ratio:     ${collapsedMetrics.chatRatio.toFixed(1)}% (Target >= 60%)`);
+  log(`  - Tinggi Kartu Game:     ${collapsedMetrics.cardHeight?.toFixed(1)}px (Satu kartu terlihat utuh)`);
+  log(`  - Screenshot:            ${path.relative(projectRoot, shotPath)}`);
 
   await page.close();
 }
@@ -277,15 +354,18 @@ for (const vp of viewports) {
 await browser.close();
 server.close();
 
-console.log('\n====================================================');
-console.log('RINGKASAN AKHIR VERIFIKASI LAYOUT:');
-console.log('====================================================');
+log('\n====================================================');
+log('RINGKASAN AKHIR VERIFIKASI LAYOUT:');
+log('====================================================');
 console.table(summaryResults);
+try {
+  fs.appendFileSync(logFile, JSON.stringify(summaryResults, null, 2) + '\n');
+} catch {}
 
 if (allPassed) {
-  console.log('SEMUA PENGUJIAN LAYOUT LULUS 100%! Tidak ada page scroll, layout presisi.');
+  log('SEMUA PENGUJIAN LAYOUT LULUS 100%! Tidak ada page scroll, layout presisi.');
   process.exit(0);
 } else {
-  console.error('ADA PENGUJIAN LAYOUT YANG GAGAL.');
+  logError('ADA PENGUJIAN LAYOUT YANG GAGAL.');
   process.exit(1);
 }
