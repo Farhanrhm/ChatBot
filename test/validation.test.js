@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { toContents } from '../index.js';
 
@@ -441,7 +441,9 @@ test('wishlistCore: sanitizeWishlistItem hanya menyimpan data stabil tanpa harga
   assert.equal(clean.appId, 413150);
   assert.equal(clean.title, 'Stardew Valley');
   assert.equal(clean.storeUrl, 'https://store.steampowered.com/app/413150/Stardew_Valley/');
-  assert.ok(clean.addedAt);
+  assert.equal(clean.addedAt, '');
+  const stamped = sanitizeWishlistItem(dirtyInput, { stampMissing: true });
+  assert.ok(stamped.addedAt);
   assert.equal(clean.pricing, undefined);
   assert.equal(clean.headerImage, undefined);
   assert.equal(clean.whyFit, undefined);
@@ -988,3 +990,548 @@ test('Tes Negatif Ketat: menolak pasangan game yang berbeda, sekuel non-numerik,
   }
 });
 
+/* ========================================================================== */
+/* PENGUJIAN FASE 2: PENGURUTAN & PENCARIAN WISHLIST (filterAndSortWishlist)   */
+/* ========================================================================== */
+
+test('filterAndSortWishlist: menyaring substring judul secara case-insensitive', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+  const items = [
+    { appId: 1, title: 'Hollow Knight' },
+    { appId: 2, title: 'Celeste' },
+    { appId: 3, title: 'Shovel Knight: Treasure Trove' },
+  ];
+
+  const res1 = filterAndSortWishlist(items, 'knight');
+  assert.equal(res1.length, 2);
+  assert.equal(res1[0].appId, 1);
+  assert.equal(res1[1].appId, 3);
+
+  const res2 = filterAndSortWishlist(items, 'CELESTE');
+  assert.equal(res2.length, 1);
+  assert.equal(res2[0].title, 'Celeste');
+});
+
+test('filterAndSortWishlist: menangani spasi berlebih pada query dan judul secara fleksibel', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+  const items = [
+    { appId: 10, title: 'Half Life 2' },
+    { appId: 20, title: 'Portal   Stories   Mel' },
+  ];
+
+  // Query dengan spasi berlebih di tepi dan di tengah cocok dengan judul normal
+  const res1 = filterAndSortWishlist(items, '   half    life   ');
+  assert.equal(res1.length, 1);
+  assert.equal(res1[0].appId, 10);
+
+  // Judul dengan spasi ganda cocok dengan query normal
+  const res2 = filterAndSortWishlist(items, 'portal stories mel');
+  assert.equal(res2.length, 1);
+  assert.equal(res2[0].appId, 20);
+});
+
+test('filterAndSortWishlist: query kosong atau hanya spasi mengembalikan array baru berisi seluruh item', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+  const items = [
+    { appId: 1, title: 'Game A' },
+    { appId: 2, title: 'Game B' },
+  ];
+
+  const res1 = filterAndSortWishlist(items, '');
+  assert.notStrictEqual(res1, items);
+  assert.equal(res1.length, 2);
+
+  const res2 = filterAndSortWishlist(items, '     ');
+  assert.notStrictEqual(res2, items);
+  assert.equal(res2.length, 2);
+});
+
+test('filterAndSortWishlist: query tanpa hasil yang cocok mengembalikan array kosong', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+  const items = [
+    { appId: 1, title: 'Terraria' },
+    { appId: 2, title: 'Starbound' },
+  ];
+
+  const res = filterAndSortWishlist(items, 'Cyberpunk');
+  assert.ok(Array.isArray(res));
+  assert.notStrictEqual(res, items);
+  assert.equal(res.length, 0);
+});
+
+test('filterAndSortWishlist: mengurutkan latest, oldest, dan alpha-asc dengan arah urutan yang terbukti', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+  // Data sengaja diacak urutannya untuk membuktikan algoritma sorting
+  const items = [
+    { appId: 2, title: 'Metroid', addedAt: '2026-06-01T00:00:00.000Z' },
+    { appId: 1, title: 'Zelda', addedAt: '2026-01-01T00:00:00.000Z' },
+    { appId: 3, title: 'Astro', addedAt: '2026-12-01T00:00:00.000Z' },
+  ];
+
+  // 1. latest: Desember -> Juni -> Januari
+  const latest = filterAndSortWishlist(items, '', 'latest');
+  assert.deepEqual(latest.map((i) => i.appId), [3, 2, 1]);
+
+  // 2. oldest: Januari -> Juni -> Desember
+  const oldest = filterAndSortWishlist(items, '', 'oldest');
+  assert.deepEqual(oldest.map((i) => i.appId), [1, 2, 3]);
+
+  // 3. alpha-asc: Astro -> Metroid -> Zelda
+  const alpha = filterAndSortWishlist(items, '', 'alpha-asc');
+  assert.deepEqual(alpha.map((i) => i.appId), [3, 2, 1]);
+});
+
+test('filterAndSortWishlist: addedAt tidak valid diperlakukan sebagai item terlama (latest di akhir, oldest di awal)', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+  const validItem = { appId: 100, title: 'Valid Game', addedAt: '2026-05-01T00:00:00.000Z' };
+  const invalidCases = [
+    { appId: 1, title: 'Invalid Undefined', addedAt: undefined },
+    { appId: 2, title: 'Invalid Null', addedAt: null },
+    { appId: 3, title: 'Invalid NaN', addedAt: Number.NaN },
+    { appId: 4, title: 'Invalid Infinity', addedAt: Infinity },
+    { appId: 5, title: 'Invalid EmptyStr', addedAt: '' },
+    { appId: 6, title: 'Invalid BadStr', addedAt: 'bukan-tanggal' },
+    { appId: 7, title: 'Invalid Object', addedAt: { date: 123 } },
+    { appId: 8, title: 'Invalid Boolean', addedAt: true },
+    { appId: 9, title: 'Invalid Array', addedAt: [2026, 5] },
+  ];
+
+  const items = [...invalidCases, validItem];
+
+  // Pada latest: validItem (terbaru) harus di paling awal (indeks 0), semua yang tidak valid di belakang
+  const latestRes = filterAndSortWishlist(items, '', 'latest');
+  assert.equal(latestRes[0].appId, 100);
+  assert.equal(latestRes.length, 10);
+
+  // Pada oldest: validItem harus di paling akhir (indeks 9), semua yang tidak valid di depan
+  const oldestRes = filterAndSortWishlist(items, '', 'oldest');
+  assert.equal(oldestRes[9].appId, 100);
+  assert.equal(oldestRes.length, 10);
+});
+
+test('filterAndSortWishlist: determinisme bebas NaN dengan permutasi PRNG berbiji tetap', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+
+  // PRNG deterministik (Mulberry32)
+  function createPrng(seed = 42) {
+    let s = seed >>> 0;
+    return function () {
+      s = (s + 0x6d2b79f5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function shuffle(arr, rng) {
+    const res = [...arr];
+    for (let i = res.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const tmp = res[i];
+      res[i] = res[j];
+      res[j] = tmp;
+    }
+    return res;
+  }
+
+  // Kumpulan data dengan banyak item tanpa addedAt valid dan judul kembar tapi appId berbeda (Level 3 tie-breaker)
+  const baseItems = [
+    { appId: 10, title: 'Kembar A', addedAt: null },
+    { appId: 11, title: 'Kembar A', addedAt: undefined },
+    { appId: 12, title: 'Kembar A', addedAt: 'invalid' },
+    { appId: 20, title: 'Kembar B', addedAt: NaN },
+    { appId: 21, title: 'Kembar B', addedAt: '' },
+    { appId: 30, title: 'Normal C', addedAt: 1700000000000 },
+    { appId: 31, title: 'Normal D', addedAt: 1710000000000 },
+    { appId: 40, title: 'Kembar E', addedAt: '2026-01-01T00:00:00.000Z' },
+    { appId: 41, title: 'Kembar E', addedAt: '2026-01-01T00:00:00.000Z' },
+  ];
+
+  const modes = ['latest', 'oldest', 'alpha-asc'];
+
+  for (const mode of modes) {
+    const expectedOrder = filterAndSortWishlist(baseItems, '', mode).map((i) => i.appId);
+    const rng = createPrng(999);
+
+    for (let round = 1; round <= 5; round++) {
+      const shuffled = shuffle(baseItems, rng);
+      const sorted = filterAndSortWishlist(shuffled, '', mode);
+      const actualOrder = sorted.map((i) => i.appId);
+      assert.deepEqual(actualOrder, expectedOrder, `Urutan harus 100% deterministik pada mode ${mode} putaran ${round}`);
+    }
+  }
+});
+
+test('filterAndSortWishlist: judul kembar diurutkan berdasarkan appId lalu indeks asli', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+
+  // 1. Judul sama (beda kapitalisasi), beda appId -> appId lebih kecil duluan
+  const itemsWithAppId = [
+    { appId: 200, title: 'DOOM', addedAt: 1700000000000 },
+    { appId: 100, title: 'doom', addedAt: 1700000000000 },
+  ];
+  const resAppId = filterAndSortWishlist(itemsWithAppId, '', 'latest');
+  assert.equal(resAppId[0].appId, 100);
+  assert.equal(resAppId[1].appId, 200);
+
+  // 2. Judul sama, appId sama -> indeks asli array input dipertahankan (stable tie-breaker level 4)
+  const item1 = { appId: 50, title: 'Hades', addedAt: 1700000000000, tag: 'pertama' };
+  const item2 = { appId: 50, title: 'Hades', addedAt: 1700000000000, tag: 'kedua' };
+  const resIndex = filterAndSortWishlist([item1, item2], '', 'latest');
+  assert.strictEqual(resIndex[0], item1);
+  assert.strictEqual(resIndex[1], item2);
+});
+
+test('filterAndSortWishlist: toleran terhadap input rusak dan tipe data ilegal tanpa melempar error', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+
+  // Items bukan array -> return []
+  assert.deepEqual(filterAndSortWishlist(null), []);
+  assert.deepEqual(filterAndSortWishlist('bukan array'), []);
+  assert.deepEqual(filterAndSortWishlist(123), []);
+  assert.deepEqual(filterAndSortWishlist({}), []);
+
+  // Items memuat entri null, angka, string, atau array -> entri non-objek dibuang
+  const corruptList = [
+    null,
+    undefined,
+    12345,
+    'string sampah',
+    ['array', 'ilegal'],
+    { appId: 1, title: 'Game Sah' },
+    { appId: 2, title: null }, // judul bukan string
+  ];
+
+  // Pada query kosong: Game Sah dan entri dengan judul rusak tetap ada
+  const resEmptyQuery = filterAndSortWishlist(corruptList, '', 'latest');
+  assert.equal(resEmptyQuery.length, 2);
+  assert.equal(resEmptyQuery[0].appId, 1); // Game Sah memiliki judul non-kosong sehingga ditempatkan sebelum judul null
+  assert.equal(resEmptyQuery[1].appId, 2);
+
+  // Pada query non-kosong: entri dengan judul rusak tidak pernah cocok
+  const resFiltered = filterAndSortWishlist(corruptList, 'Game', 'latest');
+  assert.equal(resFiltered.length, 1);
+  assert.equal(resFiltered[0].appId, 1);
+
+  // Query bukan string diperlakukan sebagai ""
+  assert.equal(filterAndSortWishlist([{ appId: 1, title: 'Tes' }], null).length, 1);
+  assert.equal(filterAndSortWishlist([{ appId: 1, title: 'Tes' }], 12345).length, 1);
+
+  // sortBy tidak dikenal fallback ke latest
+  const resSortFallback = filterAndSortWishlist(
+    [
+      { appId: 1, title: 'A', addedAt: '2026-01-01' },
+      { appId: 2, title: 'B', addedAt: '2026-06-01' },
+    ],
+    '',
+    'mode-ngawur'
+  );
+  assert.equal(resSortFallback[0].appId, 2); // B lebih baru
+});
+
+test('filterAndSortWishlist: tidak memutasi array input atau objek item (deep freeze verification)', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+
+  const rawItem1 = { appId: 10, title: 'Terraria', addedAt: '2026-01-01T00:00:00.000Z' };
+  const rawItem2 = { appId: 20, title: 'Celeste', addedAt: '2026-06-01T00:00:00.000Z' };
+  const inputList = [rawItem1, rawItem2];
+
+  // Deep freeze array dan tiap objek item
+  Object.freeze(rawItem1);
+  Object.freeze(rawItem2);
+  Object.freeze(inputList);
+
+  const snapshotBefore = JSON.stringify(inputList);
+
+  let result;
+  assert.doesNotThrow(() => {
+    result = filterAndSortWishlist(inputList, 'c', 'latest');
+  });
+
+  const snapshotAfter = JSON.stringify(inputList);
+  assert.equal(snapshotBefore, snapshotAfter, 'Array input dan objek item tidak boleh termutasi sama sekali');
+  assert.notStrictEqual(result, inputList, 'Hasil harus selalu array baru');
+  assert.equal(result.length, 1);
+  assert.strictEqual(result[0], rawItem2, 'Item dalam hasil harus merupakan referensi objek yang sama');
+});
+
+// --- Pengujian Unit Langkah 2.3b (Perilaku addedAt dan Anti-Regresi Mutasi) ---
+
+test('wishlistCore (Langkah 2.3b #1): getWishlist pada data legacy tanpa addedAt menghasilkan string kosong dan tidak memutasi storage', async () => {
+  const { getWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+  const legacyData = [
+    { appId: 10, title: 'Legacy Game 1', storeUrl: 'https://store.steampowered.com/app/10/' },
+    { appId: 20, title: 'Legacy Game 2', storeUrl: 'https://store.steampowered.com/app/20/' },
+  ];
+  const rawStorageString = JSON.stringify(legacyData);
+  const storage = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: rawStorageString,
+  });
+
+  const list = getWishlist(storage);
+  assert.equal(list.length, 2);
+  assert.equal(list[0].addedAt, '');
+  assert.equal(list[1].addedAt, '');
+  assert.equal(storage.getItem(WISHLIST_STORAGE_KEY), rawStorageString, 'Penyimpanan mentah di storage tidak boleh berubah atau tertulis saat dibaca');
+});
+
+test('wishlistCore (Langkah 2.3b #2): dua kali getWishlist dengan waktu dimajukan menghasilkan data dan urutan sortir identik', async () => {
+  const { getWishlist, filterAndSortWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+  mock.timers.enable({ apis: ['Date'] });
+  try {
+    const rawData = [
+      { appId: 1, title: 'Game Lama Legacy', storeUrl: 'https://store.steampowered.com/app/1/' },
+      { appId: 2, title: 'Game Tanggal Tengah', storeUrl: 'https://store.steampowered.com/app/2/', addedAt: '2026-06-01T00:00:00.000Z' },
+      { appId: 3, title: 'Game Tanggal Baru', storeUrl: 'https://store.steampowered.com/app/3/', addedAt: '2026-09-01T00:00:00.000Z' },
+    ];
+    const storage = createMockStorage({
+      [WISHLIST_STORAGE_KEY]: JSON.stringify(rawData),
+    });
+
+    const read1 = getWishlist(storage);
+    const sortedLatest1 = filterAndSortWishlist(read1, '', 'latest');
+    const sortedOldest1 = filterAndSortWishlist(read1, '', 'oldest');
+
+    // Majukan waktu tiruan sebanyak 5 hari
+    mock.timers.tick(432000000);
+
+    const read2 = getWishlist(storage);
+    const sortedLatest2 = filterAndSortWishlist(read2, '', 'latest');
+    const sortedOldest2 = filterAndSortWishlist(read2, '', 'oldest');
+
+    assert.deepStrictEqual(read1, read2);
+    assert.deepStrictEqual(sortedLatest1, sortedLatest2);
+    assert.deepStrictEqual(sortedOldest1, sortedOldest2);
+
+    // Legacy tanpa addedAt di akhir pada latest, dan di awal pada oldest
+    assert.equal(sortedLatest1[0].appId, 3);
+    assert.equal(sortedLatest1[1].appId, 2);
+    assert.equal(sortedLatest1[2].appId, 1);
+
+    assert.equal(sortedOldest1[0].appId, 1);
+    assert.equal(sortedOldest1[1].appId, 2);
+    assert.equal(sortedOldest1[2].appId, 3);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('wishlistCore (Langkah 2.3b #3): addToWishlist item baru tanpa addedAt mencap waktu ISO mock dan mempertahankan addedAt valid', async () => {
+  const { addToWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+  mock.timers.enable({ apis: ['Date'] });
+  try {
+    mock.timers.tick(1700000000000);
+    const expectedIso = new Date().toISOString();
+    const storage = createMockStorage();
+
+    // 1. Item baru tanpa addedAt diberi cap waktu ISO mock
+    const res1 = addToWishlist(storage, { appId: 100, title: 'Item Baru Tanpa addedAt' });
+    assert.equal(res1.success, true);
+    assert.equal(res1.item.addedAt, expectedIso);
+    const storedList1 = JSON.parse(storage.getItem(WISHLIST_STORAGE_KEY));
+    assert.equal(storedList1[0].addedAt, expectedIso);
+
+    // 2. Item baru dengan addedAt string valid dipertahankan
+    const existingDate = '2025-12-25T12:00:00.000Z';
+    const res2 = addToWishlist(storage, { appId: 200, title: 'Item Bertanggal Sah', addedAt: existingDate });
+    assert.equal(res2.success, true);
+    assert.equal(res2.item.addedAt, existingDate);
+    const storedList2 = JSON.parse(storage.getItem(WISHLIST_STORAGE_KEY));
+    assert.equal(storedList2[0].addedAt, existingDate);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('wishlistCore (Langkah 2.3b #4): addToWishlist ke wishlist berisi item legacy mempertahankan addedAt kosong pada item legacy', async () => {
+  const { addToWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+  const storage = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify([
+      { appId: 1, title: 'Game Legacy 1' },
+      { appId: 2, title: 'Game Legacy 2', addedAt: '' },
+    ]),
+  });
+
+  const res = addToWishlist(storage, { appId: 999, title: 'Game Baru' });
+  assert.equal(res.success, true);
+
+  const legacyItem1 = res.list.find((item) => item.appId === 1);
+  const legacyItem2 = res.list.find((item) => item.appId === 2);
+  const newItem = res.list.find((item) => item.appId === 999);
+
+  assert.equal(legacyItem1.addedAt, '');
+  assert.equal(legacyItem2.addedAt, '');
+  assert.ok(newItem.addedAt.length > 0);
+
+  const storedList = JSON.parse(storage.getItem(WISHLIST_STORAGE_KEY));
+  const storedLegacy1 = storedList.find((item) => item.appId === 1);
+  const storedLegacy2 = storedList.find((item) => item.appId === 2);
+  const storedNew = storedList.find((item) => item.appId === 999);
+
+  assert.equal(storedLegacy1.addedAt, '');
+  assert.equal(storedLegacy2.addedAt, '');
+  assert.ok(storedNew.addedAt.length > 0);
+});
+
+test('wishlistCore (Langkah 2.3b #5): jalur auto-upgrade mempertahankan addedAt entri lama termasuk bila kosong', async () => {
+  const { addToWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+
+  // Kasus 1: entri lama dengan addedAt kosong
+  const storageEmpty = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify([
+      { title: 'Hollow Knight', addedAt: '' },
+    ]),
+  });
+
+  const resUpgrade1 = addToWishlist(storageEmpty, {
+    appId: 367520,
+    title: 'Hollow Knight',
+    storeUrl: 'https://store.steampowered.com/app/367520/',
+    addedAt: '2026-12-01T00:00:00.000Z',
+  });
+
+  assert.equal(resUpgrade1.success, true);
+  assert.equal(resUpgrade1.upgraded, true);
+  assert.equal(resUpgrade1.item.appId, 367520);
+  assert.equal(resUpgrade1.item.addedAt, '', 'addedAt entri lama yang kosong harus tetap dipertahankan');
+
+  const storedList1 = JSON.parse(storageEmpty.getItem(WISHLIST_STORAGE_KEY));
+  assert.equal(storedList1[0].appId, 367520);
+  assert.equal(storedList1[0].addedAt, '');
+
+  // Kasus 2: entri lama dengan addedAt valid
+  const oldDate = '2024-01-01T00:00:00.000Z';
+  const storageWithDate = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify([
+      { title: 'Celeste', addedAt: oldDate },
+    ]),
+  });
+
+  const resUpgrade2 = addToWishlist(storageWithDate, {
+    appId: 504230,
+    title: 'Celeste',
+    storeUrl: 'https://store.steampowered.com/app/504230/',
+  });
+
+  assert.equal(resUpgrade2.success, true);
+  assert.equal(resUpgrade2.upgraded, true);
+  assert.equal(resUpgrade2.item.addedAt, oldDate, 'addedAt valid lama harus tetap dipertahankan');
+
+  const storedList2 = JSON.parse(storageWithDate.getItem(WISHLIST_STORAGE_KEY));
+  assert.equal(storedList2[0].addedAt, oldDate);
+});
+
+test('wishlistCore (Langkah 2.3b #6): migrateWishlist dengan duplikat memilih addedAt valid atau kosong tanpa timestamp palsu', async () => {
+  const { migrateWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+  const validIso = '2026-03-15T10:00:00.000Z';
+
+  // (a) satu bertanggal valid dan satu kosong -> hasil valid
+  const storageA = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify([
+      { title: 'Hades', addedAt: '' },
+      { title: 'Hades', appId: 1145360, addedAt: validIso },
+    ]),
+  });
+  const resA = migrateWishlist(storageA);
+  assert.equal(resA.changed, true);
+  assert.equal(resA.list.length, 1);
+  assert.equal(resA.list[0].addedAt, validIso);
+  const storedA = JSON.parse(storageA.getItem(WISHLIST_STORAGE_KEY));
+  assert.equal(storedA[0].addedAt, validIso, 'Data tersimpan harus mempertahankan addedAt valid');
+
+  // (b) semuanya kosong -> hasil "" tanpa timestamp palsu
+  const storageB = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify([
+      { title: 'Dead Cells', addedAt: '' },
+      { title: 'Dead Cells', appId: 588650, addedAt: '   ' },
+    ]),
+  });
+  const resB = migrateWishlist(storageB);
+  assert.equal(resB.changed, true);
+  assert.equal(resB.list.length, 1);
+  assert.equal(resB.list[0].addedAt, '', 'Jika semua duplikat tanpa addedAt valid, hasilnya harus ""');
+  const storedB = JSON.parse(storageB.getItem(WISHLIST_STORAGE_KEY));
+  assert.equal(storedB[0].addedAt, '', 'Data tersimpan harus "" tanpa timestamp palsu saat semua duplikat kosong');
+
+  // (c) dua duplikat sama-sama valid -> yang tersimpan adalah yang LEBIH AWAL
+  const earlierIso = '2025-01-01T00:00:00.000Z';
+  const laterIso = '2026-06-01T00:00:00.000Z';
+  const storageC = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify([
+      { title: 'Celeste', addedAt: laterIso },
+      { title: 'Celeste', appId: 504230, addedAt: earlierIso },
+    ]),
+  });
+  const resC = migrateWishlist(storageC);
+  assert.equal(resC.changed, true);
+  assert.equal(resC.list.length, 1);
+  assert.equal(resC.list[0].addedAt, earlierIso);
+  const storedC = JSON.parse(storageC.getItem(WISHLIST_STORAGE_KEY));
+  assert.equal(storedC[0].addedAt, earlierIso, 'Data tersimpan harus mempertahankan addedAt paling awal');
+
+  // (d) baseline: tidak mengubah storage jika tidak ada duplikat
+  const initialData = JSON.stringify([
+    { appId: 10, title: 'Game Unik A', addedAt: '' },
+    { appId: 20, title: 'Game Unik B', addedAt: validIso },
+  ]);
+  const storageD = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: initialData,
+  });
+  const resD = migrateWishlist(storageD);
+  assert.equal(resD.changed, false);
+  assert.equal(resD.removedCount, 0);
+  assert.equal(storageD.getItem(WISHLIST_STORAGE_KEY), initialData);
+});
+
+test('wishlistCore (Langkah 2.3b #7): addedAt bertipe tidak valid pada data tersimpan dibaca sebagai string kosong tanpa melempar error', async () => {
+  const { getWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+  const invalidTypesData = [
+    { appId: 1, title: 'Game Angka', addedAt: 12345678 },
+    { appId: 2, title: 'Game Null', addedAt: null },
+    { appId: 3, title: 'Game Object', addedAt: { date: '2026-01-01' } },
+    { appId: 4, title: 'Game Array', addedAt: ['2026-01-01'] },
+    { appId: 5, title: 'Game Boolean', addedAt: true },
+    { appId: 6, title: 'Game Spasi', addedAt: '     ' },
+    { appId: 7, title: 'Game Undefined', addedAt: undefined },
+  ];
+
+  const storage = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify(invalidTypesData),
+  });
+
+  let list;
+  assert.doesNotThrow(() => {
+    list = getWishlist(storage);
+  });
+
+  assert.equal(list.length, 7);
+  for (const item of list) {
+    assert.equal(item.addedAt, '', `Item ${item.title} harus memiliki addedAt berupa string kosong`);
+  }
+});
+
+test('wishlistCore (Langkah 2.3b #8): removeFromWishlist mempertahankan addedAt kosong pada item legacy yang tersisa', async () => {
+  const { removeFromWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+  const storage = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify([
+      { appId: 1, title: 'Game Legacy 1', addedAt: '' },
+      { appId: 2, title: 'Game Legacy 2' },
+      { appId: 3, title: 'Game Dihapus', addedAt: '2026-01-01T00:00:00.000Z' },
+    ]),
+  });
+
+  const res = removeFromWishlist(storage, { appId: 3 });
+  assert.equal(res.success, true);
+  assert.equal(res.removed, true);
+  assert.equal(res.list.length, 2);
+
+  // Nilai kembalian
+  assert.equal(res.list[0].addedAt, '');
+  assert.equal(res.list[1].addedAt, '');
+
+  // Data tersimpan di storage
+  const storedList = JSON.parse(storage.getItem(WISHLIST_STORAGE_KEY));
+  assert.equal(storedList.length, 2);
+  assert.equal(storedList[0].addedAt, '');
+  assert.equal(storedList[1].addedAt, '');
+});
