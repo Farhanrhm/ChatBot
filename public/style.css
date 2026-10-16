@@ -1296,10 +1296,83 @@ body.keyboard-open .meta-hints {
   scrollbar-color: #2a475e var(--bg-0);
 }
 
+/* Toolbar Wishlist: Pencarian & Pengurutan (Langkah 2.4) */
+.wishlist-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+
+@media (min-width: 360px) {
+  .wishlist-toolbar {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.wishlist-toolbar input[type="search"],
+.wishlist-toolbar select {
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: var(--text-strong);
+  background: var(--panel);
+  border: 1px solid rgba(102, 192, 244, 0.2);
+  border-radius: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  color-scheme: dark;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.wishlist-toolbar input[type="search"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.wishlist-toolbar input[type="search"]::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.wishlist-toolbar select {
+  flex: 0 0 auto;
+  cursor: pointer;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2366c0f4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.wishlist-toolbar input[type="search"]:hover,
+.wishlist-toolbar select:hover {
+  border-color: rgba(102, 192, 244, 0.4);
+  background: #253346;
+}
+
+.wishlist-toolbar input[type="search"]:focus-visible,
+.wishlist-toolbar select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
 .wishlist-empty {
   text-align: center;
   padding: 40px 16px;
   color: var(--muted);
+}
+
+#wishlist-filter-empty {
+  padding: 32px 14px;
+  background: rgba(33, 43, 59, 0.5);
+  border: 1px dashed rgba(102, 192, 244, 0.18);
+  border-radius: 8px;
+  margin-bottom: 12px;
 }
 
 .wishlist-empty p {
@@ -1365,10 +1438,15 @@ body.keyboard-open .meta-hints {
   text-decoration: none;
 }
 .wishlist-item-link:hover { text-decoration: underline; }
+.wishlist-item-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 .btn-item-delete {
-  min-width: 36px;
-  min-height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1383,6 +1461,10 @@ body.keyboard-open .meta-hints {
   color: var(--danger);
   background: rgba(229, 115, 115, 0.14);
   border-color: rgba(229, 115, 115, 0.35);
+}
+.btn-item-delete:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .wishlist-toast {
