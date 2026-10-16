@@ -32,6 +32,7 @@ const filterCategory = getArg('--category', null);
 const limitCount = getArg('--limit') ? parseInt(getArg('--limit'), 10) : null;
 const delayMs = parseInt(getArg('--delay-ms', '3500'), 10);
 const endpointUrl = getArg('--endpoint', 'http://localhost:3000/api/chat');
+const reviewSheetOut = getArg('--review-sheet-out', null);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -396,7 +397,11 @@ async function main() {
 
   // Buat lembar review markdown
   const reviewSheetMd = generateMarkdownReviewSheet(runMetricsList, aggregated);
-  const reviewSheetPath = path.join(__dirname, 'review-sheet.md');
+  const reviewSheetPath = reviewSheetOut ? path.resolve(reviewSheetOut) : path.join(__dirname, 'review-sheet.md');
+  const reviewSheetDir = path.dirname(reviewSheetPath);
+  if (!fs.existsSync(reviewSheetDir)) {
+    fs.mkdirSync(reviewSheetDir, { recursive: true });
+  }
   fs.writeFileSync(reviewSheetPath, reviewSheetMd, 'utf8');
   console.log(`Lembar review disimpan di: ${reviewSheetPath}`);
 
