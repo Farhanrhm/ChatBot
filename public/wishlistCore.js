@@ -111,12 +111,16 @@ export function getItemKey(item) {
 }
 
 /**
- * Memvalidasi dan membersihkan data item yang akan disimpan.
+ * REVISI 4 (Langkah 2.3b): Membersihkan dan memvalidasi objek item wishlist.
  * Menjamin hanya data stabil yang disimpan (tanpa harga/diskon).
+ *
  * @param {object} raw
+ * @param {object} [options]
+ * @param {boolean} [options.stampMissing=false] - Beri timestamp ISO baru hanya bila true (jalur addToWishlist untuk item baru)
  * @returns {object}
  */
-export function sanitizeWishlistItem(raw) {
+export function sanitizeWishlistItem(raw, options) {
+  const stampMissing = Boolean(options && typeof options === 'object' && options.stampMissing === true);
   const item = raw && typeof raw === 'object' ? raw : {};
   const title = typeof item.title === 'string' ? item.title.trim() : 'Game Steam';
 
@@ -137,9 +141,24 @@ export function sanitizeWishlistItem(raw) {
     storeUrl = `https://store.steampowered.com/search/?term=${encodeURIComponent(title || 'Game Steam')}`;
   }
 
-  const addedAt = typeof item.addedAt === 'string' && item.addedAt.trim()
-    ? item.addedAt.trim()
-    : new Date().toISOString();
+  let addedAt = '';
+  const isString = typeof item.addedAt === 'string';
+  const trimmed = isString ? item.addedAt.trim() : '';
+
+  if (stampMissing) {
+    // Jalur TAMBAH item baru (addToWishlist):
+    // Jika membawa string tanggal valid, pertahankan; jika hilang / bukan string / string kosong / string tanggal rusak, beri timestamp baru
+    if (trimmed !== '' && Number.isFinite(Date.parse(trimmed))) {
+      addedAt = trimmed;
+    } else {
+      addedAt = new Date().toISOString();
+    }
+  } else {
+    // Jalur BACA / SIMPAN ULANG (getWishlist, saveWishlist, migrateWishlist):
+    // JANGAN mengarang timestamp baru. String non-kosong dipertahankan apa adanya (di-trim).
+    // Nilai hilang / bukan string / string kosong menjadi "".
+    addedAt = trimmed;
+  }
 
   return {
     appId,
@@ -239,14 +258,19 @@ export function migrateWishlist(storage = globalThis.localStorage) {
         resolvedUrl = candidate.storeUrl;
       }
 
-      // 3. Pertahankan addedAt paling awal
-      let resolvedAddedAt = existing.addedAt;
-      if (candidate.addedAt && existing.addedAt) {
-        resolvedAddedAt = new Date(candidate.addedAt) < new Date(existing.addedAt)
-          ? candidate.addedAt
-          : existing.addedAt;
-      } else if (candidate.addedAt) {
+      // 3. Pertahankan addedAt valid paling awal (Langkah 2.3b)
+      const timeExisting = getAddedAtTime(existing.addedAt);
+      const timeCandidate = getAddedAtTime(candidate.addedAt);
+
+      let resolvedAddedAt = '';
+      if (timeCandidate !== -Infinity && timeExisting !== -Infinity) {
+        resolvedAddedAt = timeCandidate < timeExisting ? candidate.addedAt : existing.addedAt;
+      } else if (timeCandidate !== -Infinity) {
         resolvedAddedAt = candidate.addedAt;
+      } else if (timeExisting !== -Infinity) {
+        resolvedAddedAt = existing.addedAt;
+      } else {
+        resolvedAddedAt = '';
       }
 
       // Perbarui entri yang ada di posisi urutan pertama
@@ -321,7 +345,7 @@ export function addToWishlist(storage = globalThis.localStorage, rawItem) {
     return { success: false, list: [], error: 'Penyimpanan lokal tidak tersedia di browser ini.' };
   }
 
-  const cleanItem = sanitizeWishlistItem(rawItem);
+  const cleanItem = sanitizeWishlistItem(rawItem, { stampMissing: true });
   const cleanNorm = normalizeGameTitle(cleanItem.title);
   if (!cleanItem.appId && !cleanNorm) {
     return { success: false, list: getWishlist(storage), error: 'Data game tidak valid.' };
@@ -425,4 +449,161 @@ export function removeFromWishlist(storage = globalThis.localStorage, itemOrKey)
     console.error('Gagal memperbarui wishlist:', err);
     return { success: false, list: currentList, removed: false, error: 'Gagal memperbarui penyimpanan browser.' };
   }
+}
+
+/**
+ * Normalisasi teks pencarian dan judul untuk pencocokan filter.
+ * String -> normalize('NFKC') -> ringkas whitespace -> trim -> toLowerCase.
+ * @param {any} val
+ * @returns {string}
+ */
+export function normalizeSearchText(val) {
+  if (typeof val !== 'string') return '';
+  return val
+    .normalize('NFKC')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Mengambil timestamp numerik dari properti addedAt.
+ * Mengembalikan timestamp numerik finite jika valid, atau -Infinity jika tidak valid.
+ * @param {any} val
+ * @returns {number}
+ */
+function getAddedAtTime(val) {
+  if (typeof val === 'number') {
+    return Number.isFinite(val) ? val : -Infinity;
+  }
+  if (typeof val === 'string' && val.trim() !== '') {
+    const parsed = Date.parse(val);
+    return Number.isFinite(parsed) ? parsed : -Infinity;
+  }
+  return -Infinity;
+}
+
+/**
+ * Membandingkan dua judul game secara deterministik.
+ * Judul kosong/rusak selalu ditempatkan setelah judul non-kosong.
+ * @param {object} itemA
+ * @param {object} itemB
+ * @returns {number}
+ */
+function compareTitles(itemA, itemB) {
+  const titleA = typeof itemA.title === 'string' ? itemA.title.trim() : '';
+  const titleB = typeof itemB.title === 'string' ? itemB.title.trim() : '';
+  const hasA = titleA.length > 0;
+  const hasB = titleB.length > 0;
+
+  if (hasA && !hasB) return -1;
+  if (!hasA && hasB) return 1;
+  if (!hasA && !hasB) return 0;
+
+  return titleA.localeCompare(titleB, 'id', { sensitivity: 'base' });
+}
+
+/**
+ * Membandingkan appId sebagai string.
+ * @param {object} itemA
+ * @param {object} itemB
+ * @returns {number}
+ */
+function compareAppIds(itemA, itemB) {
+  const appIdA = (itemA.appId !== undefined && itemA.appId !== null) ? String(itemA.appId) : '';
+  const appIdB = (itemB.appId !== undefined && itemB.appId !== null) ? String(itemB.appId) : '';
+  if (appIdA < appIdB) return -1;
+  if (appIdA > appIdB) return 1;
+  return 0;
+}
+
+/**
+ * Membuat fungsi pembanding terurut untuk entri { item, originalIndex }.
+ * @param {string} sortBy
+ * @returns {(a: { item: object, originalIndex: number }, b: { item: object, originalIndex: number }) => number}
+ */
+function createWishlistComparator(sortBy) {
+  return (entryA, entryB) => {
+    const itemA = entryA.item;
+    const itemB = entryB.item;
+
+    if (sortBy === 'alpha-asc') {
+      const titleCmp = compareTitles(itemA, itemB);
+      if (titleCmp !== 0) return titleCmp;
+
+      const appCmp = compareAppIds(itemA, itemB);
+      if (appCmp !== 0) return appCmp;
+
+      return entryA.originalIndex - entryB.originalIndex;
+    }
+
+    // sortBy === 'latest' atau 'oldest'
+    const timeA = getAddedAtTime(itemA.addedAt);
+    const timeB = getAddedAtTime(itemB.addedAt);
+
+    if (sortBy === 'oldest') {
+      if (timeA < timeB) return -1;
+      if (timeA > timeB) return 1;
+    } else {
+      // default: latest
+      if (timeA > timeB) return -1;
+      if (timeA < timeB) return 1;
+    }
+
+    // Tie-breaker level 2: judul menaik
+    const titleCmp = compareTitles(itemA, itemB);
+    if (titleCmp !== 0) return titleCmp;
+
+    // Tie-breaker level 3: appId sebagai string
+    const appCmp = compareAppIds(itemA, itemB);
+    if (appCmp !== 0) return appCmp;
+
+    // Tie-breaker level 4: indeks asli di array input
+    return entryA.originalIndex - entryB.originalIndex;
+  };
+}
+
+/**
+ * Fungsi murni untuk memfilter dan mengurutkan daftar wishlist.
+ * Mengembalikan array baru tanpa mengubah array input atau objek item.
+ *
+ * @param {Array<object>} items - Daftar item wishlist
+ * @param {string} [query=''] - Kueri pencarian teks
+ * @param {string} [sortBy='latest'] - Mode pengurutan ('latest', 'oldest', 'alpha-asc')
+ * @returns {Array<object>} Array baru berisi referensi item yang cocok dan terurut
+ */
+export function filterAndSortWishlist(items, query = '', sortBy = 'latest') {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  const safeSortBy = (typeof sortBy === 'string' && (sortBy === 'oldest' || sortBy === 'alpha-asc'))
+    ? sortBy
+    : 'latest';
+
+  const rawQuery = typeof query === 'string' ? query : '';
+  const normQuery = normalizeSearchText(rawQuery);
+
+  const matchedEntries = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    // Entri yang bukan objek (null, undefined, angka, string, array) dibuang dari hasil
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      continue;
+    }
+
+    const rawTitle = typeof item.title === 'string' ? item.title : '';
+    const normTitle = normalizeSearchText(rawTitle);
+
+    if (normQuery === '') {
+      matchedEntries.push({ item, originalIndex: i });
+    } else if (normTitle !== '' && normTitle.includes(normQuery)) {
+      matchedEntries.push({ item, originalIndex: i });
+    }
+  }
+
+  matchedEntries.sort(createWishlistComparator(safeSortBy));
+
+  return matchedEntries.map((entry) => entry.item);
 }
