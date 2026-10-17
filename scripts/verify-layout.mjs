@@ -313,13 +313,101 @@ for (const vp of viewports) {
   const shotPath = path.join(screenshotDir, `layout_${vp.name}.png`);
   await page.screenshot({ path: shotPath });
 
+  // 4. Uji Wishlist Drawer Terbuka dan Terisi (minimal 12 game)
+  await page.evaluate(() => {
+    const dummyGames = [];
+    for (let i = 1; i <= 15; i++) {
+      dummyGames.push({
+        appId: 1000 + i,
+        title: `Game Favorit ${i}`,
+        storeUrl: `https://store.steampowered.com/app/${1000 + i}/`,
+        addedAt: Date.now() - i * 60000,
+      });
+    }
+    localStorage.setItem('steamscout_wishlist', JSON.stringify(dummyGames));
+    const wishlistBtn = document.getElementById('wishlist-btn');
+    if (wishlistBtn) wishlistBtn.click();
+  });
+
+  // Tunggu drawer terbuka, daftar item dirender, dan animasi slide-in selesai (menempel sempurna di kanan)
+  await page.waitForFunction(() => {
+    const panel = document.getElementById('wishlist-panel');
+    const items = document.querySelectorAll('.wishlist-item');
+    if (!panel || panel.hidden || items.length < 12) return false;
+    const r = panel.getBoundingClientRect();
+    return Math.abs(r.right - window.innerWidth) <= 1;
+  }, { timeout: 3000 });
+
+  // Tunggu 2 frame rendering berturut-turut agar layout drawer stabil
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+
+  const drawerMetrics = await page.evaluate((isDesktop) => {
+    const docEl = document.documentElement;
+    const body = document.body;
+    const winH = window.innerHeight;
+    const winW = window.innerWidth;
+    const toolbar = document.getElementById('wishlist-toolbar');
+    const searchInput = document.getElementById('wishlist-search');
+    const sortSelect = document.getElementById('wishlist-sort');
+    const contentContainer = document.getElementById('wishlist-content');
+    const panel = document.getElementById('wishlist-panel');
+
+    const toolbarRect = toolbar ? toolbar.getBoundingClientRect() : null;
+    const searchRect = searchInput ? searchInput.getBoundingClientRect() : null;
+    const sortRect = sortSelect ? sortSelect.getBoundingClientRect() : null;
+    const contentRect = contentContainer ? contentContainer.getBoundingClientRect() : null;
+    const panelRect = panel ? panel.getBoundingClientRect() : null;
+
+    const minItemsHeight = isDesktop ? 200 : 150;
+    const isItemsHeightAdequate = contentRect && contentRect.height >= minItemsHeight;
+
+    const isToolbarVisible = toolbarRect && toolbarRect.width > 0 && toolbarRect.height > 0 &&
+      toolbarRect.top >= 0 && toolbarRect.bottom <= winH;
+    const isSearchVisible = searchRect && searchRect.width > 0 && searchRect.height > 0 &&
+      searchRect.left >= 0 && searchRect.right <= winW;
+    const isSortVisible = sortRect && sortRect.width > 0 && sortRect.height > 0 &&
+      sortRect.left >= 0 && sortRect.right <= winW;
+
+    return {
+      docScrollH: docEl.scrollHeight,
+      bodyScrollH: body.scrollHeight,
+      noVerticalPageOverflow: docEl.scrollHeight <= winH + 1 && body.scrollHeight <= winH + 1,
+      noHorizontalOverflow: docEl.scrollWidth <= winW + 1,
+      isToolbarVisible: Boolean(isToolbarVisible),
+      isSearchVisible: Boolean(isSearchVisible),
+      isSortVisible: Boolean(isSortVisible),
+      itemsHeight: contentRect ? contentRect.height : 0,
+      isItemsHeightAdequate: Boolean(isItemsHeightAdequate),
+      minItemsHeight,
+    };
+  }, vp.isDesktop);
+
+  // Ambil Screenshot bukti drawer terbuka
+  const drawerShotPath = path.join(screenshotDir, `layout_drawer_open_${vp.name}.png`);
+  await page.screenshot({ path: drawerShotPath });
+
+  // Tutup kembali drawer dan bersihkan storage
+  await page.evaluate(() => {
+    const closeBtn = document.getElementById('wishlist-close-btn');
+    if (closeBtn) closeBtn.click();
+    localStorage.clear();
+  });
+
   const passed =
     initialMetrics.noVerticalPageOverflow &&
     initialMetrics.noHorizontalOverflow &&
     initialMetrics.composerSticksToBottom &&
     initialMetrics.railStretchesFullHeight &&
     collapsedMetrics.noVerticalPageOverflow &&
-    collapsedMetrics.composerSticksToBottom;
+    collapsedMetrics.composerSticksToBottom &&
+    drawerMetrics.noVerticalPageOverflow &&
+    drawerMetrics.noHorizontalOverflow &&
+    drawerMetrics.isToolbarVisible &&
+    drawerMetrics.isSearchVisible &&
+    drawerMetrics.isSortVisible &&
+    drawerMetrics.isItemsHeightAdequate;
 
   if (!passed) {
     allPassed = false;
@@ -336,6 +424,7 @@ for (const vp of viewports) {
     chatRatioCollapsed: collapsedMetrics.chatRatio.toFixed(1) + '%',
     composerHeight: collapsedMetrics.composerHeight.toFixed(1) + 'px',
     cardHeight: collapsedMetrics.cardHeight ? collapsedMetrics.cardHeight.toFixed(1) + 'px' : '-',
+    drawerItemsHeight: drawerMetrics.itemsHeight.toFixed(1) + 'px',
     screenshot: path.relative(projectRoot, shotPath),
   });
 
@@ -346,7 +435,11 @@ for (const vp of viewports) {
   log(`  - Composer Menempel Dasar:${collapsedMetrics.composerSticksToBottom ? 'YA (0 gap)' : 'TIDAK'}`);
   log(`  - Chat Height Ratio:     ${collapsedMetrics.chatRatio.toFixed(1)}% (Target >= 60%)`);
   log(`  - Tinggi Kartu Game:     ${collapsedMetrics.cardHeight?.toFixed(1)}px (Satu kartu terlihat utuh)`);
-  log(`  - Screenshot:            ${path.relative(projectRoot, shotPath)}`);
+  log(`  - Drawer Terisi:         ${drawerMetrics.isItemsHeightAdequate ? 'PASS (Tinggi >= ' + drawerMetrics.minItemsHeight + 'px: ' + drawerMetrics.itemsHeight.toFixed(1) + 'px)' : 'FAIL'}`);
+  log(`  - Drawer Page Scroll:    ${drawerMetrics.noVerticalPageOverflow ? 'TIDAK ADA (0px)' : 'ADA MASALAH'}`);
+  log(`  - Toolbar & Kontrol:     ${drawerMetrics.isToolbarVisible && drawerMetrics.isSearchVisible && drawerMetrics.isSortVisible ? 'TERLIHAT UTUH' : 'TERPOTONG'}`);
+  log(`  - Screenshot Default:    ${path.relative(projectRoot, shotPath)}`);
+  log(`  - Screenshot Drawer:     ${path.relative(projectRoot, drawerShotPath)}`);
 
   await page.close();
 }

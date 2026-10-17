@@ -432,7 +432,363 @@ try {
   await pageFocus.close();
 
   // =========================================================================
-  // 5. WATCHDOG STREAMING (REVISI 1)
+  // 5. PENGURUTAN DAN PENCARIAN WISHLIST (FASE 2)
+  // =========================================================================
+  log('\n--- Menguji Pengurutan dan Pencarian Wishlist ---');
+
+  // A. Live filtering tanpa kehilangan fokus dan tanpa pergantian node DOM
+  const pageSearch = await browser.newPage();
+  activePage = pageSearch;
+  await pageSearch.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await pageSearch.evaluate(() => {
+    localStorage.clear();
+    const items = [
+      { appId: 105600, title: 'Terraria', storeUrl: 'https://store.steampowered.com/app/105600/', addedAt: '2026-01-01T10:00:00.000Z' },
+      { appId: 413150, title: 'Stardew Valley', storeUrl: 'https://store.steampowered.com/app/413150/', addedAt: '2026-01-02T10:00:00.000Z' },
+      { appId: 367520, title: 'Hollow Knight', storeUrl: 'https://store.steampowered.com/app/367520/', addedAt: '2026-01-03T10:00:00.000Z' },
+      { appId: 504230, title: 'Celeste', storeUrl: 'https://store.steampowered.com/app/504230/', addedAt: '2026-01-04T10:00:00.000Z' },
+    ];
+    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+  });
+  await pageSearch.click('#wishlist-btn');
+  await pageSearch.waitForFunction(() => {
+    const p = document.getElementById('wishlist-panel');
+    const items = document.querySelectorAll('.wishlist-item');
+    return p && !p.hidden && items.length === 4;
+  }, { timeout: 3000 });
+
+  await pageSearch.evaluate(() => {
+    const input = document.getElementById('wishlist-search');
+    window.__testInputNode = input;
+    input.focus();
+  });
+
+  await pageSearch.type('#wishlist-search', 'hollow');
+
+  await pageSearch.waitForFunction(() => {
+    const items = document.querySelectorAll('.wishlist-item');
+    return items.length === 1 && items[0].innerText.includes('Hollow Knight');
+  }, { timeout: 3000 });
+
+  const filterResult = await pageSearch.evaluate(() => {
+    const input = document.getElementById('wishlist-search');
+    const isFocusPreserved = document.activeElement === input;
+    const isNodePreserved = window.__testInputNode === input;
+    const items = Array.from(document.querySelectorAll('.wishlist-item')).map((el) => el.querySelector('.wishlist-item-title')?.textContent);
+    return { isFocusPreserved, isNodePreserved, items };
+  });
+
+  const passFilter = filterResult.isFocusPreserved && filterResult.isNodePreserved && filterResult.items.length === 1 && filterResult.items[0] === 'Hollow Knight';
+  await recordResult('Mengetik pada input memfilter kartu tanpa kehilangan fokus dan tanpa pergantian node DOM', passFilter, `Fokus terjaga: ${filterResult.isFocusPreserved}, Node identik: ${filterResult.isNodePreserved}, Item: ${JSON.stringify(filterResult.items)}`, pageSearch);
+
+  // B. Dropdown sort mengurutkan kartu secara deterministik (latest, oldest, alpha-asc)
+  await pageSearch.evaluate(() => {
+    const input = document.getElementById('wishlist-search');
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+  });
+  await pageSearch.waitForFunction(() => document.querySelectorAll('.wishlist-item').length === 4, { timeout: 3000 });
+
+  const orderLatest = await pageSearch.evaluate(() => {
+    return Array.from(document.querySelectorAll('.wishlist-item .wishlist-item-title')).map((el) => el.textContent.trim());
+  });
+
+  await pageSearch.select('#wishlist-sort', 'oldest');
+  await pageSearch.waitForFunction(() => {
+    const first = document.querySelector('.wishlist-item .wishlist-item-title')?.textContent.trim();
+    return first === 'Terraria';
+  }, { timeout: 3000 });
+  const orderOldest = await pageSearch.evaluate(() => {
+    return Array.from(document.querySelectorAll('.wishlist-item .wishlist-item-title')).map((el) => el.textContent.trim());
+  });
+
+  await pageSearch.select('#wishlist-sort', 'alpha-asc');
+  await pageSearch.waitForFunction(() => {
+    const first = document.querySelector('.wishlist-item .wishlist-item-title')?.textContent.trim();
+    return first === 'Celeste';
+  }, { timeout: 3000 });
+  const orderAlpha = await pageSearch.evaluate(() => {
+    return Array.from(document.querySelectorAll('.wishlist-item .wishlist-item-title')).map((el) => el.textContent.trim());
+  });
+
+  const passLatest = JSON.stringify(orderLatest) === JSON.stringify(['Celeste', 'Hollow Knight', 'Stardew Valley', 'Terraria']);
+  const passOldest = JSON.stringify(orderOldest) === JSON.stringify(['Terraria', 'Stardew Valley', 'Hollow Knight', 'Celeste']);
+  const passAlpha = JSON.stringify(orderAlpha) === JSON.stringify(['Celeste', 'Hollow Knight', 'Stardew Valley', 'Terraria']);
+  const passSort = passLatest && passOldest && passAlpha;
+  await recordResult('Dropdown sort mengurutkan kartu secara deterministik (latest, oldest, alpha-asc)', passSort, `Latest: ${JSON.stringify(orderLatest)}, Oldest: ${JSON.stringify(orderOldest)}, Alpha: ${JSON.stringify(orderAlpha)}`, pageSearch);
+
+  await pageSearch.close();
+
+  // C. Sinkronisasi multi-tab mempertahankan query pencarian dan pilihan sort yang sedang aktif
+  const pageSyncA = await browser.newPage();
+  const pageSyncB = await browser.newPage();
+  await pageSyncA.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await pageSyncB.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+
+  await pageSyncA.evaluate(() => {
+    localStorage.clear();
+    const items = [
+      { appId: 10, title: 'Counter-Strike 2', storeUrl: 'https://store.steampowered.com/app/10/', addedAt: '2026-01-01T10:00:00.000Z' },
+      { appId: 20, title: 'Portal 2', storeUrl: 'https://store.steampowered.com/app/20/', addedAt: '2026-01-02T10:00:00.000Z' },
+    ];
+    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+  });
+
+  await pageSyncB.click('#wishlist-btn');
+  await pageSyncB.waitForFunction(() => document.querySelectorAll('.wishlist-item').length === 2, { timeout: 3000 });
+  await pageSyncB.type('#wishlist-search', 'portal');
+  await pageSyncB.select('#wishlist-sort', 'alpha-asc');
+
+  await pageSyncB.waitForFunction(() => {
+    const items = document.querySelectorAll('.wishlist-item');
+    return items.length === 1 && items[0].innerText.includes('Portal 2');
+  }, { timeout: 3000 });
+
+  await pageSyncA.evaluate(() => {
+    const list = JSON.parse(localStorage.getItem('steamscout_wishlist') || '[]');
+    list.push({ appId: 30, title: 'Portal Revolution', storeUrl: 'https://store.steampowered.com/app/30/', addedAt: '2026-01-03T10:00:00.000Z' });
+    localStorage.setItem('steamscout_wishlist', JSON.stringify(list));
+  });
+
+  await pageSyncB.evaluate(() => {
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'steamscout_wishlist',
+      newValue: localStorage.getItem('steamscout_wishlist'),
+    }));
+  });
+
+  await pageSyncB.waitForFunction(() => {
+    const items = document.querySelectorAll('.wishlist-item');
+    return items.length === 2;
+  }, { timeout: 3000 });
+
+  const syncStateB = await pageSyncB.evaluate(() => {
+    const qVal = document.getElementById('wishlist-search')?.value;
+    const sVal = document.getElementById('wishlist-sort')?.value;
+    const titles = Array.from(document.querySelectorAll('.wishlist-item .wishlist-item-title')).map((el) => el.textContent.trim());
+    return { qVal, sVal, titles };
+  });
+
+  const passSyncPreserve = syncStateB.qVal === 'portal' && syncStateB.sVal === 'alpha-asc' && syncStateB.titles.length === 2 && syncStateB.titles[0] === 'Portal 2' && syncStateB.titles[1] === 'Portal Revolution';
+  await recordResult('Sinkronisasi multi-tab mempertahankan query pencarian dan pilihan sort yang sedang aktif', passSyncPreserve, `Query: "${syncStateB.qVal}", Sort: "${syncStateB.sVal}", Items: ${JSON.stringify(syncStateB.titles)}`, pageSyncB);
+
+  await pageSyncA.close();
+  await pageSyncB.close();
+
+  // D. Hapus item terfilter menghapus game yang tepat (berdasarkan appId, bukan indeks) dan memindahkan fokus
+  const pageDel = await browser.newPage();
+  activePage = pageDel;
+  await pageDel.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+
+  await pageDel.evaluate(() => {
+    localStorage.clear();
+    const items = [
+      { appId: 101, title: 'Alpha Game', storeUrl: 'https://store.steampowered.com/app/101/', addedAt: '2026-01-01T10:00:00.000Z' },
+      { appId: 102, title: 'Beta One', storeUrl: 'https://store.steampowered.com/app/102/', addedAt: '2026-01-02T10:00:00.000Z' },
+      { appId: 103, title: 'Beta Two', storeUrl: 'https://store.steampowered.com/app/103/', addedAt: '2026-01-03T10:00:00.000Z' },
+      { appId: 104, title: 'Beta Three', storeUrl: 'https://store.steampowered.com/app/104/', addedAt: '2026-01-04T10:00:00.000Z' },
+    ];
+    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+  });
+
+  await pageDel.click('#wishlist-btn');
+  await pageDel.waitForFunction(() => document.querySelectorAll('.wishlist-item').length === 4, { timeout: 3000 });
+
+  await pageDel.type('#wishlist-search', 'Beta');
+  await pageDel.waitForFunction(() => document.querySelectorAll('.wishlist-item').length === 3, { timeout: 3000 });
+
+  // Hapus item pertama pada daftar terfilter (Beta Three, appId 104)
+  await pageDel.evaluate(() => {
+    const delBtns = document.querySelectorAll('.btn-item-delete');
+    if (delBtns.length > 0) delBtns[0].click();
+  });
+
+  await pageDel.waitForFunction(() => document.querySelectorAll('.wishlist-item').length === 2, { timeout: 3000 });
+
+  const storageAfterDel1 = await pageDel.evaluate(() => {
+    const list = JSON.parse(localStorage.getItem('steamscout_wishlist') || '[]');
+    const appIds = list.map((g) => g.appId);
+    const focusedDatasetKey = document.activeElement ? document.activeElement.dataset?.key : null;
+    return { appIds, focusedDatasetKey };
+  });
+
+  const alphaStillExists = storageAfterDel1.appIds.includes(101);
+  const betaThreeRemoved = !storageAfterDel1.appIds.includes(104);
+  const focusOnNext = storageAfterDel1.focusedDatasetKey === 'app_103';
+
+  // Hapus item terakhir pada daftar terfilter (Beta One, appId 102)
+  await pageDel.evaluate(() => {
+    const delBtns = document.querySelectorAll('.btn-item-delete');
+    if (delBtns.length > 1) delBtns[1].click();
+  });
+
+  await pageDel.waitForFunction(() => document.querySelectorAll('.wishlist-item').length === 1, { timeout: 3000 });
+
+  const storageAfterDel2 = await pageDel.evaluate(() => {
+    const list = JSON.parse(localStorage.getItem('steamscout_wishlist') || '[]');
+    const appIds = list.map((g) => g.appId);
+    const focusedDatasetKey = document.activeElement ? document.activeElement.dataset?.key : null;
+    return { appIds, focusedDatasetKey };
+  });
+
+  const focusOnPrev = storageAfterDel2.focusedDatasetKey === 'app_103';
+
+  // Hapus satu-satunya item terfilter yang tersisa (Beta Two, appId 103)
+  await pageDel.evaluate(() => {
+    const delBtns = document.querySelectorAll('.btn-item-delete');
+    if (delBtns.length > 0) delBtns[0].click();
+  });
+
+  await pageDel.waitForFunction(() => {
+    const emptyNotice = document.getElementById('wishlist-filter-empty');
+    return emptyNotice && !emptyNotice.hidden;
+  }, { timeout: 3000 });
+
+  const focusAfterEmpty = await pageDel.evaluate(() => document.activeElement.id);
+  const passDelAndFocus = alphaStillExists && betaThreeRemoved && focusOnNext && focusOnPrev && focusAfterEmpty === 'wishlist-search';
+
+  await recordResult('Hapus item terfilter menghapus game yang tepat (berdasarkan appId, bukan indeks) dan memindahkan fokus secara aman', passDelAndFocus, `Alpha aman: ${alphaStillExists}, Beta3 terhapus: ${betaThreeRemoved}, Fokus maju: ${focusOnNext}, Fokus mundur: ${focusOnPrev}, Fokus ke search: ${focusAfterEmpty}`, pageDel);
+
+  await pageDel.close();
+
+  // E. Live region mengumumkan jumlah game secara tepat (debounce 400ms, dan tidak mengumumkan saat drawer dibuka)
+  const pageLive = await browser.newPage();
+  activePage = pageLive;
+  await pageLive.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+
+  await pageLive.evaluate(() => {
+    localStorage.clear();
+    const items = [
+      { appId: 1, title: 'Game A', storeUrl: 'https://store.steampowered.com/app/1/', addedAt: '2026-01-01T10:00:00.000Z' },
+      { appId: 2, title: 'Game B', storeUrl: 'https://store.steampowered.com/app/2/', addedAt: '2026-01-02T10:00:00.000Z' },
+      { appId: 3, title: 'Game C', storeUrl: 'https://store.steampowered.com/app/3/', addedAt: '2026-01-03T10:00:00.000Z' },
+    ];
+    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+  });
+
+  await pageLive.click('#wishlist-btn');
+  await pageLive.waitForFunction(() => {
+    const p = document.getElementById('wishlist-panel');
+    return p && !p.hidden;
+  }, { timeout: 3000 });
+
+  const initialAnnounce = await pageLive.evaluate(() => {
+    const el = document.getElementById('wishlist-filter-announcer');
+    return el ? el.textContent.trim() : '';
+  });
+
+  await pageLive.type('#wishlist-search', 'Game');
+
+  const immediateAnnounce = await pageLive.evaluate(() => {
+    const el = document.getElementById('wishlist-filter-announcer');
+    return el ? el.textContent.trim() : '';
+  });
+
+  await pageLive.waitForFunction(() => {
+    const el = document.getElementById('wishlist-filter-announcer');
+    return el && el.textContent.trim() === 'Menampilkan 3 dari 3 game';
+  }, { timeout: 3000 });
+
+  const debouncedAnnounce = await pageLive.evaluate(() => {
+    const el = document.getElementById('wishlist-filter-announcer');
+    return el ? el.textContent.trim() : '';
+  });
+
+  const passLive = initialAnnounce === '' && immediateAnnounce === '' && debouncedAnnounce === 'Menampilkan 3 dari 3 game';
+  await recordResult('Live region mengumumkan jumlah game secara tepat (debounce 400ms, dan tidak mengumumkan saat drawer dibuka)', passLive, `Awal: "${initialAnnounce}", Segera: "${immediateAnnounce}", Debounced: "${debouncedAnnounce}"`, pageLive);
+
+  await pageLive.close();
+
+  // F. Focus trap tetap menahan navigasi keyboard di dalam drawer saat hasil filter kosong
+  const pageTrap = await browser.newPage();
+  activePage = pageTrap;
+  await pageTrap.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+
+  await pageTrap.evaluate(() => {
+    localStorage.clear();
+    const items = [
+      { appId: 1, title: 'Portal', storeUrl: 'https://store.steampowered.com/app/1/', addedAt: '2026-01-01T10:00:00.000Z' },
+    ];
+    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+  });
+
+  await pageTrap.click('#wishlist-btn');
+  await pageTrap.waitForFunction(() => document.querySelectorAll('.wishlist-item').length === 1, { timeout: 3000 });
+
+  await pageTrap.type('#wishlist-search', 'nomatchgame');
+  await pageTrap.waitForFunction(() => {
+    const emptyNotice = document.getElementById('wishlist-filter-empty');
+    return emptyNotice && !emptyNotice.hidden && document.querySelectorAll('.wishlist-item').length === 0;
+  }, { timeout: 3000 });
+
+  const panelId = 'wishlist-panel';
+  const trapChecks = [];
+  for (let i = 0; i < 4; i++) {
+    await pageTrap.keyboard.press('Tab');
+    const inPanel = await pageTrap.evaluate((pid) => {
+      const active = document.activeElement;
+      return active && document.getElementById(pid).contains(active);
+    }, panelId);
+    trapChecks.push(inPanel);
+  }
+
+  await pageTrap.keyboard.down('Shift');
+  await pageTrap.keyboard.press('Tab');
+  await pageTrap.keyboard.up('Shift');
+  const inPanelShift = await pageTrap.evaluate((pid) => {
+    const active = document.activeElement;
+    return active && document.getElementById(pid).contains(active);
+  }, panelId);
+  trapChecks.push(inPanelShift);
+
+  const passTrapEmpty = trapChecks.every(Boolean);
+  await recordResult('Focus trap tetap menahan navigasi keyboard di dalam drawer saat hasil filter kosong', passTrapEmpty, `Siklus Tab terjaga: ${passTrapEmpty} (${trapChecks.length} langkah)`, pageTrap);
+
+  await pageTrap.close();
+
+  // G. Penyisipan teks empty state terhindar dari interpretasi tag HTML / XSS (textContent murni)
+  const pageXss = await browser.newPage();
+  activePage = pageXss;
+  await pageXss.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+
+  await pageXss.evaluate(() => {
+    localStorage.clear();
+    const items = [
+      { appId: 1, title: 'Cyberpunk 2077', storeUrl: 'https://store.steampowered.com/app/1/', addedAt: '2026-01-01T10:00:00.000Z' },
+    ];
+    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+  });
+
+  await pageXss.click('#wishlist-btn');
+  await pageXss.waitForFunction(() => document.querySelectorAll('.wishlist-item').length === 1, { timeout: 3000 });
+
+  const xssPayload = '<img src=x onerror=window.__xss=1>';
+  await pageXss.type('#wishlist-search', xssPayload);
+
+  await pageXss.waitForFunction(() => {
+    const empty = document.getElementById('wishlist-filter-empty');
+    return empty && !empty.hidden;
+  }, { timeout: 3000 });
+
+  await pageXss.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+
+  const xssResult = await pageXss.evaluate((payload) => {
+    const empty = document.getElementById('wishlist-filter-empty');
+    const isScriptExecuted = Boolean(window.__xss);
+    const hasImgTag = Boolean(empty && empty.querySelector('img'));
+    const textContentIncludes = Boolean(empty && empty.textContent.includes(payload));
+    return { isScriptExecuted, hasImgTag, textContentIncludes };
+  }, xssPayload);
+
+  const passXss = !xssResult.isScriptExecuted && !xssResult.hasImgTag && xssResult.textContentIncludes;
+  await recordResult('Penyisipan teks empty state terhindar dari interpretasi tag HTML / XSS (textContent murni)', passXss, `Script dieksekusi: ${xssResult.isScriptExecuted}, Ada tag img: ${xssResult.hasImgTag}, Teks persis: ${xssResult.textContentIncludes}`, pageXss);
+
+  await pageXss.close();
+
+  // =========================================================================
+  // 6. WATCHDOG STREAMING (REVISI 1)
   // =========================================================================
   log('\n--- Menguji Watchdog Streaming ---');
 
@@ -577,6 +933,11 @@ try {
 
 } catch (err) {
   logError(`\n[ERROR Verifikasi Perilaku] ${err.message}`);
+  results.push({
+    testName: 'Pengujian terhenti karena kesalahan fatal / timeout',
+    passed: false,
+    detail: err.message,
+  });
   if (activePage && !activePage.isClosed()) {
     const errShotPath = path.join(screenshotDir, 'behavior_error.png');
     try {
@@ -597,7 +958,7 @@ try {
   fs.appendFileSync(logFile, JSON.stringify(results, null, 2) + '\n');
 } catch {}
 
-const allPassed = results.length > 0 && results.every((r) => r.passed);
+const allPassed = results.length >= 18 && results.every((r) => r.passed);
 if (allPassed) {
   log('\nSEMUA UJI PERILAKU DOM LULUS 100%! Sistem stabil dan terbukti tangguh.\n');
   process.exit(0);
