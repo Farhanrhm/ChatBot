@@ -11,6 +11,18 @@ import {
   filterAndSortWishlist,
 } from "./wishlistCore.js";
 
+import {
+  MAX_COMPARISON_ITEMS,
+  sanitizeComparisonGame,
+  isGameInComparison,
+  addGameToComparison,
+  removeGameFromComparison,
+  toggleComparisonGame,
+  clearComparison,
+  extractComparisonData,
+  formatComparisonPrice,
+} from "./comparisonCore.js";
+
 const API_URL = "/api/chat";
 const STORAGE_KEY = "steamscout_chat_history";
 
@@ -259,7 +271,26 @@ const els = {
   clearFiltersBtn: $("#clear-filters-btn"),
   liveAnnouncer: $("#live-announcer"),
   offlineBanner: $("#offline-banner"),
+  comparisonBar: $("#comparison-bar"),
+  comparisonBarText: $("#comparison-bar-text"),
+  comparisonOpenBtn: $("#comparison-open-btn"),
+  comparisonClearBtn: $("#comparison-clear-btn"),
+  comparisonBackdrop: $("#comparison-backdrop"),
+  comparisonDialog: $("#comparison-dialog"),
+  comparisonCloseBtn: $("#comparison-close-btn"),
+  comparisonMobileTabs: $("#comparison-mobile-tabs"),
+  comparisonTabA: $("#comparison-tab-a"),
+  comparisonTabB: $("#comparison-tab-b"),
+  comparisonTabALabel: $("#comparison-tab-a-label"),
+  comparisonTabBLabel: $("#comparison-tab-b-label"),
+  comparisonContent: $("#comparison-content"),
 };
+
+/* State Komparasi Game Berdampingan */
+const renderedGamesMap = new Map();
+let selectedComparisonGames = [];
+let comparisonTriggerElement = null;
+let activeComparisonMobileTab = "a";
 
 let history = [];
 let isLoading = false;
@@ -622,6 +653,24 @@ function formatBotContent(raw) {
         const btnLabel = isSearchLink ? "Cari di Steam" : "Buka di Steam Store";
         const btnAriaLabel = isSearchLink ? `Cari ${title} di Steam` : `Buka ${title} di Steam`;
 
+        const gameKey = getItemKey({ appId, title: g.title });
+        if (gameKey) {
+          renderedGamesMap.set(gameKey, {
+            appId,
+            title: g.title,
+            year: g.year,
+            developer: g.developer,
+            genres: g.genres,
+            verified: g.verified,
+            storeUrl,
+            headerImage: headerImg,
+            pricing: g.pricing,
+            whyFit: g.whyFit,
+            specsAndBudget: g.specsAndBudget,
+          });
+        }
+        const isCompared = isGameInComparison(selectedComparisonGames, { appId, title: g.title });
+
         html += `
           <div class="game-card${isUnverified ? " is-unverified" : ""}">
             ${bannerHtml}
@@ -662,6 +711,23 @@ function formatBotContent(raw) {
                     <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
                   </svg>
                   <span class="wishlist-btn-text">Wishlist</span>
+                </button>
+                <button
+                  type="button"
+                  class="btn-compare-toggle${isCompared ? " is-selected" : ""}"
+                  data-key="${escapeHtml(gameKey)}"
+                  data-appid="${appId ? escapeHtml(String(appId)) : ""}"
+                  data-title="${title}"
+                  aria-pressed="${isCompared ? "true" : "false"}"
+                  aria-label="Pilih ${title} untuk dibandingkan"
+                  title="Bandingkan game ini"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="18" y1="20" x2="18" y2="10" />
+                    <line x1="12" y1="20" x2="12" y2="4" />
+                    <line x1="6" y1="20" x2="6" y2="14" />
+                  </svg>
+                  <span class="compare-btn-text">Bandingkan</span>
                 </button>
               </div>
             </div>
@@ -1212,6 +1278,7 @@ els.resetBtn.addEventListener("click", () => {
 
   history = [];
   clearHistoryStorage();
+  resetComparisonState();
   els.messages.innerHTML = "";
   setWelcomeVisible(true);
 
@@ -1735,8 +1802,32 @@ if (els.wishlistPanel) {
   });
 }
 
-// Event delegation untuk tombol bookmark pada kartu game di chat
+// Event delegation untuk tombol bookmark dan komparasi pada kartu game di chat
 els.messages.addEventListener("click", (e) => {
+  const compareBtn = e.target.closest(".btn-compare-toggle");
+  if (compareBtn) {
+    const key = compareBtn.dataset.key;
+    const appId = compareBtn.dataset.appid ? Number.parseInt(compareBtn.dataset.appid, 10) : null;
+    const title = compareBtn.dataset.title;
+    let game = renderedGamesMap.get(key);
+    if (!game) {
+      game = { appId, title };
+    }
+    const res = toggleComparisonGame(selectedComparisonGames, game);
+    if (res.action === "rejected") {
+      announceMessage("Maksimal 2 game untuk dibandingkan. Batalkan salah satu terlebih dahulu.");
+      showToast("Maksimal 2 game untuk dibandingkan.");
+    } else if (res.action === "added") {
+      selectedComparisonGames = res.list;
+      announceMessage(`${res.game.title} dipilih untuk komparasi.`);
+    } else if (res.action === "removed") {
+      selectedComparisonGames = res.list;
+      announceMessage(`${res.game.title} dihapus dari komparasi.`);
+    }
+    updateComparisonUI();
+    return;
+  }
+
   const toggleBtn = e.target.closest(".btn-wishlist-toggle");
   if (!toggleBtn) return;
 
@@ -1880,6 +1971,334 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", () => {
     const isKeyboardOpen = window.visualViewport.height < window.innerHeight - 150;
     document.body.classList.toggle("keyboard-open", isKeyboardOpen);
+  });
+}
+
+/* ========================================================
+   LOGIKA DAN TAMPILAN KOMPARASI GAME BERDAMPINGAN (FASE 3)
+   ======================================================== */
+
+function updateComparisonUI() {
+  // 1. Sinkronkan seluruh tombol .btn-compare-toggle di kartu obrolan
+  document.querySelectorAll(".btn-compare-toggle").forEach((btn) => {
+    const key = btn.dataset.key;
+    const isSelected = selectedComparisonGames.some((g) => g.key === key || getItemKey(g) === key);
+    btn.setAttribute("aria-pressed", isSelected ? "true" : "false");
+    btn.classList.toggle("is-selected", isSelected);
+  });
+
+  // 2. Perbarui bilah aksi mengambang (Floating Bar)
+  if (!els.comparisonBar) return;
+  const count = selectedComparisonGames.length;
+
+  if (count === 0) {
+    els.comparisonBar.hidden = true;
+    if (els.comparisonOpenBtn) els.comparisonOpenBtn.disabled = true;
+  } else if (count === 1) {
+    els.comparisonBar.hidden = false;
+    if (els.comparisonBarText) {
+      els.comparisonBarText.textContent = `1 game dipilih: ${selectedComparisonGames[0].title}. Pilih 1 game lagi.`;
+    }
+    if (els.comparisonOpenBtn) els.comparisonOpenBtn.disabled = true;
+  } else if (count === 2) {
+    els.comparisonBar.hidden = false;
+    if (els.comparisonBarText) {
+      els.comparisonBarText.textContent = `2 game siap dibandingkan: ${selectedComparisonGames[0].title} vs ${selectedComparisonGames[1].title}`;
+    }
+    if (els.comparisonOpenBtn) els.comparisonOpenBtn.disabled = false;
+  }
+}
+
+function resetComparisonState() {
+  selectedComparisonGames = clearComparison();
+  updateComparisonUI();
+  if (els.comparisonDialog && !els.comparisonDialog.hidden) {
+    closeComparisonDialog();
+  }
+}
+
+function switchComparisonMobileTab(tab) {
+  activeComparisonMobileTab = tab;
+  if (els.comparisonTabA) {
+    els.comparisonTabA.setAttribute("aria-selected", tab === "a" ? "true" : "false");
+    els.comparisonTabA.classList.toggle("is-active", tab === "a");
+  }
+  if (els.comparisonTabB) {
+    els.comparisonTabB.setAttribute("aria-selected", tab === "b" ? "true" : "false");
+    els.comparisonTabB.classList.toggle("is-active", tab === "b");
+  }
+
+  document.querySelectorAll(".comparison-col-a").forEach((el) => {
+    el.classList.toggle("is-tab-active", tab === "a");
+  });
+  document.querySelectorAll(".comparison-col-b").forEach((el) => {
+    el.classList.toggle("is-tab-active", tab === "b");
+  });
+}
+
+function openComparisonDialog() {
+  if (selectedComparisonGames.length < 2) return;
+  comparisonTriggerElement = document.activeElement;
+
+  const [rawA, rawB] = selectedComparisonGames;
+  const data = extractComparisonData(rawA, rawB);
+
+  renderComparisonContent(data);
+
+  if (els.comparisonTabALabel) els.comparisonTabALabel.textContent = data.gameA.title;
+  if (els.comparisonTabBLabel) els.comparisonTabBLabel.textContent = data.gameB.title;
+  switchComparisonMobileTab("a");
+
+  // Poin 10: Terapkan atribut inert pada pembungkus halaman utama (.app)
+  const appEl = document.querySelector(".app");
+  if (appEl) appEl.setAttribute("inert", "");
+
+  if (els.comparisonBackdrop) els.comparisonBackdrop.hidden = false;
+  if (els.comparisonDialog) els.comparisonDialog.hidden = false;
+
+  if (els.comparisonCloseBtn) {
+    els.comparisonCloseBtn.focus();
+  }
+
+  announceMessage(`Jendela komparasi terbuka: ${data.gameA.title} vs ${data.gameB.title}`);
+}
+
+function closeComparisonDialog() {
+  // Poin 10: Cabut atribut inert dari pembungkus halaman utama
+  const appEl = document.querySelector(".app");
+  if (appEl) appEl.removeAttribute("inert");
+
+  if (els.comparisonBackdrop) els.comparisonBackdrop.hidden = true;
+  if (els.comparisonDialog) els.comparisonDialog.hidden = true;
+
+  if (comparisonTriggerElement && typeof comparisonTriggerElement.focus === "function") {
+    comparisonTriggerElement.focus({ preventScroll: true });
+  }
+  announceMessage("Jendela komparasi ditutup");
+}
+
+function renderComparisonContent(data) {
+  if (!els.comparisonContent) return;
+
+  const isSavedA = isInWishlist(globalThis.localStorage, data.gameA);
+  const isSavedB = isInWishlist(globalThis.localStorage, data.gameB);
+
+  let html = `
+    <div class="comparison-grid">
+      <div class="comparison-table-wrap">
+        <table class="comparison-table">
+          <caption class="sr-only">Tabel perbandingan ${escapeHtml(data.gameA.title)} dan ${escapeHtml(data.gameB.title)}</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="th-attr">Kriteria</th>
+              <th scope="col" id="col-game-a" class="th-game comparison-col-a is-tab-active">
+                <div class="comparison-hero">
+                  ${data.gameA.headerImage ? `<img src="${escapeHtml(data.gameA.headerImage)}" alt="Cover ${escapeHtml(data.gameA.title)}" class="comparison-hero-img" loading="lazy" onerror="this.style.display='none'">` : ""}
+                  <h3 class="comparison-hero-title">${escapeHtml(data.gameA.title)}</h3>
+                </div>
+              </th>
+              <th scope="col" id="col-game-b" class="th-game comparison-col-b">
+                <div class="comparison-hero">
+                  ${data.gameB.headerImage ? `<img src="${escapeHtml(data.gameB.headerImage)}" alt="Cover ${escapeHtml(data.gameB.title)}" class="comparison-hero-img" loading="lazy" onerror="this.style.display='none'">` : ""}
+                  <h3 class="comparison-hero-title">${escapeHtml(data.gameB.title)}</h3>
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.structuredRows
+              .map(
+                (row) => `
+              <tr>
+                <th scope="row" class="row-label">${escapeHtml(row.label)}</th>
+                <td class="comparison-col-a is-tab-active" headers="col-game-a">${escapeHtml(row.valA)}</td>
+                <td class="comparison-col-b" headers="col-game-b">${escapeHtml(row.valB)}</td>
+              </tr>
+            `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="comparison-narratives">
+        ${data.narrativeBlocks
+          .map(
+            (b) => `
+          <div class="comparison-narrative-group">
+            <h4 class="comparison-narrative-heading">${escapeHtml(b.label)}</h4>
+            <div class="comparison-narrative-cards">
+              <div class="comparison-narrative-card comparison-col-a is-tab-active">
+                <span class="narrative-game-badge">${escapeHtml(data.gameA.title)}</span>
+                <p class="narrative-text">${inline(b.textA)}</p>
+              </div>
+              <div class="comparison-narrative-card comparison-col-b">
+                <span class="narrative-game-badge">${escapeHtml(data.gameB.title)}</span>
+                <p class="narrative-text">${inline(b.textB)}</p>
+              </div>
+            </div>
+          </div>
+        `
+          )
+          .join("")}
+      </div>
+
+      <div class="comparison-footer-actions">
+        <div class="comparison-action-col comparison-col-a is-tab-active">
+          <a href="${escapeHtml(data.gameA.storeUrl)}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="Buka ${escapeHtml(data.gameA.title)} di Steam">
+            <span>Buka di Steam</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </a>
+          <button
+            type="button"
+            class="btn-wishlist-toggle btn-modal-wishlist"
+            data-appid="${data.gameA.appId ? escapeHtml(String(data.gameA.appId)) : ""}"
+            data-title="${escapeHtml(data.gameA.title)}"
+            data-store-url="${escapeHtml(data.gameA.storeUrl)}"
+            aria-pressed="${isSavedA ? "true" : "false"}"
+            aria-label="Simpan ${escapeHtml(data.gameA.title)} ke wishlist"
+          >
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+            <span class="wishlist-btn-text">${isSavedA ? "Tersimpan" : "Wishlist"}</span>
+          </button>
+        </div>
+
+        <div class="comparison-action-col comparison-col-b">
+          <a href="${escapeHtml(data.gameB.storeUrl)}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="Buka ${escapeHtml(data.gameB.title)} di Steam">
+            <span>Buka di Steam</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </a>
+          <button
+            type="button"
+            class="btn-wishlist-toggle btn-modal-wishlist"
+            data-appid="${data.gameB.appId ? escapeHtml(String(data.gameB.appId)) : ""}"
+            data-title="${escapeHtml(data.gameB.title)}"
+            data-store-url="${escapeHtml(data.gameB.storeUrl)}"
+            aria-pressed="${isSavedB ? "true" : "false"}"
+            aria-label="Simpan ${escapeHtml(data.gameB.title)} ke wishlist"
+          >
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+            <span class="wishlist-btn-text">${isSavedB ? "Tersimpan" : "Wishlist"}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  els.comparisonContent.innerHTML = html;
+
+  // Delegasi klik tombol wishlist di dalam modal (Poin 9)
+  els.comparisonContent.querySelectorAll(".btn-modal-wishlist").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const appId = btn.dataset.appid;
+      const title = btn.dataset.title;
+      const storeUrl = btn.dataset.storeUrl;
+      const isSaved = isInWishlist(globalThis.localStorage, { appId, title });
+
+      if (isSaved) {
+        removeFromWishlist(globalThis.localStorage, { appId, title });
+        announceMessage(`${title} dihapus dari wishlist`);
+        btn.setAttribute("aria-pressed", "false");
+        const txt = btn.querySelector(".wishlist-btn-text");
+        if (txt) txt.textContent = "Wishlist";
+      } else {
+        const addRes = addToWishlist(globalThis.localStorage, { appId, title, storeUrl });
+        if (!addRes.success && addRes.error) {
+          showToast(addRes.error);
+          announceMessage(addRes.error);
+        } else {
+          announceMessage(`${title} ditambahkan ke wishlist`);
+          btn.setAttribute("aria-pressed", "true");
+          const txt = btn.querySelector(".wishlist-btn-text");
+          if (txt) txt.textContent = "Tersimpan";
+        }
+      }
+      updateWishlistUI();
+    });
+  });
+}
+
+// Event listener untuk kontrol komparasi
+if (els.comparisonOpenBtn) {
+  els.comparisonOpenBtn.addEventListener("click", openComparisonDialog);
+}
+
+if (els.comparisonClearBtn) {
+  els.comparisonClearBtn.addEventListener("click", () => {
+    selectedComparisonGames = clearComparison();
+    updateComparisonUI();
+    announceMessage("Seleksi komparasi dibatalkan");
+  });
+}
+
+if (els.comparisonCloseBtn) {
+  els.comparisonCloseBtn.addEventListener("click", closeComparisonDialog);
+}
+
+if (els.comparisonBackdrop) {
+  els.comparisonBackdrop.addEventListener("click", closeComparisonDialog);
+}
+
+if (els.comparisonTabA) {
+  els.comparisonTabA.addEventListener("click", () => switchComparisonMobileTab("a"));
+}
+
+if (els.comparisonTabB) {
+  els.comparisonTabB.addEventListener("click", () => switchComparisonMobileTab("b"));
+}
+
+if (els.comparisonDialog) {
+  els.comparisonDialog.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeComparisonDialog();
+      return;
+    }
+
+    if (e.key === "Tab") {
+      const focusables = Array.from(
+        els.comparisonDialog.querySelectorAll(
+          'button:not([disabled]):not([hidden]), a[href]:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => {
+        if (el === els.comparisonCloseBtn) return true;
+        return el.closest("[hidden]") === null && (el.offsetParent !== null || el.getClientRects().length > 0);
+      });
+
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      if (focusables.length === 1) {
+        e.preventDefault();
+        focusables[0].focus();
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
   });
 }
 
