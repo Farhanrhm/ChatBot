@@ -186,6 +186,36 @@ button, textarea { font: inherit; color: inherit; }
   box-shadow: 0 0 8px var(--online);
 }
 
+.status.is-offline {
+  color: #ff8585;
+}
+
+.status.is-offline i {
+  background: #ff5252;
+  box-shadow: 0 0 8px rgba(255, 82, 82, 0.7);
+}
+
+/* Banner Notifikasi Status Offline (Modul P3) */
+.offline-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(184, 50, 50, 0.88);
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 107, 107, 0.4);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.offline-banner svg {
+  flex-shrink: 0;
+}
+
 .btn-ghost {
   display: inline-flex;
   align-items: center;

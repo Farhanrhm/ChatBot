@@ -1411,6 +1411,70 @@ try {
     pageExport
   );
 
+  // Test 12 (Test 30): PWA & Deteksi Status Offline menonaktifkan komposer dan memunculkan banner (Modul P3)
+  const offlineState = await pageExport.evaluate(async () => {
+    const manifestLink = document.querySelector('link[rel="manifest"]')?.getAttribute('href');
+
+    // Simulasikan offline
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    window.dispatchEvent(new Event('offline'));
+    await new Promise((r) => setTimeout(r, 60));
+
+    const bannerOfflineHidden = document.getElementById('offline-banner')?.hidden;
+    const statusTextOffline = document.getElementById('connection-status')?.textContent;
+    const isOfflineClass = document.getElementById('connection-status')?.classList.contains('is-offline');
+    const sendBtnDisabled = document.getElementById('send-btn')?.disabled;
+    const sendBtnTitle = document.getElementById('send-btn')?.getAttribute('title');
+
+    // Coba kirim pesan saat offline
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('user-input');
+    if (input) input.value = 'Rekomendasi game RPG';
+    if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    await new Promise((r) => setTimeout(r, 60));
+    const toastOffline = document.querySelector('.wishlist-toast')?.textContent;
+
+    // Simulasikan pulih online
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+    window.dispatchEvent(new Event('online'));
+    await new Promise((r) => setTimeout(r, 60));
+
+    const bannerOnlineHidden = document.getElementById('offline-banner')?.hidden;
+    const statusTextOnline = document.getElementById('connection-status')?.textContent;
+    const sendBtnEnabled = !document.getElementById('send-btn')?.disabled;
+
+    return {
+      manifestLink,
+      bannerOfflineHidden,
+      statusTextOffline,
+      isOfflineClass,
+      sendBtnDisabled,
+      sendBtnTitle,
+      toastOffline,
+      bannerOnlineHidden,
+      statusTextOnline,
+      sendBtnEnabled,
+    };
+  });
+
+  const passPwaOffline = offlineState.manifestLink === 'manifest.json' &&
+    offlineState.bannerOfflineHidden === false &&
+    offlineState.statusTextOffline?.includes('Offline') &&
+    offlineState.isOfflineClass === true &&
+    offlineState.sendBtnDisabled === true &&
+    offlineState.sendBtnTitle?.includes('Koneksi terputus') &&
+    offlineState.toastOffline?.includes('Koneksi terputus') &&
+    offlineState.bannerOnlineHidden === true &&
+    offlineState.statusTextOnline?.includes('Online') &&
+    offlineState.sendBtnEnabled === true;
+
+  await recordResult(
+    'PWA & deteksi status offline menonaktifkan komposer teks dan memunculkan banner (Modul P3)',
+    Boolean(passPwaOffline),
+    `Manifest: "${offlineState.manifestLink}", Status offline: "${offlineState.statusTextOffline}", Banner hidden: ${offlineState.bannerOfflineHidden}, Send disabled: ${offlineState.sendBtnDisabled}, Status online: "${offlineState.statusTextOnline}"`,
+    pageExport
+  );
+
   await pageExport.close();
   activePage = null;
 
@@ -1441,7 +1505,7 @@ try {
   fs.appendFileSync(logFile, JSON.stringify(results, null, 2) + '\n');
 } catch {}
 
-const allPassed = results.length >= 29 && results.every((r) => r.passed);
+const allPassed = results.length >= 30 && results.every((r) => r.passed);
 if (allPassed) {
   log('\nSEMUA UJI PERILAKU DOM LULUS 100%! Sistem stabil dan terbukti tangguh.\n');
   process.exit(0);

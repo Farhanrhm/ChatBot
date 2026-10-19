@@ -10,6 +10,10 @@
     href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap"
     rel="stylesheet"
   />
+  <meta name="theme-color" content="#171a21" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -134,7 +138,7 @@
           </div>
         </div>
         <div class="topbar-actions">
-          <span class="status"><i aria-hidden="true"></i>Online</span>
+          <span id="connection-status" class="status"><i aria-hidden="true"></i>Online</span>
           <button type="button" id="wishlist-btn" class="btn-ghost btn-wishlist-top" aria-label="Buka wishlist, 0 game tersimpan" aria-haspopup="dialog" aria-expanded="false">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
@@ -149,6 +153,20 @@
           </button>
         </div>
       </header>
+
+      <!-- Offline Banner Notification (Modul P3) -->
+      <div id="offline-banner" class="offline-banner" role="status" aria-live="polite" hidden>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="1" y1="1" x2="23" y2="23"></line>
+          <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+          <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+          <path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path>
+          <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+          <line x1="12" y1="20" x2="12.01" y2="20"></line>
+        </svg>
+        <span>Koneksi terputus. Mode offline aktif - Anda tetap dapat mengakses wishlist lokal.</span>
+      </div>
 
       <section id="chat" class="chat" aria-label="Percakapan dengan SteamScout">
         <div class="chat-inner">

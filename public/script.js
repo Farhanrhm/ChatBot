@@ -279,6 +279,7 @@ const els = {
   clearFiltersBtn: $("#clear-filters-btn"),
   liveAnnouncer: $("#live-announcer"),
   offlineBanner: $("#offline-banner"),
+  connectionStatus: $("#connection-status"),
   comparisonBar: $("#comparison-bar"),
   comparisonBarText: $("#comparison-bar-text"),
   comparisonOpenBtn: $("#comparison-open-btn"),
@@ -326,6 +327,18 @@ function updateOnlineStatus() {
   const statusChanged = isSystemOffline !== offline;
   isSystemOffline = offline;
 
+  const statusPill = els.connectionStatus || document.getElementById("connection-status");
+  if (statusPill) {
+    const dot = '<i aria-hidden="true"></i>';
+    if (offline) {
+      statusPill.innerHTML = `${dot}Offline`;
+      statusPill.classList.add("is-offline");
+    } else {
+      statusPill.innerHTML = `${dot}Online`;
+      statusPill.classList.remove("is-offline");
+    }
+  }
+
   const banner = els.offlineBanner || document.getElementById("offline-banner");
   if (banner) {
     banner.hidden = !offline;
@@ -334,14 +347,24 @@ function updateOnlineStatus() {
   if (offline) {
     els.sendBtn.disabled = true;
     els.sendBtn.setAttribute("aria-disabled", "true");
+    els.sendBtn.setAttribute(
+      "title",
+      "Koneksi terputus. Rekomendasi baru memerlukan jaringan internet."
+    );
+    els.sendBtn.setAttribute(
+      "aria-label",
+      "Koneksi terputus. Rekomendasi baru memerlukan jaringan internet."
+    );
     document.querySelectorAll(".chip, .capsule").forEach((el) => {
       el.disabled = true;
       el.setAttribute("aria-disabled", "true");
     });
     if (statusChanged) {
-      announceMessage("Koneksi internet terputus. Mode luring aktif.");
+      announceMessage("Koneksi internet terputus. Mode offline aktif.");
     }
   } else {
+    els.sendBtn.removeAttribute("title");
+    els.sendBtn.setAttribute("aria-label", "Kirim pesan");
     if (!isLoading) {
       els.sendBtn.disabled = false;
       els.sendBtn.removeAttribute("aria-disabled");
@@ -1205,6 +1228,7 @@ async function sendMessage(text) {
   if (!text || isLoading) return;
 
   if (isSystemOffline) {
+    showToast("Koneksi terputus. Rekomendasi baru memerlukan jaringan internet.");
     announceMessage("Tidak dapat mengirim pesan saat offline. Mohon periksa koneksi internet.");
     return;
   }
@@ -2536,3 +2560,14 @@ if (savedHistory.length > 0) {
 
 requestAnimationFrame(updateToolbarScrollEdges);
 els.input.focus({ preventScroll: true });
+
+/* Registrasi Service Worker untuk Progressive Web App (Modul P3) */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("./sw.js")
+      .catch((err) => {
+        console.warn("Registrasi Service Worker gagal:", err);
+      });
+  });
+}

@@ -1789,4 +1789,32 @@ test('filterAndSortWishlist: mengombinasikan filter genre, kueri pencarian teks,
   assert.equal(res[1].title, 'Dark Souls II');
 });
 
+test('PWA (Modul P3): berkas manifest.json valid dan memenuhi standar PWA', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+  const manifestPath = path.resolve('public/manifest.json');
+  assert.ok(fs.existsSync(manifestPath), 'manifest.json harus ada di folder public');
+
+  const content = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  assert.equal(content.name, 'SteamScout: Kurator Game PC');
+  assert.equal(content.short_name, 'SteamScout');
+  assert.equal(content.display, 'standalone');
+  assert.equal(content.theme_color, '#171a21');
+  assert.equal(content.background_color, '#171a21');
+  assert.ok(Array.isArray(content.icons) && content.icons.length > 0, 'Harus memiliki ikon');
+});
+
+test('PWA (Modul P3): berkas sw.js menerapkan caching UI dan Network-Only untuk API', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+  const swPath = path.resolve('public/sw.js');
+  assert.ok(fs.existsSync(swPath), 'sw.js harus ada di folder public');
+
+  const content = fs.readFileSync(swPath, 'utf8');
+  assert.ok(content.includes('steamscout-shell-v1'), 'Harus mendefinisikan CACHE_NAME');
+  assert.ok(content.includes('url.pathname.startsWith("/api/")'), 'Harus strict Network-Only untuk endpoint API');
+  assert.ok(content.includes('caches.match'), 'Harus menerapkan Cache matching');
+});
+
+
 
