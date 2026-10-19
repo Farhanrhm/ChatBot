@@ -9,6 +9,10 @@ import {
   MAX_WISHLIST_ITEMS,
   WISHLIST_STORAGE_KEY,
   filterAndSortWishlist,
+  extractTopGenres,
+  exportWishlistToJSON,
+  exportWishlistToMarkdown,
+  importWishlistFromJSON,
 } from "./wishlistCore.js";
 
 import {
@@ -22,6 +26,18 @@ import {
   extractComparisonData,
   formatComparisonPrice,
 } from "./comparisonCore.js";
+
+import {
+  openDB,
+  createSession,
+  getSession,
+  saveSession,
+  getAllSessions,
+  deleteSession,
+  clearAllSessions,
+  sanitizeSessionTitle,
+  migrateFromLegacyStorage,
+} from "./chatHistoryCore.js";
 
 const API_URL = "/api/chat";
 const STORAGE_KEY = "steamscout_chat_history";
@@ -267,10 +283,15 @@ const els = {
   wishlistContent: $("#wishlist-content"),
   wishlistEmpty: $("#wishlist-empty"),
   wishlistItems: $("#wishlist-items"),
+  wishlistExportBtn: $("#wishlist-export-btn"),
+  wishlistCopyBtn: $("#wishlist-copy-btn"),
+  wishlistImportBtn: $("#wishlist-import-btn"),
+  wishlistImportInput: $("#wishlist-import-input"),
   filterGroups: $("#filter-groups"),
   clearFiltersBtn: $("#clear-filters-btn"),
   liveAnnouncer: $("#live-announcer"),
   offlineBanner: $("#offline-banner"),
+  connectionStatus: $("#connection-status"),
   comparisonBar: $("#comparison-bar"),
   comparisonBarText: $("#comparison-bar-text"),
   comparisonOpenBtn: $("#comparison-open-btn"),
@@ -284,7 +305,23 @@ const els = {
   comparisonTabALabel: $("#comparison-tab-a-label"),
   comparisonTabBLabel: $("#comparison-tab-b-label"),
   comparisonContent: $("#comparison-content"),
+  sessionsSidebar: $(".sessions-sidebar"),
+  newSessionBtn: $("#new-session-btn"),
+  sessionsList: $("#sessions-list"),
+  sessionsBtn: $("#sessions-btn"),
+  sessionsPanel: $("#sessions-panel"),
+  sessionsBackdrop: $("#sessions-backdrop"),
+  sessionsCloseBtn: $("#sessions-close-btn"),
+  drawerNewSessionBtn: $("#drawer-new-session-btn"),
+  drawerSessionsList: $("#drawer-sessions-list"),
+  sessionsEmpty: $("#sessions-empty"),
 };
+
+/* State Riwayat Obrolan Multi-Sesi (Modul P4) */
+let currentSessionId = null;
+let currentSessionTitle = "Obrolan Baru";
+let isSessionsDrawerOpen = false;
+let previousSessionsActiveElement = null;
 
 /* State Komparasi Game Berdampingan */
 const renderedGamesMap = new Map();
@@ -318,6 +355,18 @@ function updateOnlineStatus() {
   const statusChanged = isSystemOffline !== offline;
   isSystemOffline = offline;
 
+  const statusPill = els.connectionStatus || document.getElementById("connection-status");
+  if (statusPill) {
+    const dot = '<i aria-hidden="true"></i>';
+    if (offline) {
+      statusPill.innerHTML = `${dot}Offline`;
+      statusPill.classList.add("is-offline");
+    } else {
+      statusPill.innerHTML = `${dot}Online`;
+      statusPill.classList.remove("is-offline");
+    }
+  }
+
   const banner = els.offlineBanner || document.getElementById("offline-banner");
   if (banner) {
     banner.hidden = !offline;
@@ -326,14 +375,24 @@ function updateOnlineStatus() {
   if (offline) {
     els.sendBtn.disabled = true;
     els.sendBtn.setAttribute("aria-disabled", "true");
+    els.sendBtn.setAttribute(
+      "title",
+      "Koneksi terputus. Rekomendasi baru memerlukan jaringan internet."
+    );
+    els.sendBtn.setAttribute(
+      "aria-label",
+      "Koneksi terputus. Rekomendasi baru memerlukan jaringan internet."
+    );
     document.querySelectorAll(".chip, .capsule").forEach((el) => {
       el.disabled = true;
       el.setAttribute("aria-disabled", "true");
     });
     if (statusChanged) {
-      announceMessage("Koneksi internet terputus. Mode luring aktif.");
+      announceMessage("Koneksi internet terputus. Mode offline aktif.");
     }
   } else {
+    els.sendBtn.removeAttribute("title");
+    els.sendBtn.setAttribute("aria-label", "Kirim pesan");
     if (!isLoading) {
       els.sendBtn.disabled = false;
       els.sendBtn.removeAttribute("aria-disabled");
@@ -348,12 +407,26 @@ function updateOnlineStatus() {
   }
 }
 
-/* Penyimpanan Riwayat Sesi (sessionStorage) */
+/* Penyimpanan Riwayat Sesi (IndexedDB & sessionStorage) */
 function saveHistoryToStorage() {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   } catch (err) {
     console.warn("Gagal menyimpan riwayat ke sessionStorage:", err);
+  }
+
+  if (currentSessionId) {
+    saveSession({
+      id: currentSessionId,
+      title: currentSessionTitle,
+      messages: history,
+    })
+      .then(() => {
+        renderSessionsList();
+      })
+      .catch((err) => {
+        console.warn("Gagal menyimpan sesi ke IndexedDB:", err);
+      });
   }
 }
 
@@ -374,6 +447,238 @@ function clearHistoryStorage() {
     sessionStorage.removeItem(STORAGE_KEY);
   } catch (err) {
     console.warn("Gagal mengosongkan sessionStorage:", err);
+  }
+}
+
+/* Manajemen Sesi Obrolan Multi-Sesi IndexedDB (Modul P4) */
+async function renderSessionsList() {
+  try {
+    const sessions = await getAllSessions();
+
+    const targets = [
+      { container: els.sessionsList, isDrawer: false },
+      { container: els.drawerSessionsList, isDrawer: true },
+    ];
+
+    targets.forEach(({ container, isDrawer }) => {
+      if (!container) return;
+      container.innerHTML = "";
+
+      if (sessions.length === 0) {
+        if (isDrawer && els.sessionsEmpty) els.sessionsEmpty.hidden = false;
+        return;
+      }
+
+      if (isDrawer && els.sessionsEmpty) els.sessionsEmpty.hidden = true;
+
+      sessions.forEach((sess) => {
+        const li = document.createElement("li");
+        const isActive = sess.id === currentSessionId;
+        li.className = `session-item${isActive ? " is-active" : ""}`;
+        li.dataset.id = sess.id;
+
+        const titleBtn = document.createElement("button");
+        titleBtn.type = "button";
+        titleBtn.className = "session-item-title";
+        titleBtn.textContent = sess.title || "Obrolan Baru";
+        titleBtn.title = sess.title || "Obrolan Baru";
+        titleBtn.setAttribute("aria-label", `Buka sesi: ${sess.title || "Obrolan Baru"}`);
+        titleBtn.addEventListener("click", () => switchSession(sess.id));
+
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "btn-session-delete";
+        delBtn.setAttribute("aria-label", `Hapus sesi ${sess.title || "Obrolan Baru"}`);
+        delBtn.title = "Hapus sesi";
+        delBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        `;
+        delBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          deleteSessionPrompt(sess.id, sess.title || "Obrolan Baru");
+        });
+
+        li.appendChild(titleBtn);
+        li.appendChild(delBtn);
+        container.appendChild(li);
+      });
+    });
+  } catch (err) {
+    console.warn("Gagal merender daftar sesi:", err);
+  }
+}
+
+async function switchSession(id) {
+  if (!id || id === currentSessionId) {
+    if (isSessionsDrawerOpen) closeSessionsDrawer();
+    return;
+  }
+
+  if (currentRequestController) {
+    currentRequestController.abort();
+    currentRequestController = null;
+  }
+
+  try {
+    const sess = await getSession(id);
+    if (!sess) return;
+
+    currentSessionId = sess.id;
+    currentSessionTitle = sess.title || "Obrolan Baru";
+    history = Array.isArray(sess.messages) ? sess.messages : [];
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+
+    resetComparisonState();
+    els.messages.innerHTML = "";
+
+    if (history.length > 0) {
+      setWelcomeVisible(false);
+      history.forEach((msg) => {
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+      });
+    } else {
+      setWelcomeVisible(true);
+    }
+
+    renderSessionsList();
+    if (isSessionsDrawerOpen) closeSessionsDrawer();
+    announceMessage(`Beralih ke sesi obrolan: ${currentSessionTitle}`);
+    els.input.focus({ preventScroll: true });
+  } catch (err) {
+    console.warn("Gagal beralih sesi:", err);
+  }
+}
+
+async function handleNewSession() {
+  if (history.length === 0) {
+    if (isSessionsDrawerOpen) closeSessionsDrawer();
+    els.input.focus({ preventScroll: true });
+    return;
+  }
+
+  if (currentRequestController) {
+    currentRequestController.abort();
+    currentRequestController = null;
+  }
+
+  try {
+    const newSess = await createSession({ title: "Obrolan Baru", messages: [] });
+    currentSessionId = newSess.id;
+    currentSessionTitle = newSess.title;
+    history = [];
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+
+    resetComparisonState();
+    els.messages.innerHTML = "";
+    setWelcomeVisible(true);
+    renderSessionsList();
+
+    if (isSessionsDrawerOpen) closeSessionsDrawer();
+    announceMessage("Sesi obrolan baru telah dibuat");
+    els.input.focus({ preventScroll: true });
+  } catch (err) {
+    console.warn("Gagal membuat sesi baru:", err);
+  }
+}
+
+async function deleteSessionPrompt(id, title) {
+  if (!confirm(`Hapus sesi obrolan "${title}"?`)) return;
+
+  try {
+    await deleteSession(id);
+    announceMessage(`Sesi "${title}" telah dihapus`);
+
+    if (id === currentSessionId) {
+      const remaining = await getAllSessions();
+      if (remaining.length > 0) {
+        await switchSession(remaining[0].id);
+      } else {
+        const fresh = await createSession({ title: "Obrolan Baru", messages: [] });
+        currentSessionId = fresh.id;
+        currentSessionTitle = fresh.title;
+        history = [];
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+        resetComparisonState();
+        els.messages.innerHTML = "";
+        setWelcomeVisible(true);
+        renderSessionsList();
+      }
+    } else {
+      renderSessionsList();
+    }
+  } catch (err) {
+    console.warn("Gagal menghapus sesi:", err);
+  }
+}
+
+function openSessionsDrawer() {
+  if (!els.sessionsPanel || !els.sessionsBackdrop) return;
+  previousSessionsActiveElement = document.activeElement;
+  els.sessionsPanel.hidden = false;
+  els.sessionsBackdrop.hidden = false;
+  if (els.sessionsBtn) els.sessionsBtn.setAttribute("aria-expanded", "true");
+  isSessionsDrawerOpen = true;
+  document.body.style.overflow = "hidden";
+  renderSessionsList();
+  if (els.sessionsCloseBtn) {
+    els.sessionsCloseBtn.focus();
+  }
+  announceMessage("Panel riwayat sesi obrolan dibuka");
+}
+
+function closeSessionsDrawer() {
+  if (!els.sessionsPanel || !els.sessionsBackdrop) return;
+  els.sessionsPanel.hidden = true;
+  els.sessionsBackdrop.hidden = true;
+  if (els.sessionsBtn) els.sessionsBtn.setAttribute("aria-expanded", "false");
+  isSessionsDrawerOpen = false;
+  document.body.style.overflow = "";
+  if (previousSessionsActiveElement && typeof previousSessionsActiveElement.focus === "function") {
+    previousSessionsActiveElement.focus();
+  }
+  announceMessage("Panel riwayat sesi obrolan ditutup");
+}
+
+async function initChatSessions() {
+  try {
+    await migrateFromLegacyStorage(globalThis.sessionStorage);
+    const sessions = await getAllSessions();
+    if (sessions.length > 0) {
+      const latest = sessions[0];
+      currentSessionId = latest.id;
+      currentSessionTitle = latest.title || "Obrolan Baru";
+      history = Array.isArray(latest.messages) ? latest.messages : [];
+    } else {
+      const initial = await createSession({ title: "Obrolan Baru", messages: [] });
+      currentSessionId = initial.id;
+      currentSessionTitle = initial.title;
+      history = [];
+    }
+
+    renderSessionsList();
+
+    if (history.length > 0) {
+      setWelcomeVisible(false);
+      history.forEach((msg) => {
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+      });
+    } else {
+      setWelcomeVisible(true);
+    }
+  } catch (err) {
+    console.warn("Gagal inisialisasi sesi obrolan IndexedDB:", err);
+    history = loadHistoryFromStorage();
+    if (history.length > 0) {
+      setWelcomeVisible(false);
+      history.forEach((msg) => {
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+      });
+    } else {
+      setWelcomeVisible(true);
+    }
   }
 }
 
@@ -703,6 +1008,7 @@ function formatBotContent(raw) {
                   data-appid="${appId ? escapeHtml(String(appId)) : ""}"
                   data-title="${title}"
                   data-store-url="${storeUrl}"
+                  data-genres="${Array.isArray(g.genres) ? escapeHtml(g.genres.join(",")) : ""}"
                   aria-pressed="false"
                   aria-label="Simpan ${title} ke wishlist"
                   title="Simpan ke wishlist"
@@ -1196,6 +1502,7 @@ async function sendMessage(text) {
   if (!text || isLoading) return;
 
   if (isSystemOffline) {
+    showToast("Koneksi terputus. Rekomendasi baru memerlukan jaringan internet.");
     announceMessage("Tidak dapat mengirim pesan saat offline. Mohon periksa koneksi internet.");
     return;
   }
@@ -1212,6 +1519,10 @@ async function sendMessage(text) {
   // Sembunyikan otomatis baris filter setelah pesan pertama terkirim (jika belum di-toggle manual)
   if (!hasUserToggledToolbar && !isToolbarCollapsed) {
     setToolbarCollapsed(true);
+  }
+
+  if (currentSessionTitle === "Obrolan Baru") {
+    currentSessionTitle = sanitizeSessionTitle(text);
   }
 
   addMessage("user", text, filterSummary);
@@ -1277,10 +1588,25 @@ els.resetBtn.addEventListener("click", () => {
   }
 
   history = [];
+  currentSessionTitle = "Obrolan Baru";
   clearHistoryStorage();
   resetComparisonState();
   els.messages.innerHTML = "";
   setWelcomeVisible(true);
+
+  if (currentSessionId) {
+    saveSession({
+      id: currentSessionId,
+      title: "Obrolan Baru",
+      messages: [],
+    })
+      .then(() => {
+        renderSessionsList();
+      })
+      .catch((err) => {
+        console.warn("Gagal mereset sesi:", err);
+      });
+  }
 
   // Buka kembali toolbar dan bersihkan filter aktif
   hasUserToggledToolbar = false;
@@ -1331,15 +1657,17 @@ function updateAllWishlistCardButtons() {
   });
 }
 
-/* State modul filter dan pengurutan wishlist (Langkah 2.3) */
+/* State modul filter dan pengurutan wishlist (Langkah 2.3 & Modul P2) */
 let wishlistQuery = "";
 let wishlistSortBy = "latest";
+let wishlistSelectedGenre = "all";
 let filterAnnounceTimer = null;
 let lastAnnouncedFilterMessage = "";
 
 let wishlistToolbar = null;
 let wishlistSearchInput = null;
 let wishlistSortSelect = null;
+let wishlistGenreChips = null;
 let wishlistFilterAnnouncer = null;
 let wishlistFilterEmpty = null;
 
@@ -1356,10 +1684,13 @@ function scheduleFilterAnnouncement(immediate = false) {
 
   const totalList = getWishlist(globalThis.localStorage);
   const totalCount = totalList.length;
-  const filtered = filterAndSortWishlist(totalList, wishlistQuery, wishlistSortBy);
+  const filtered = filterAndSortWishlist(totalList, wishlistQuery, wishlistSortBy, wishlistSelectedGenre);
   const filteredCount = filtered.length;
 
-  const msg = `Menampilkan ${filteredCount} dari ${totalCount} game`;
+  let msg = `Menampilkan ${filteredCount} dari ${totalCount} game`;
+  if (wishlistSelectedGenre && wishlistSelectedGenre !== "all" && wishlistSelectedGenre !== "semua") {
+    msg += ` kategori genre ${wishlistSelectedGenre}`;
+  }
 
   const doAnnounce = () => {
     if (!els.wishlistPanel || els.wishlistPanel.hidden) return;
@@ -1429,22 +1760,45 @@ function initWishlistToolbar() {
   wishlistToolbar.appendChild(wishlistSearchInput);
   wishlistToolbar.appendChild(wishlistSortSelect);
 
-  // 4. Buat kontainer pesan empty state khusus hasil filter kosong
+  // 4. Buat kontainer quick filter chips genre (Modul P2)
+  wishlistGenreChips = document.createElement("div");
+  wishlistGenreChips.id = "wishlist-genre-chips";
+  wishlistGenreChips.className = "wishlist-genre-chips";
+  wishlistGenreChips.setAttribute("role", "group");
+  wishlistGenreChips.setAttribute("aria-label", "Filter genre wishlist");
+  wishlistGenreChips.hidden = true;
+
+  wishlistGenreChips.addEventListener("click", (e) => {
+    const btn = e.target.closest(".wishlist-genre-chip");
+    if (!btn) return;
+    const clicked = btn.dataset.genre || "all";
+    if (wishlistSelectedGenre.toLowerCase() === clicked.toLowerCase() && clicked.toLowerCase() !== "all") {
+      wishlistSelectedGenre = "all";
+    } else {
+      wishlistSelectedGenre = clicked;
+    }
+    updateWishlistUI();
+    scheduleFilterAnnouncement(true);
+  });
+
+  // 5. Buat kontainer pesan empty state khusus hasil filter kosong
   wishlistFilterEmpty = document.createElement("div");
   wishlistFilterEmpty.id = "wishlist-filter-empty";
   wishlistFilterEmpty.className = "wishlist-empty";
   wishlistFilterEmpty.hidden = true;
 
-  // 5. Sisipkan toolbar dan filterEmpty sebelum wishlist-items di dalam content
+  // 6. Sisipkan toolbar, genre chips, dan filterEmpty sebelum wishlist-items di dalam content
   if (els.wishlistItems && els.wishlistItems.parentNode === content) {
     content.insertBefore(wishlistToolbar, els.wishlistItems);
+    content.insertBefore(wishlistGenreChips, els.wishlistItems);
     content.insertBefore(wishlistFilterEmpty, els.wishlistItems);
   } else {
     content.appendChild(wishlistToolbar);
+    content.appendChild(wishlistGenreChips);
     content.appendChild(wishlistFilterEmpty);
   }
 
-  // 6. Buat announcer live region terpisah khusus filter & sort (kelas sr-only sudah ada di style.css)
+  // 7. Buat announcer live region terpisah khusus filter & sort (kelas sr-only sudah ada di style.css)
   wishlistFilterAnnouncer = document.createElement("div");
   wishlistFilterAnnouncer.id = "wishlist-filter-announcer";
   wishlistFilterAnnouncer.className = "sr-only";
@@ -1661,8 +2015,9 @@ function updateWishlistUI() {
   }
 
   if (totalCount === 0) {
-    // Wishlist kosong total: sembunyikan toolbar, tampilkan pesan kosong bawaan
+    // Wishlist kosong total: sembunyikan toolbar dan chip genre, tampilkan pesan kosong bawaan
     if (wishlistToolbar) wishlistToolbar.hidden = true;
+    if (wishlistGenreChips) wishlistGenreChips.hidden = true;
     if (els.wishlistEmpty) els.wishlistEmpty.hidden = false;
     if (wishlistFilterEmpty) wishlistFilterEmpty.hidden = true;
     els.wishlistItems.replaceChildren();
@@ -1677,7 +2032,47 @@ function updateWishlistUI() {
     if (wishlistToolbar) wishlistToolbar.hidden = false;
     if (els.wishlistEmpty) els.wishlistEmpty.hidden = true;
 
-    const filteredList = filterAndSortWishlist(totalList, wishlistQuery, wishlistSortBy);
+    // Render quick filter chips genre (Modul P2: batasi 5-7 genre teratas)
+    const topGenres = extractTopGenres(totalList, 7);
+    if (topGenres.length === 0) {
+      if (wishlistGenreChips) wishlistGenreChips.hidden = true;
+    } else {
+      if (wishlistGenreChips) {
+        wishlistGenreChips.hidden = false;
+        if (
+          wishlistSelectedGenre !== "all" &&
+          !topGenres.some((g) => g.toLowerCase() === wishlistSelectedGenre.toLowerCase())
+        ) {
+          wishlistSelectedGenre = "all";
+        }
+
+        const chipsFrag = document.createDocumentFragment();
+
+        const allBtn = document.createElement("button");
+        allBtn.type = "button";
+        const isAllActive = wishlistSelectedGenre === "all";
+        allBtn.className = `wishlist-genre-chip${isAllActive ? " is-active" : ""}`;
+        allBtn.dataset.genre = "all";
+        allBtn.setAttribute("aria-pressed", isAllActive ? "true" : "false");
+        allBtn.textContent = "Semua";
+        chipsFrag.appendChild(allBtn);
+
+        topGenres.forEach((genre) => {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          const isActive = wishlistSelectedGenre.toLowerCase() === genre.toLowerCase();
+          chip.className = `wishlist-genre-chip${isActive ? " is-active" : ""}`;
+          chip.dataset.genre = genre;
+          chip.setAttribute("aria-pressed", isActive ? "true" : "false");
+          chip.textContent = genre;
+          chipsFrag.appendChild(chip);
+        });
+
+        wishlistGenreChips.replaceChildren(chipsFrag);
+      }
+    }
+
+    const filteredList = filterAndSortWishlist(totalList, wishlistQuery, wishlistSortBy, wishlistSelectedGenre);
 
     if (filteredList.length === 0) {
       // Ada item di wishlist tetapi tidak ada yang cocok dengan filter
@@ -1685,7 +2080,15 @@ function updateWishlistUI() {
         const cleanQ = (wishlistQuery || "").replace(/\s+/g, " ").trim();
         const chars = Array.from(cleanQ);
         const displayQ = chars.length > 40 ? chars.slice(0, 40).join("") + "…" : cleanQ;
-        wishlistFilterEmpty.textContent = `Tidak ada game yang cocok dengan "${displayQ}"`;
+        const hasGenre = wishlistSelectedGenre && wishlistSelectedGenre !== "all";
+
+        if (cleanQ && hasGenre) {
+          wishlistFilterEmpty.textContent = `Tidak ada game genre "${wishlistSelectedGenre}" yang cocok dengan "${displayQ}"`;
+        } else if (hasGenre) {
+          wishlistFilterEmpty.textContent = `Tidak ada game dengan genre "${wishlistSelectedGenre}"`;
+        } else {
+          wishlistFilterEmpty.textContent = `Tidak ada game yang cocok dengan "${displayQ}"`;
+        }
         wishlistFilterEmpty.hidden = false;
       }
       els.wishlistItems.replaceChildren();
@@ -1731,6 +2134,7 @@ function closeWishlistPanel() {
   // Reset state saat drawer ditutup
   wishlistQuery = "";
   wishlistSortBy = "latest";
+  wishlistSelectedGenre = "all";
   if (wishlistSearchInput) wishlistSearchInput.value = "";
   if (wishlistSortSelect) wishlistSortSelect.value = "latest";
   cancelFilterAnnouncement();
@@ -1774,6 +2178,7 @@ if (els.wishlistPanel) {
         )
       ).filter((el) => {
         if (el === els.wishlistCloseBtn) return true;
+        if (el.getAttribute("tabindex") === "-1") return false;
         return el.closest("[hidden]") === null && (el.offsetParent !== null || el.getClientRects().length > 0);
       });
 
@@ -1800,6 +2205,111 @@ if (els.wishlistPanel) {
       }
     }
   });
+}
+
+// Handlers Ekspor, Salin Teks, dan Impor Wishlist (Modul P1)
+function handleWishlistExport() {
+  const current = getWishlist();
+  if (current.length === 0) {
+    showToast("Wishlist masih kosong, tidak ada data untuk diekspor.");
+    return;
+  }
+
+  const jsonStr = exportWishlistToJSON(current);
+  const blob = new Blob([jsonStr], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `steamscout_wishlist_backup_${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showToast(`Berhasil mengekspor ${current.length} game ke berkas JSON.`);
+}
+
+async function handleWishlistCopy() {
+  const current = getWishlist();
+  if (current.length === 0) {
+    showToast("Wishlist masih kosong, tidak ada data untuk disalin.");
+    return;
+  }
+
+  const markdownText = exportWishlistToMarkdown(current);
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(markdownText);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = markdownText;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    showToast("Daftar game berhasil disalin ke clipboard!");
+  } catch (err) {
+    console.error("Gagal menyalin ke clipboard:", err);
+    showToast("Gagal menyalin ke clipboard.");
+  }
+}
+
+function handleWishlistImportClick() {
+  if (els.wishlistImportInput) {
+    els.wishlistImportInput.value = "";
+    els.wishlistImportInput.click();
+  }
+}
+
+function handleWishlistFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const content = e.target?.result;
+    if (typeof content !== "string") {
+      showToast("Gagal membaca berkas impor.");
+      return;
+    }
+
+    const result = importWishlistFromJSON(localStorage, content);
+    if (!result.success) {
+      showToast(result.error || "Gagal mengimpor berkas wishlist.");
+      return;
+    }
+
+    updateWishlistUI();
+    updateComparisonUI();
+    showToast(result.message || "Proses impor selesai.");
+
+    if (els.liveAnnouncer) {
+      els.liveAnnouncer.textContent = result.message;
+    }
+  };
+
+  reader.onerror = () => {
+    showToast("Terjadi kesalahan saat membaca berkas.");
+  };
+
+  reader.readAsText(file);
+}
+
+if (els.wishlistExportBtn) {
+  els.wishlistExportBtn.addEventListener("click", handleWishlistExport);
+}
+if (els.wishlistCopyBtn) {
+  els.wishlistCopyBtn.addEventListener("click", handleWishlistCopy);
+}
+if (els.wishlistImportBtn) {
+  els.wishlistImportBtn.addEventListener("click", handleWishlistImportClick);
+}
+if (els.wishlistImportInput) {
+  els.wishlistImportInput.addEventListener("change", handleWishlistFileSelected);
 }
 
 // Event delegation untuk tombol bookmark dan komparasi pada kartu game di chat
@@ -1845,13 +2355,15 @@ els.messages.addEventListener("click", (e) => {
   const appId = toggleBtn.dataset.appid;
   const title = toggleBtn.dataset.title;
   const storeUrl = toggleBtn.dataset.storeUrl;
+  const rawGenres = toggleBtn.dataset.genres || "";
+  const genres = rawGenres ? rawGenres.split(",").map((g) => g.trim()).filter(Boolean) : [];
 
   const isCurrentlySaved = isInWishlist(globalThis.localStorage, { appId, title });
   if (isCurrentlySaved) {
     removeFromWishlist(globalThis.localStorage, { appId, title });
     announceMessage(`${title} dihapus dari wishlist`);
   } else {
-    const addResult = addToWishlist(globalThis.localStorage, { appId, title, storeUrl });
+    const addResult = addToWishlist(globalThis.localStorage, { appId, title, storeUrl, genres });
     if (!addResult.success && addResult.error) {
       showToast(addResult.error);
       announceMessage(addResult.error);
@@ -2172,6 +2684,7 @@ function renderComparisonContent(data) {
             data-appid="${data.gameA.appId ? escapeHtml(String(data.gameA.appId)) : ""}"
             data-title="${escapeHtml(data.gameA.title)}"
             data-store-url="${escapeHtml(data.gameA.storeUrl)}"
+            data-genres="${Array.isArray(data.gameA.genres) ? escapeHtml(data.gameA.genres.join(",")) : ""}"
             aria-pressed="${isSavedA ? "true" : "false"}"
             aria-label="Simpan ${escapeHtml(data.gameA.title)} ke wishlist"
           >
@@ -2197,6 +2710,7 @@ function renderComparisonContent(data) {
             data-appid="${data.gameB.appId ? escapeHtml(String(data.gameB.appId)) : ""}"
             data-title="${escapeHtml(data.gameB.title)}"
             data-store-url="${escapeHtml(data.gameB.storeUrl)}"
+            data-genres="${Array.isArray(data.gameB.genres) ? escapeHtml(data.gameB.genres.join(",")) : ""}"
             aria-pressed="${isSavedB ? "true" : "false"}"
             aria-label="Simpan ${escapeHtml(data.gameB.title)} ke wishlist"
           >
@@ -2218,6 +2732,8 @@ function renderComparisonContent(data) {
       const appId = btn.dataset.appid;
       const title = btn.dataset.title;
       const storeUrl = btn.dataset.storeUrl;
+      const rawGenres = btn.dataset.genres || "";
+      const genres = rawGenres ? rawGenres.split(",").map((g) => g.trim()).filter(Boolean) : [];
       const isSaved = isInWishlist(globalThis.localStorage, { appId, title });
 
       if (isSaved) {
@@ -2227,7 +2743,7 @@ function renderComparisonContent(data) {
         const txt = btn.querySelector(".wishlist-btn-text");
         if (txt) txt.textContent = "Wishlist";
       } else {
-        const addRes = addToWishlist(globalThis.localStorage, { appId, title, storeUrl });
+        const addRes = addToWishlist(globalThis.localStorage, { appId, title, storeUrl, genres });
         if (!addRes.success && addRes.error) {
           showToast(addRes.error);
           announceMessage(addRes.error);
@@ -2315,6 +2831,70 @@ if (els.comparisonDialog) {
   });
 }
 
+// Event listener untuk kontrol riwayat sesi obrolan (Modul P4)
+if (els.sessionsBtn) {
+  els.sessionsBtn.addEventListener("click", openSessionsDrawer);
+}
+
+if (els.sessionsCloseBtn) {
+  els.sessionsCloseBtn.addEventListener("click", closeSessionsDrawer);
+}
+
+if (els.sessionsBackdrop) {
+  els.sessionsBackdrop.addEventListener("click", closeSessionsDrawer);
+}
+
+if (els.newSessionBtn) {
+  els.newSessionBtn.addEventListener("click", handleNewSession);
+}
+
+if (els.drawerNewSessionBtn) {
+  els.drawerNewSessionBtn.addEventListener("click", handleNewSession);
+}
+
+if (els.sessionsPanel) {
+  els.sessionsPanel.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeSessionsDrawer();
+      return;
+    }
+
+    if (e.key === "Tab") {
+      const focusables = Array.from(
+        els.sessionsPanel.querySelectorAll(
+          'button:not([disabled]):not([hidden]), a[href]:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => {
+        if (el === els.sessionsCloseBtn) return true;
+        return el.closest("[hidden]") === null && (el.offsetParent !== null || el.getClientRects().length > 0);
+      });
+
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      if (focusables.length === 1) {
+        e.preventDefault();
+        focusables[0].focus();
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  });
+}
+
 /* Inisialisasi dan muat riwayat sesi */
 migrateWishlist(globalThis.localStorage);
 renderQuickPrompts();
@@ -2324,16 +2904,19 @@ loadPreferencesFromStorage();
 updateFilterUI();
 setToolbarCollapsed(isToolbarCollapsed);
 
-const savedHistory = loadHistoryFromStorage();
-if (savedHistory.length > 0) {
-  history = savedHistory;
-  setWelcomeVisible(false);
-  history.forEach((msg) => {
-    addMessage(msg.role === "user" ? "user" : "bot", msg.text);
-  });
-} else {
-  setWelcomeVisible(true);
-}
+// Memuat riwayat multi-sesi via IndexedDB (Modul P4)
+initChatSessions();
 
 requestAnimationFrame(updateToolbarScrollEdges);
 els.input.focus({ preventScroll: true });
+
+/* Registrasi Service Worker untuk Progressive Web App (Modul P3) */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("./sw.js")
+      .catch((err) => {
+        console.warn("Registrasi Service Worker gagal:", err);
+      });
+  });
+}

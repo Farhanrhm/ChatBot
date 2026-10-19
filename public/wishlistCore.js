@@ -160,11 +160,24 @@ export function sanitizeWishlistItem(raw, options) {
     addedAt = trimmed;
   }
 
+  let genres = [];
+  if (Array.isArray(item.genres)) {
+    genres = item.genres
+      .map((g) => (typeof g === 'string' ? g.trim() : ''))
+      .filter((g) => g.length > 0);
+  } else if (typeof item.genres === 'string' && item.genres.trim()) {
+    genres = item.genres
+      .split(',')
+      .map((g) => g.trim())
+      .filter((g) => g.length > 0);
+  }
+
   return {
     appId,
     title,
     storeUrl,
     addedAt,
+    genres,
   };
 }
 
@@ -564,15 +577,66 @@ function createWishlistComparator(sortBy) {
 }
 
 /**
+ * Mengekstrak 5 hingga 7 tag genre paling sering muncul dari daftar wishlist.
+ * Mengembalikan array string genre unik yang diurutkan dari frekuensi tertinggi ke terendah,
+ * dengan tie-breaker abjad alfabetis.
+ *
+ * @param {Array<object>} wishlistItems - Daftar item wishlist
+ * @param {number} [limit=7] - Batas maksimal genre yang dikembalikan (default: 7)
+ * @returns {Array<string>} Array genre terurut berdasarkan frekuensi
+ */
+export function extractTopGenres(wishlistItems, limit = 7) {
+  if (!Array.isArray(wishlistItems) || wishlistItems.length === 0) {
+    return [];
+  }
+
+  const safeLimit = (typeof limit === 'number' && limit > 0) ? Math.min(limit, 20) : 7;
+  const genreCounts = new Map();
+
+  for (const item of wishlistItems) {
+    if (!item || typeof item !== 'object') continue;
+    let list = [];
+    if (Array.isArray(item.genres)) {
+      list = item.genres;
+    } else if (typeof item.genres === 'string' && item.genres.trim()) {
+      list = item.genres.split(',');
+    }
+
+    const seenInItem = new Set();
+    for (const rawGenre of list) {
+      if (typeof rawGenre !== 'string') continue;
+      const clean = rawGenre.trim();
+      if (!clean) continue;
+      const lower = clean.toLowerCase();
+      if (seenInItem.has(lower)) continue;
+      seenInItem.add(lower);
+
+      const existing = genreCounts.get(lower) || { name: clean, count: 0 };
+      existing.count += 1;
+      genreCounts.set(lower, existing);
+    }
+  }
+
+  const sorted = Array.from(genreCounts.values()).sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.name.localeCompare(b.name, 'id', { sensitivity: 'base' });
+  });
+
+  return sorted.slice(0, safeLimit).map((entry) => entry.name);
+}
+
+/**
  * Fungsi murni untuk memfilter dan mengurutkan daftar wishlist.
+ * Mendukung penyaringan kueri teks judul dan chip genre aktif sekaligus.
  * Mengembalikan array baru tanpa mengubah array input atau objek item.
  *
  * @param {Array<object>} items - Daftar item wishlist
  * @param {string} [query=''] - Kueri pencarian teks
  * @param {string} [sortBy='latest'] - Mode pengurutan ('latest', 'oldest', 'alpha-asc')
+ * @param {string} [selectedGenre=''] - Filter genre aktif ('', 'all', 'semua', atau nama genre)
  * @returns {Array<object>} Array baru berisi referensi item yang cocok dan terurut
  */
-export function filterAndSortWishlist(items, query = '', sortBy = 'latest') {
+export function filterAndSortWishlist(items, query = '', sortBy = 'latest', selectedGenre = '') {
   if (!Array.isArray(items)) {
     return [];
   }
@@ -583,6 +647,9 @@ export function filterAndSortWishlist(items, query = '', sortBy = 'latest') {
 
   const rawQuery = typeof query === 'string' ? query : '';
   const normQuery = normalizeSearchText(rawQuery);
+
+  const rawGenre = typeof selectedGenre === 'string' ? selectedGenre.trim().toLowerCase() : '';
+  const isGenreActive = rawGenre !== '' && rawGenre !== 'all' && rawGenre !== 'semua';
 
   const matchedEntries = [];
 
@@ -596,14 +663,250 @@ export function filterAndSortWishlist(items, query = '', sortBy = 'latest') {
     const rawTitle = typeof item.title === 'string' ? item.title : '';
     const normTitle = normalizeSearchText(rawTitle);
 
-    if (normQuery === '') {
-      matchedEntries.push({ item, originalIndex: i });
-    } else if (normTitle !== '' && normTitle.includes(normQuery)) {
-      matchedEntries.push({ item, originalIndex: i });
+    const matchesQuery = normQuery === '' || (normTitle !== '' && normTitle.includes(normQuery));
+    if (!matchesQuery) {
+      continue;
     }
+
+    if (isGenreActive) {
+      let itemGenres = [];
+      if (Array.isArray(item.genres)) {
+        itemGenres = item.genres;
+      } else if (typeof item.genres === 'string' && item.genres.trim()) {
+        itemGenres = item.genres.split(',');
+      }
+
+      const hasMatchingGenre = itemGenres.some(
+        (g) => typeof g === 'string' && g.trim().toLowerCase() === rawGenre
+      );
+      if (!hasMatchingGenre) {
+        continue;
+      }
+    }
+
+    matchedEntries.push({ item, originalIndex: i });
   }
 
   matchedEntries.sort(createWishlistComparator(safeSortBy));
 
   return matchedEntries.map((entry) => entry.item);
 }
+
+/**
+ * Mengekspor daftar wishlist ke format JSON dengan metadata versioning "1.0".
+ *
+ * @param {Array<object>} wishlist - Daftar item wishlist
+ * @param {object} [options]
+ * @param {string} [options.source='SteamScout']
+ * @returns {string} String JSON valid terindentasi
+ */
+export function exportWishlistToJSON(wishlist, options = {}) {
+  const list = Array.isArray(wishlist) ? wishlist : [];
+  const sanitizedItems = list
+    .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => sanitizeWishlistItem(item));
+
+  const source = options && typeof options === 'object' && typeof options.source === 'string' && options.source.trim()
+    ? options.source.trim()
+    : 'SteamScout';
+
+  const payload = {
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    source,
+    itemCount: sanitizedItems.length,
+    items: sanitizedItems,
+  };
+
+  return JSON.stringify(payload, null, 2);
+}
+
+/**
+ * Mengekspor daftar wishlist ke format teks Markdown rapi untuk dibagikan ke Discord atau Reddit.
+ *
+ * @param {Array<object>} wishlist - Daftar item wishlist
+ * @returns {string} Teks Markdown rapi
+ */
+export function exportWishlistToMarkdown(wishlist) {
+  const list = Array.isArray(wishlist) ? wishlist : [];
+  const validItems = list
+    .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => sanitizeWishlistItem(item));
+
+  const count = validItems.length;
+  const lines = [`**SteamScout Wishlist (${count} Game)**`];
+
+  if (count === 0) {
+    lines.push('Wishlist masih kosong.');
+  } else {
+    validItems.forEach((item, idx) => {
+      const num = idx + 1;
+      const title = item.title || 'Game Steam';
+      const storeUrl = item.storeUrl || (item.appId ? `https://store.steampowered.com/app/${item.appId}/` : '');
+      const link = storeUrl ? `[${title}](${storeUrl})` : title;
+      lines.push(`${num}. ${link}`);
+    });
+  }
+
+  lines.push('*Diekspor dari SteamScout - Kurator Game PC*');
+  return lines.join('\n');
+}
+
+/**
+ * Memvalidasi dan mem-parse data JSON impor, lalu menggabungkannya secara cerdas
+ * dengan daftar wishlist saat ini tanpa duplikasi dan menjaga batas maksimal.
+ *
+ * @param {string} jsonString - Teks JSON dari berkas cadangan
+ * @param {Array<object>} [currentWishlist=[]] - Daftar wishlist saat ini
+ * @param {number} [maxItems=MAX_WISHLIST_ITEMS] - Batas maksimal item
+ * @returns {{ success: boolean, list: Array<object>, addedCount: number, upgradedCount: number, error?: string, message?: string }}
+ */
+export function parseAndValidateImportData(jsonString, currentWishlist = [], maxItems = MAX_WISHLIST_ITEMS) {
+  if (typeof jsonString !== 'string' || !jsonString.trim()) {
+    return {
+      success: false,
+      list: Array.isArray(currentWishlist) ? currentWishlist.map((item) => sanitizeWishlistItem(item)) : [],
+      addedCount: 0,
+      upgradedCount: 0,
+      error: 'Data JSON kosong atau tidak valid.',
+    };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonString);
+  } catch (err) {
+    return {
+      success: false,
+      list: Array.isArray(currentWishlist) ? currentWishlist.map((item) => sanitizeWishlistItem(item)) : [],
+      addedCount: 0,
+      upgradedCount: 0,
+      error: 'Format berkas rusak atau bukan JSON yang valid.',
+    };
+  }
+
+  let rawItems = [];
+
+  if (Array.isArray(parsed)) {
+    rawItems = parsed;
+  } else if (parsed && typeof parsed === 'object') {
+    if (Array.isArray(parsed.items)) {
+      rawItems = parsed.items;
+    } else {
+      return {
+        success: false,
+        list: Array.isArray(currentWishlist) ? currentWishlist.map((item) => sanitizeWishlistItem(item)) : [],
+        addedCount: 0,
+        upgradedCount: 0,
+        error: 'Struktur berkas tidak memuat daftar item wishlist.',
+      };
+    }
+  } else {
+    return {
+      success: false,
+      list: Array.isArray(currentWishlist) ? currentWishlist.map((item) => sanitizeWishlistItem(item)) : [],
+      addedCount: 0,
+      upgradedCount: 0,
+      error: 'Payload JSON tidak dapat dikenali.',
+    };
+  }
+
+  // Sanitasi item impor
+  const validImported = rawItems
+    .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => sanitizeWishlistItem(item, { stampMissing: true }))
+    .filter((item) => {
+      const hasTitle = Boolean(item.title && item.title.trim().length > 0 && item.title !== 'Game Steam');
+      const hasAppId = Boolean(item.appId);
+      return hasTitle || hasAppId;
+    });
+
+  if (validImported.length === 0) {
+    return {
+      success: false,
+      list: Array.isArray(currentWishlist) ? currentWishlist.map((item) => sanitizeWishlistItem(item)) : [],
+      addedCount: 0,
+      upgradedCount: 0,
+      error: 'Berkas tidak memuat game yang valid untuk diimpor.',
+    };
+  }
+
+  // Mulai penggabungan dengan currentWishlist
+  const baseList = Array.isArray(currentWishlist)
+    ? currentWishlist.map((item) => sanitizeWishlistItem(item))
+    : [];
+
+  let addedCount = 0;
+  let upgradedCount = 0;
+
+  for (const importedItem of validImported) {
+    const existingIndex = baseList.findIndex((item) => isSameGame(item, importedItem));
+
+    if (existingIndex !== -1) {
+      const existingItem = baseList[existingIndex];
+      // Cek apakah bisa di-upgrade (existing tanpa appId, imported memiliki appId)
+      if (!existingItem.appId && importedItem.appId) {
+        baseList[existingIndex] = {
+          ...existingItem,
+          appId: importedItem.appId,
+          storeUrl: importedItem.storeUrl || `https://store.steampowered.com/app/${importedItem.appId}/`,
+        };
+        upgradedCount++;
+      }
+      continue;
+    }
+
+    if (baseList.length < maxItems) {
+      baseList.push(importedItem);
+      addedCount++;
+    }
+  }
+
+  let message = '';
+  if (addedCount > 0 && upgradedCount > 0) {
+    message = `Berhasil mengimpor ${addedCount} game baru dan memperbarui ${upgradedCount} game.`;
+  } else if (addedCount > 0) {
+    message = `Berhasil mengimpor ${addedCount} game baru ke wishlist.`;
+  } else if (upgradedCount > 0) {
+    message = `Berhasil memperbarui ${upgradedCount} game dengan data resmi Steam.`;
+  } else {
+    message = 'Semua game dalam berkas sudah ada di wishlist Anda.';
+  }
+
+  return {
+    success: true,
+    list: baseList,
+    addedCount,
+    upgradedCount,
+    message,
+  };
+}
+
+/**
+ * Mengimpor data JSON ke storage browser dan menyimpannya.
+ *
+ * @param {object} storage
+ * @param {string} jsonString
+ * @param {number} [maxItems=MAX_WISHLIST_ITEMS]
+ * @returns {{ success: boolean, list: Array<object>, addedCount: number, upgradedCount: number, error?: string, message?: string }}
+ */
+export function importWishlistFromJSON(storage = globalThis.localStorage, jsonString, maxItems = MAX_WISHLIST_ITEMS) {
+  const currentWishlist = getWishlist(storage);
+  const result = parseAndValidateImportData(jsonString, currentWishlist, maxItems);
+
+  if (result.success && (result.addedCount > 0 || result.upgradedCount > 0)) {
+    const saveResult = saveWishlist(storage, result.list);
+    if (!saveResult) {
+      return {
+        success: false,
+        list: currentWishlist,
+        addedCount: 0,
+        upgradedCount: 0,
+        error: 'Gagal menyimpan hasil impor ke penyimpanan browser.',
+      };
+    }
+  }
+
+  return result;
+}
+

@@ -1535,3 +1535,390 @@ test('wishlistCore (Langkah 2.3b #8): removeFromWishlist mempertahankan addedAt 
   assert.equal(storedList[0].addedAt, '');
   assert.equal(storedList[1].addedAt, '');
 });
+
+test('exportWishlistToJSON: menghasilkan JSON valid dengan version "1.0", itemCount, dan item tersanitasi', async () => {
+  const { exportWishlistToJSON } = await import('../public/wishlistCore.js');
+  const input = [
+    { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z' },
+    { appId: 588650, title: 'Dead Cells', storeUrl: 'https://store.steampowered.com/app/588650/' },
+  ];
+
+  const jsonStr = exportWishlistToJSON(input);
+  const parsed = JSON.parse(jsonStr);
+
+  assert.equal(parsed.version, '1.0');
+  assert.equal(parsed.source, 'SteamScout');
+  assert.equal(parsed.itemCount, 2);
+  assert.equal(Array.isArray(parsed.items), true);
+  assert.equal(parsed.items.length, 2);
+  assert.equal(parsed.items[0].appId, 1145360);
+  assert.equal(parsed.items[0].title, 'Hades');
+  assert.equal(parsed.items[0].storeUrl, 'https://store.steampowered.com/app/1145360/');
+  assert.ok(parsed.exportedAt);
+});
+
+test('exportWishlistToJSON: toleran terhadap input non-array atau objek invalid', async () => {
+  const { exportWishlistToJSON } = await import('../public/wishlistCore.js');
+  const jsonNull = exportWishlistToJSON(null);
+  const parsedNull = JSON.parse(jsonNull);
+  assert.equal(parsedNull.version, '1.0');
+  assert.equal(parsedNull.itemCount, 0);
+  assert.deepEqual(parsedNull.items, []);
+
+  const jsonDirty = exportWishlistToJSON([null, undefined, 'bukan objek', { title: 'Hollow Knight', appId: 367520 }]);
+  const parsedDirty = JSON.parse(jsonDirty);
+  assert.equal(parsedDirty.itemCount, 1);
+  assert.equal(parsedDirty.items[0].title, 'Hollow Knight');
+});
+
+test('exportWishlistToMarkdown: memformat teks Markdown untuk Discord/Reddit dengan tautan toko resmi', async () => {
+  const { exportWishlistToMarkdown } = await import('../public/wishlistCore.js');
+  const input = [
+    { appId: 1145360, title: 'Hades' },
+    { title: 'Game Tanpa ID', storeUrl: 'https://store.steampowered.com/search/?term=Game%20Tanpa%20ID' },
+  ];
+
+  const md = exportWishlistToMarkdown(input);
+  assert.ok(md.includes('**SteamScout Wishlist (2 Game)**'));
+  assert.ok(md.includes('1. [Hades](https://store.steampowered.com/app/1145360/)'));
+  assert.ok(md.includes('2. [Game Tanpa ID](https://store.steampowered.com/search/?term=Game%20Tanpa%20ID)'));
+  assert.ok(md.includes('*Diekspor dari SteamScout - Kurator Game PC*'));
+});
+
+test('exportWishlistToMarkdown: menangani wishlist kosong dengan pesan informatif', async () => {
+  const { exportWishlistToMarkdown } = await import('../public/wishlistCore.js');
+  const md = exportWishlistToMarkdown([]);
+  assert.ok(md.includes('**SteamScout Wishlist (0 Game)**'));
+  assert.ok(md.includes('Wishlist masih kosong.'));
+});
+
+test('parseAndValidateImportData: menerima format ber-version "1.0" dan format array legacy', async () => {
+  const { parseAndValidateImportData } = await import('../public/wishlistCore.js');
+
+  // Format 1.0
+  const jsonV1 = JSON.stringify({
+    version: '1.0',
+    items: [
+      { appId: 105600, title: 'Terraria' },
+      { appId: 413150, title: 'Stardew Valley' },
+    ],
+  });
+  const resV1 = parseAndValidateImportData(jsonV1, []);
+  assert.equal(resV1.success, true);
+  assert.equal(resV1.addedCount, 2);
+  assert.equal(resV1.list.length, 2);
+  assert.equal(resV1.list[0].title, 'Terraria');
+
+  // Format legacy array
+  const jsonLegacy = JSON.stringify([
+    { appId: 268910, title: 'Cuphead' },
+  ]);
+  const resLegacy = parseAndValidateImportData(jsonLegacy, []);
+  assert.equal(resLegacy.success, true);
+  assert.equal(resLegacy.addedCount, 1);
+  assert.equal(resLegacy.list[0].title, 'Cuphead');
+});
+
+test('parseAndValidateImportData: menolak JSON rusak, string kosong, atau struktur tanpa items', async () => {
+  const { parseAndValidateImportData } = await import('../public/wishlistCore.js');
+
+  const resEmpty = parseAndValidateImportData('');
+  assert.equal(resEmpty.success, false);
+  assert.ok(resEmpty.error);
+
+  const resMalformed = parseAndValidateImportData('{ rusak json: 123');
+  assert.equal(resMalformed.success, false);
+  assert.ok(resMalformed.error);
+
+  const resNoItems = parseAndValidateImportData(JSON.stringify({ name: 'Bukan Wishlist' }));
+  assert.equal(resNoItems.success, false);
+  assert.ok(resNoItems.error);
+
+  const resEmptyItems = parseAndValidateImportData(JSON.stringify({ version: '1.0', items: [] }));
+  assert.equal(resEmptyItems.success, false);
+  assert.ok(resEmptyItems.error);
+});
+
+test('parseAndValidateImportData: smart merge mencegah duplikasi, menghormati maxItems, dan auto-upgrade', async () => {
+  const { parseAndValidateImportData } = await import('../public/wishlistCore.js');
+
+  const current = [
+    { appId: 1145360, title: 'Hades', addedAt: '2026-01-01T00:00:00.000Z' },
+    { title: 'Celeste', addedAt: '2026-01-02T00:00:00.000Z' },
+  ];
+
+  const importPayload = JSON.stringify({
+    version: '1.0',
+    items: [
+      { appId: 1145360, title: 'Hades' },
+      { appId: 504230, title: 'Celeste' },
+      { appId: 367520, title: 'Hollow Knight' },
+    ],
+  });
+
+  const res = parseAndValidateImportData(importPayload, current, 50);
+  assert.equal(res.success, true);
+  assert.equal(res.addedCount, 1);
+  assert.equal(res.upgradedCount, 1);
+  assert.equal(res.list.length, 3);
+
+  const celeste = res.list.find((g) => g.title === 'Celeste');
+  assert.equal(celeste.appId, 504230);
+  assert.equal(celeste.addedAt, '2026-01-02T00:00:00.000Z');
+
+  const resMax = parseAndValidateImportData(importPayload, current, 2);
+  assert.equal(resMax.addedCount, 0);
+  assert.equal(resMax.upgradedCount, 1);
+  assert.equal(resMax.list.length, 2);
+});
+
+test('importWishlistFromJSON: memperbarui storage saat ada penambahan/upgrade dan aman saat error', async () => {
+  const { importWishlistFromJSON, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+
+  const storage = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify([
+      { appId: 1145360, title: 'Hades' },
+    ]),
+  });
+
+  const importPayload = JSON.stringify({
+    version: '1.0',
+    items: [
+      { appId: 588650, title: 'Dead Cells' },
+    ],
+  });
+
+  const res = importWishlistFromJSON(storage, importPayload);
+  assert.equal(res.success, true);
+  assert.equal(res.addedCount, 1);
+
+  const stored = JSON.parse(storage.getItem(WISHLIST_STORAGE_KEY));
+  assert.equal(stored.length, 2);
+  assert.equal(stored[1].title, 'Dead Cells');
+
+  const resDup = importWishlistFromJSON(storage, importPayload);
+  assert.equal(resDup.success, true);
+  assert.equal(resDup.addedCount, 0);
+  assert.equal(resDup.message, 'Semua game dalam berkas sudah ada di wishlist Anda.');
+});
+
+test('extractTopGenres: mengembalikan array kosong untuk input kosong atau bukan array', async () => {
+  const { extractTopGenres } = await import('../public/wishlistCore.js');
+  assert.deepEqual(extractTopGenres(null), []);
+  assert.deepEqual(extractTopGenres([]), []);
+  assert.deepEqual(extractTopGenres('bukan array'), []);
+  assert.deepEqual(extractTopGenres([null, undefined, 123]), []);
+});
+
+test('extractTopGenres: mengurutkan berdasarkan frekuensi kemunculan terbanyak dan membatasi sesuai limit (default 7)', async () => {
+  const { extractTopGenres } = await import('../public/wishlistCore.js');
+  const wishlist = [
+    { title: 'Game 1', genres: ['Action', 'RPG', 'Roguelite', 'Indie'] },
+    { title: 'Game 2', genres: ['Roguelite', 'Action', 'Indie'] },
+    { title: 'Game 3', genres: ['Roguelite', 'Indie', 'Adventure'] },
+    { title: 'Game 4', genres: ['Roguelite', 'Strategy'] },
+    { title: 'Game 5', genres: ['RPG', 'Story Rich'] },
+    { title: 'Game 6', genres: ['Puzzle', 'Platformer', 'Atmospheric', 'Sci-Fi'] },
+  ];
+
+  // Roguelite (4), Indie (3), Action (2), RPG (2)
+  const top7 = extractTopGenres(wishlist, 7);
+  assert.equal(top7[0], 'Roguelite');
+  assert.equal(top7[1], 'Indie');
+  assert.ok(top7.includes('Action'));
+  assert.ok(top7.includes('RPG'));
+  assert.equal(top7.length, 7);
+
+  // Batas 3 teratas
+  const top3 = extractTopGenres(wishlist, 3);
+  assert.equal(top3.length, 3);
+  assert.equal(top3[0], 'Roguelite');
+  assert.equal(top3[1], 'Indie');
+});
+
+test('extractTopGenres: tie-breaker alfabetis saat frekuensi kemunculan genre sama', async () => {
+  const { extractTopGenres } = await import('../public/wishlistCore.js');
+  const wishlist = [
+    { title: 'Game 1', genres: ['Zombies', 'Action'] },
+    { title: 'Game 2', genres: ['Action', 'Zombies'] },
+  ];
+  // Action (2), Zombies (2) -> Action duluan
+  const top = extractTopGenres(wishlist);
+  assert.equal(top[0], 'Action');
+  assert.equal(top[1], 'Zombies');
+});
+
+test('filterAndSortWishlist: menyaring game berdasarkan parameter selectedGenre', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+  const items = [
+    { appId: 1, title: 'Hades', genres: ['Roguelite', 'Action'] },
+    { appId: 2, title: 'Stardew Valley', genres: ['Farming Sim', 'RPG'] },
+    { appId: 3, title: 'Dead Cells', genres: ['Roguelite', 'Metroidvania'] },
+  ];
+
+  // Filter Roguelite
+  const roguelites = filterAndSortWishlist(items, '', 'latest', 'Roguelite');
+  assert.equal(roguelites.length, 2);
+  assert.ok(roguelites.some((g) => g.title === 'Hades'));
+  assert.ok(roguelites.some((g) => g.title === 'Dead Cells'));
+
+  // Filter RPG
+  const rpgs = filterAndSortWishlist(items, '', 'latest', 'RPG');
+  assert.equal(rpgs.length, 1);
+  assert.equal(rpgs[0].title, 'Stardew Valley');
+
+  // Filter "all" atau "" tidak memfilter genre
+  const all1 = filterAndSortWishlist(items, '', 'latest', 'all');
+  assert.equal(all1.length, 3);
+  const all2 = filterAndSortWishlist(items, '', 'latest', '');
+  assert.equal(all2.length, 3);
+});
+
+test('filterAndSortWishlist: mengombinasikan filter genre, kueri pencarian teks, dan pengurutan deterministik', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+  const items = [
+    { appId: 1, title: 'Dark Souls', genres: ['Action', 'RPG'], addedAt: '2026-01-01T00:00:00.000Z' },
+    { appId: 2, title: 'Dark Souls II', genres: ['Action', 'RPG'], addedAt: '2026-01-02T00:00:00.000Z' },
+    { appId: 3, title: 'Darksiders', genres: ['Action', 'Hack and Slash'], addedAt: '2026-01-03T00:00:00.000Z' },
+  ];
+
+  // Cari "dark", genre "RPG", sortir alpha-asc
+  const res = filterAndSortWishlist(items, 'dark', 'alpha-asc', 'RPG');
+  assert.equal(res.length, 2);
+  assert.equal(res[0].title, 'Dark Souls');
+  assert.equal(res[1].title, 'Dark Souls II');
+});
+
+test('PWA (Modul P3): berkas manifest.json valid dan memenuhi standar PWA', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+  const manifestPath = path.resolve('public/manifest.json');
+  assert.ok(fs.existsSync(manifestPath), 'manifest.json harus ada di folder public');
+
+  const content = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  assert.equal(content.name, 'SteamScout: Kurator Game PC');
+  assert.equal(content.short_name, 'SteamScout');
+  assert.equal(content.display, 'standalone');
+  assert.equal(content.theme_color, '#171a21');
+  assert.equal(content.background_color, '#171a21');
+  assert.ok(Array.isArray(content.icons) && content.icons.length > 0, 'Harus memiliki ikon');
+});
+
+test('PWA (Modul P3): berkas sw.js menerapkan caching UI dan Network-Only untuk API', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+  const swPath = path.resolve('public/sw.js');
+  assert.ok(fs.existsSync(swPath), 'sw.js harus ada di folder public');
+
+  const content = fs.readFileSync(swPath, 'utf8');
+  assert.ok(content.includes('steamscout-shell-v1'), 'Harus mendefinisikan CACHE_NAME');
+  assert.ok(content.includes('url.pathname.startsWith("/api/")'), 'Harus strict Network-Only untuk endpoint API');
+  assert.ok(content.includes('caches.match'), 'Harus menerapkan Cache matching');
+});
+
+test('chatHistoryCore (Modul P4): sanitizeSessionTitle merapikan spasi dan memotong panjang string dengan aman', async () => {
+  const { sanitizeSessionTitle } = await import('../public/chatHistoryCore.js');
+  assert.equal(sanitizeSessionTitle(''), 'Obrolan Baru');
+  assert.equal(sanitizeSessionTitle(null), 'Obrolan Baru');
+  assert.equal(sanitizeSessionTitle('   Cari game    roguelite seru   '), 'Cari game roguelite seru');
+  assert.equal(sanitizeSessionTitle('Game RPG dengan alur cerita luar biasa dan grafis memukau', 20), 'Game RPG dengan alur…');
+});
+
+test('chatHistoryCore (Modul P4): createSession, getSession, dan saveSession mengelola sesi secara independen', async () => {
+  const { createSession, getSession, saveSession, clearAllSessions } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  const sess = await createSession({
+    title: 'Sesi Uji Coba',
+    messages: [{ role: 'user', text: 'Halo SteamScout' }],
+  });
+
+  assert.ok(sess.id && sess.id.startsWith('session_'));
+  assert.equal(sess.title, 'Sesi Uji Coba');
+  assert.equal(sess.messages.length, 1);
+
+  const fetched = await getSession(sess.id);
+  assert.ok(fetched);
+  assert.equal(fetched.id, sess.id);
+  assert.equal(fetched.messages[0].text, 'Halo SteamScout');
+
+  // Perbarui pesan sesi
+  sess.messages.push({ role: 'model', text: 'Halo! Ada yang bisa dibantu?' });
+  const saved = await saveSession(sess);
+  assert.equal(saved.messages.length, 2);
+
+  const refetched = await getSession(sess.id);
+  assert.equal(refetched.messages.length, 2);
+});
+
+test('chatHistoryCore (Modul P4): getAllSessions mengurutkan sesi berdasarkan waktu pembaruan terbaru (updatedAt descending)', async () => {
+  const { createSession, saveSession, getAllSessions, clearAllSessions } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  const s1 = await createSession({ title: 'Sesi Pertama', messages: [] });
+  // Berikan sedikit jeda
+  await new Promise((r) => setTimeout(r, 10));
+  const s2 = await createSession({ title: 'Sesi Kedua', messages: [] });
+
+  let all = await getAllSessions();
+  assert.equal(all.length, 2);
+  assert.equal(all[0].id, s2.id); // S2 lebih baru
+  assert.equal(all[1].id, s1.id);
+
+  // Perbarui S1 agar menjadi yang paling baru
+  await new Promise((r) => setTimeout(r, 10));
+  s1.messages.push({ role: 'user', text: 'Update S1' });
+  await saveSession(s1);
+
+  all = await getAllSessions();
+  assert.equal(all[0].id, s1.id); // Sekarang S1 di urutan pertama
+  assert.equal(all[1].id, s2.id);
+});
+
+test('chatHistoryCore (Modul P4): deleteSession menghapus sesi spesifik dan clearAllSessions mengosongkan seluruh sesi', async () => {
+  const { createSession, getSession, deleteSession, clearAllSessions, getAllSessions } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  const s1 = await createSession({ title: 'Sesi 1' });
+  const s2 = await createSession({ title: 'Sesi 2' });
+
+  const delResult = await deleteSession(s1.id);
+  assert.equal(delResult, true);
+  assert.equal(await getSession(s1.id), null);
+  assert.ok(await getSession(s2.id));
+
+  await clearAllSessions();
+  const emptyList = await getAllSessions();
+  assert.equal(emptyList.length, 0);
+});
+
+test('chatHistoryCore (Modul P4): migrateFromLegacyStorage memigrasikan riwayat sessionStorage lawas tanpa duplikasi', async () => {
+  const { migrateFromLegacyStorage, clearAllSessions, getAllSessions } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  const mockStorage = {
+    data: {
+      steamscout_chat_history: JSON.stringify([
+        { role: 'user', text: 'Rekomendasi game indie' },
+        { role: 'model', text: 'Berikut rekomendasinya...' },
+      ]),
+    },
+    getItem(k) { return this.data[k] || null; },
+  };
+
+  const migrated = await migrateFromLegacyStorage(mockStorage);
+  assert.ok(migrated);
+  assert.equal(migrated.title, 'Rekomendasi game indie');
+  assert.equal(migrated.messages.length, 2);
+
+  // Migrasi kedua tidak boleh menduplikasi karena sudah ada sesi di DB
+  const secondTry = await migrateFromLegacyStorage(mockStorage);
+  assert.equal(secondTry, null);
+
+  const all = await getAllSessions();
+  assert.equal(all.length, 1);
+});
+
+
+
+

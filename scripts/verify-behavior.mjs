@@ -375,6 +375,11 @@ try {
   const focusEmptyStart = await pageFocus.evaluate(() => document.activeElement.id);
   await pageFocus.keyboard.press('Tab');
   const focusEmptyTab = await pageFocus.evaluate(() => document.activeElement.id);
+  // Navigasi Tab berlanjut melewati tombol aksi hingga berputar kembali ke tombol tutup
+  await pageFocus.keyboard.press('Tab'); // ke wishlist-copy-btn
+  await pageFocus.keyboard.press('Tab'); // ke wishlist-import-btn
+  await pageFocus.keyboard.press('Tab'); // wrap kembali ke wishlist-close-btn
+  const focusWrapped = await pageFocus.evaluate(() => document.activeElement.id);
   await pageFocus.keyboard.press('Escape');
 
   // Tunggu drawer tertutup
@@ -387,11 +392,13 @@ try {
   const drawerHiddenEmpty = await pageFocus.$eval('#wishlist-panel', (el) => el.hidden);
 
   const passFocusEmpty = focusEmptyStart === 'wishlist-close-btn' &&
-                         focusEmptyTab === 'wishlist-close-btn' &&
+                         focusEmptyTab === 'wishlist-export-btn' &&
+                         focusWrapped === 'wishlist-close-btn' &&
                          drawerHiddenEmpty &&
                          focusAfterEsc === 'wishlist-btn';
 
-  await recordResult('Focus trap saat drawer kosong (menahan fokus dan kembali ke tombol pembuka via Esc)', passFocusEmpty, `Awal: ${focusEmptyStart}, Tab: ${focusEmptyTab}, Pulih: ${focusAfterEsc}`, pageFocus);
+  await recordResult('Focus trap saat drawer kosong (menahan fokus dan kembali ke tombol pembuka via Esc)', passFocusEmpty, `Awal: ${focusEmptyStart}, Tab1: ${focusEmptyTab}, Wrap: ${focusWrapped}, Pulih: ${focusAfterEsc}`, pageFocus);
+
 
   // B. Drawer saat daftar terisi item
   await pageFocus.evaluate(() => {
@@ -840,6 +847,11 @@ try {
   const passWatchdogA = streamCalledA && fallbackPostCalledA;
   await recordResult('Watchdog sebelum token pertama: stream macet fallback otomatis ke POST /api/chat', passWatchdogA, `Stream dipanggil: ${streamCalledA}, Fallback POST: ${fallbackPostCalledA}`, pageWatchdogA);
 
+  await pageWatchdogA.evaluate(() => {
+    try {
+      indexedDB.deleteDatabase('SteamScoutDB');
+    } catch {}
+  });
   await pageWatchdogA.close();
 
   // B. Macet DI TENGAH stream (setelah token intro tampil): pertahankan teks parsial, tampilkan notifikasi ramah & tombol Coba lagi
@@ -848,6 +860,10 @@ try {
   await pageWatchdogB.evaluateOnNewDocument(() => {
     window.__STREAM_FIRST_TIMEOUT_MS = 800;
     window.__STREAM_INTER_TIMEOUT_MS = 300;
+    try {
+      sessionStorage.clear();
+      indexedDB.deleteDatabase('SteamScoutDB');
+    } catch {}
   });
 
   await pageWatchdogB.setRequestInterception(true);
@@ -925,9 +941,13 @@ try {
 
   const userMsgCountAfter = await pageWatchdogB.$$eval('.msg.user', (els) => els.length);
   const passNoDuplicate = retryRequestSent && userMsgCountBefore === 1 && userMsgCountAfter === 1;
-
   await recordResult('Tombol Coba lagi tidak menambah pesan user ganda', passNoDuplicate, `Request terkirim: ${retryRequestSent}, Jumlah pesan user: sebelum = ${userMsgCountBefore}, sesudah = ${userMsgCountAfter}`, pageWatchdogB);
 
+  await pageWatchdogB.evaluate(() => {
+    try {
+      indexedDB.deleteDatabase('SteamScoutDB');
+    } catch {}
+  });
   await pageWatchdogB.close();
   activePage = null;
 
@@ -940,6 +960,9 @@ try {
   await pageComp.evaluate(() => {
     localStorage.clear();
     sessionStorage.clear();
+    try {
+      indexedDB.deleteDatabase('SteamScoutDB');
+    } catch {}
     const messages = document.getElementById('messages');
     const welcome = document.getElementById('welcome');
     if (welcome) welcome.hidden = true;
@@ -1249,6 +1272,323 @@ try {
   await pageComp.close();
   activePage = null;
 
+  // =========================================================================
+  // PENGUJIAN PERILAKU MODUL P1: EKSPOR & IMPOR WISHLIST
+  // =========================================================================
+  log('\n--- UJI MODUL P1: EKSPOR DAN IMPOR WISHLIST ---');
+  const pageExport = await browser.newPage();
+  activePage = pageExport;
+  await pageExport.setViewport({ width: 1366, height: 768 });
+
+  // Inisialisasi storage dengan 2 game awal (lengkap dengan data genre)
+  await pageExport.goto('http://localhost:3589', { waitUntil: 'networkidle0' });
+  await pageExport.evaluate(() => {
+    const initialList = [
+      { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z', genres: ['Action', 'Roguelite'] },
+      { appId: 588650, title: 'Dead Cells', addedAt: '2026-10-19T10:05:00.000Z', genres: ['Roguelite', 'Metroidvania'] },
+    ];
+    localStorage.setItem('steamscout_wishlist', JSON.stringify(initialList));
+    const btn = document.getElementById('wishlist-btn');
+    if (btn) btn.click();
+  });
+
+  await pageExport.waitForFunction(() => {
+    const panel = document.getElementById('wishlist-panel');
+    return panel && !panel.hidden;
+  }, { timeout: 3000 });
+
+  // Test 9 (Test 27): Tombol salin markdown dan ekspor JSON wishlist memicu toast sukses
+  const exportCopyState = await pageExport.evaluate(async () => {
+    const copyBtn = document.getElementById('wishlist-copy-btn');
+    if (copyBtn) copyBtn.click();
+    await new Promise((r) => setTimeout(r, 80));
+    const toast1 = document.querySelector('.wishlist-toast')?.textContent;
+
+    const exportBtn = document.getElementById('wishlist-export-btn');
+    if (exportBtn) exportBtn.click();
+    await new Promise((r) => setTimeout(r, 80));
+    const toast2 = document.querySelector('.wishlist-toast')?.textContent;
+
+    return {
+      copyToast: toast1,
+      exportToast: toast2,
+    };
+  });
+
+  const passExportCopy = (exportCopyState.copyToast && exportCopyState.copyToast.includes('Daftar game berhasil disalin')) ||
+    (exportCopyState.exportToast && exportCopyState.exportToast.includes('Berhasil mengekspor 2 game'));
+  await recordResult('Tombol salin markdown dan ekspor JSON wishlist memicu notifikasi toast sukses', Boolean(passExportCopy), `Toast salin: "${exportCopyState.copyToast}", Toast ekspor: "${exportCopyState.exportToast}"`, pageExport);
+
+  // Test 10 (Test 28): Impor JSON wishlist memperbarui daftar game secara cerdas tanpa duplikasi
+  await pageExport.evaluate(() => {
+    const importPayload = JSON.stringify({
+      version: '1.0',
+      source: 'SteamScout',
+      itemCount: 2,
+      items: [
+        { appId: 413150, title: 'Stardew Valley', addedAt: '2026-10-19T11:00:00.000Z', genres: ['Farming Sim', 'RPG'] },
+        { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z', genres: ['Action', 'Roguelite'] },
+      ],
+    });
+
+    const input = document.getElementById('wishlist-import-input');
+    const file = new File([importPayload], 'steamscout_backup.json', { type: 'application/json' });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    input.files = dataTransfer.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  await pageExport.waitForFunction(() => {
+    const items = document.querySelectorAll('#wishlist-items .wishlist-item');
+    return items.length >= 3;
+  }, { timeout: 3000 });
+
+  const finalImportState = await pageExport.evaluate(() => {
+    const items = Array.from(document.querySelectorAll('#wishlist-items .wishlist-item-title')).map((el) => el.textContent);
+    const countText = document.getElementById('wishlist-drawer-count')?.textContent;
+    const badgeText = document.getElementById('wishlist-badge')?.textContent;
+    return {
+      items,
+      countText,
+      badgeText,
+    };
+  });
+
+  const passImport = finalImportState.items.includes('Stardew Valley') &&
+    finalImportState.items.length === 3 &&
+    finalImportState.countText === '(3/50)' &&
+    finalImportState.badgeText === '3';
+  await recordResult('Impor berkas JSON wishlist memperbarui daftar game secara cerdas tanpa duplikasi', passImport, `Total game: ${finalImportState.items.length}, Badge: ${finalImportState.badgeText}, Judul: ${JSON.stringify(finalImportState.items)}`, pageExport);
+
+  // Test 11 (Test 29): Quick filter chips genre di drawer wishlist menyaring game sesuai genre aktif (Modul P2)
+  const genreChipState = await pageExport.evaluate(async () => {
+    const chipsContainer = document.getElementById('wishlist-genre-chips');
+    const isVisible = chipsContainer && !chipsContainer.hidden;
+    const chips = Array.from(document.querySelectorAll('#wishlist-genre-chips .wishlist-genre-chip'));
+    const chipLabels = chips.map((c) => c.textContent);
+
+    // 1. Klik chip "Roguelite"
+    const rogueliteBtn = chips.find((c) => c.textContent.trim().toLowerCase() === 'roguelite');
+    if (rogueliteBtn) rogueliteBtn.click();
+    await new Promise((r) => setTimeout(r, 60));
+
+    const rogueliteItems = Array.from(document.querySelectorAll('#wishlist-items .wishlist-item-title')).map((el) => el.textContent);
+    const activeChip1 = document.querySelector('#wishlist-genre-chips .wishlist-genre-chip.is-active')?.textContent?.trim().toLowerCase();
+    const rogueliteActive = activeChip1 === 'roguelite';
+
+    // 2. Klik chip "RPG"
+    const rpgBtn = Array.from(document.querySelectorAll('#wishlist-genre-chips .wishlist-genre-chip')).find((c) => c.textContent.trim().toLowerCase() === 'rpg');
+    if (rpgBtn) rpgBtn.click();
+    await new Promise((r) => setTimeout(r, 60));
+
+    const rpgItems = Array.from(document.querySelectorAll('#wishlist-items .wishlist-item-title')).map((el) => el.textContent);
+    const activeChip2 = document.querySelector('#wishlist-genre-chips .wishlist-genre-chip.is-active')?.textContent?.trim().toLowerCase();
+    const rpgActive = activeChip2 === 'rpg';
+
+    // 3. Klik chip "Semua" untuk mereset filter
+    const allBtn = Array.from(document.querySelectorAll('#wishlist-genre-chips .wishlist-genre-chip')).find((c) => c.dataset.genre === 'all');
+    if (allBtn) allBtn.click();
+    await new Promise((r) => setTimeout(r, 60));
+
+    const allItems = Array.from(document.querySelectorAll('#wishlist-items .wishlist-item-title')).map((el) => el.textContent);
+    const activeChip3 = document.querySelector('#wishlist-genre-chips .wishlist-genre-chip.is-active')?.textContent?.trim().toLowerCase();
+    const allActive = activeChip3 === 'semua';
+
+    return {
+      isVisible,
+      chipLabels,
+      rogueliteItems,
+      rogueliteActive,
+      rpgItems,
+      rpgActive,
+      allItems,
+      allActive,
+    };
+  });
+
+  const passGenreChips = genreChipState.isVisible &&
+    genreChipState.chipLabels.includes('Semua') &&
+    genreChipState.chipLabels.includes('Roguelite') &&
+    genreChipState.rogueliteActive &&
+    genreChipState.rogueliteItems.length === 2 &&
+    genreChipState.rogueliteItems.includes('Hades') &&
+    genreChipState.rogueliteItems.includes('Dead Cells') &&
+    genreChipState.rpgActive &&
+    genreChipState.rpgItems.length === 1 &&
+    genreChipState.rpgItems[0] === 'Stardew Valley' &&
+    genreChipState.allActive &&
+    genreChipState.allItems.length === 3;
+
+  await recordResult(
+    'Quick filter chips genre menyaring game wishlist secara dinamis dan responsif (Modul P2)',
+    passGenreChips,
+    `Chips: [${genreChipState.chipLabels.join(', ')}], Roguelite count: ${genreChipState.rogueliteItems.length}, RPG count: ${genreChipState.rpgItems.length}, All count: ${genreChipState.allItems.length}`,
+    pageExport
+  );
+
+  // Test 12 (Test 30): PWA & Deteksi Status Offline menonaktifkan komposer dan memunculkan banner (Modul P3)
+  const offlineState = await pageExport.evaluate(async () => {
+    const manifestLink = document.querySelector('link[rel="manifest"]')?.getAttribute('href');
+
+    // Simulasikan offline
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    window.dispatchEvent(new Event('offline'));
+    await new Promise((r) => setTimeout(r, 60));
+
+    const bannerOfflineHidden = document.getElementById('offline-banner')?.hidden;
+    const statusTextOffline = document.getElementById('connection-status')?.textContent;
+    const isOfflineClass = document.getElementById('connection-status')?.classList.contains('is-offline');
+    const sendBtnDisabled = document.getElementById('send-btn')?.disabled;
+    const sendBtnTitle = document.getElementById('send-btn')?.getAttribute('title');
+
+    // Coba kirim pesan saat offline
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('user-input');
+    if (input) input.value = 'Rekomendasi game RPG';
+    if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    await new Promise((r) => setTimeout(r, 60));
+    const toastOffline = document.querySelector('.wishlist-toast')?.textContent;
+
+    // Simulasikan pulih online
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+    window.dispatchEvent(new Event('online'));
+    await new Promise((r) => setTimeout(r, 60));
+
+    const bannerOnlineHidden = document.getElementById('offline-banner')?.hidden;
+    const statusTextOnline = document.getElementById('connection-status')?.textContent;
+    const sendBtnEnabled = !document.getElementById('send-btn')?.disabled;
+
+    return {
+      manifestLink,
+      bannerOfflineHidden,
+      statusTextOffline,
+      isOfflineClass,
+      sendBtnDisabled,
+      sendBtnTitle,
+      toastOffline,
+      bannerOnlineHidden,
+      statusTextOnline,
+      sendBtnEnabled,
+    };
+  });
+
+  const passPwaOffline = offlineState.manifestLink === 'manifest.json' &&
+    offlineState.bannerOfflineHidden === false &&
+    offlineState.statusTextOffline?.includes('Offline') &&
+    offlineState.isOfflineClass === true &&
+    offlineState.sendBtnDisabled === true &&
+    offlineState.sendBtnTitle?.includes('Koneksi terputus') &&
+    offlineState.toastOffline?.includes('Koneksi terputus') &&
+    offlineState.bannerOnlineHidden === true &&
+    offlineState.statusTextOnline?.includes('Online') &&
+    offlineState.sendBtnEnabled === true;
+
+  await recordResult(
+    'PWA & deteksi status offline menonaktifkan komposer teks dan memunculkan banner (Modul P3)',
+    Boolean(passPwaOffline),
+    `Manifest: "${offlineState.manifestLink}", Status offline: "${offlineState.statusTextOffline}", Banner hidden: ${offlineState.bannerOfflineHidden}, Send disabled: ${offlineState.sendBtnDisabled}, Status online: "${offlineState.statusTextOnline}"`,
+    pageExport
+  );
+
+  await pageExport.close();
+
+  // =========================================================================
+  // 17. RIWAYAT OBROLAN MULTI-SESI VIA INDEXEDDB (MODUL P4)
+  // =========================================================================
+  log('\n--- Menguji Riwayat Obrolan Multi-Sesi via IndexedDB (Modul P4) ---');
+  const pageHistory = await browser.newPage();
+  activePage = pageHistory;
+  await pageHistory.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await pageHistory.evaluate(() => document.fonts?.ready);
+
+  // Tunggu IndexedDB dan UI sesi siap
+  await pageHistory.waitForFunction(() => {
+    const list = document.getElementById('sessions-list');
+    return list && list.children.length >= 1;
+  }, { timeout: 5000 });
+
+  const historyTestResult = await pageHistory.evaluate(async () => {
+    const sessionsList = document.getElementById('sessions-list');
+    const newSessionBtn = document.getElementById('new-session-btn');
+    const input = document.getElementById('user-input');
+    const form = document.getElementById('chat-form');
+    const messages = document.getElementById('messages');
+
+    // 1. Periksa sesi awal yang otomatis dibuat
+    const initialSessionCount = sessionsList.children.length;
+    const initialItem = sessionsList.querySelector('.session-item.is-active');
+    const initialTitle = initialItem ? initialItem.querySelector('.session-item-title').textContent : '';
+
+    // 2. Kirim pesan ke sesi aktif dan pastikan judul terupdate
+    input.value = 'Rekomendasi game roguelite aksi';
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+
+    // Tunggu pesan muncul di container messages
+    await new Promise((r) => setTimeout(r, 600));
+
+    const updatedItem = sessionsList.querySelector('.session-item.is-active');
+    const updatedTitle = updatedItem ? updatedItem.querySelector('.session-item-title').textContent : '';
+
+    // 3. Tekan tombol "+ Baru" untuk membuat sesi kedua
+    newSessionBtn.click();
+    await new Promise((r) => setTimeout(r, 500));
+
+    const sessionCountAfterNew = sessionsList.children.length;
+    const messagesAfterNew = messages.children.length;
+    const welcomeVisibleAfterNew = !document.getElementById('welcome').hidden;
+
+    // 4. Kirim pesan ke sesi kedua
+    input.value = 'Game simulator santai';
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await new Promise((r) => setTimeout(r, 600));
+
+    const session2Item = sessionsList.querySelector('.session-item.is-active');
+    const session2Title = session2Item ? session2Item.querySelector('.session-item-title').textContent : '';
+
+    // 5. Beralih kembali ke sesi pertama
+    const allSessionButtons = sessionsList.querySelectorAll('.session-item-title');
+    const firstSessionBtn = Array.from(allSessionButtons).find((b) => b.textContent.includes('roguelite'));
+    if (firstSessionBtn) {
+      firstSessionBtn.click();
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    const messagesRestored = messages.children.length > 0;
+    const restoredText = messages.textContent;
+
+    return {
+      initialSessionCount,
+      initialTitle,
+      updatedTitle,
+      sessionCountAfterNew,
+      messagesAfterNew,
+      welcomeVisibleAfterNew,
+      session2Title,
+      messagesRestored,
+      hasRogueliteMsg: restoredText.includes('roguelite'),
+    };
+  });
+
+  const passMultiSession = historyTestResult.initialSessionCount >= 1 &&
+    historyTestResult.updatedTitle.includes('roguelite') &&
+    historyTestResult.sessionCountAfterNew >= 2 &&
+    historyTestResult.messagesAfterNew === 0 &&
+    historyTestResult.welcomeVisibleAfterNew === true &&
+    historyTestResult.session2Title.includes('simulator') &&
+    historyTestResult.messagesRestored === true &&
+    historyTestResult.hasRogueliteMsg === true;
+
+  await recordResult(
+    'Riwayat obrolan multi-sesi IndexedDB mendukung pembuatan, perpindahan, dan pemulihan konteks pesan (Modul P4)',
+    Boolean(passMultiSession),
+    `Awal: ${historyTestResult.initialSessionCount} sesi ("${historyTestResult.initialTitle}"), Update: "${historyTestResult.updatedTitle}", Sesi baru: ${historyTestResult.sessionCountAfterNew} sesi, Sesi 2: "${historyTestResult.session2Title}", Pulih: ${historyTestResult.messagesRestored} (${historyTestResult.hasRogueliteMsg})`,
+    pageHistory
+  );
+
+  await pageHistory.close();
+  activePage = null;
+
 } catch (err) {
   logError(`\n[ERROR Verifikasi Perilaku] ${err.message}`);
   results.push({
@@ -1276,7 +1616,7 @@ try {
   fs.appendFileSync(logFile, JSON.stringify(results, null, 2) + '\n');
 } catch {}
 
-const allPassed = results.length >= 26 && results.every((r) => r.passed);
+const allPassed = results.length >= 31 && results.every((r) => r.passed);
 if (allPassed) {
   log('\nSEMUA UJI PERILAKU DOM LULUS 100%! Sistem stabil dan terbukti tangguh.\n');
   process.exit(0);
@@ -1284,3 +1624,4 @@ if (allPassed) {
   logError('\nTerdapat pengujian perilaku yang gagal atau belum lengkap.\n');
   process.exit(1);
 }
+

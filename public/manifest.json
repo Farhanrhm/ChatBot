@@ -1,0 +1,19 @@
+{
+  "name": "SteamScout: Kurator Game PC",
+  "short_name": "SteamScout",
+  "description": "Kurator Game PC Cerdas untuk menemukan rekomendasi game Steam terbaik.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#171a21",
+  "theme_color": "#171a21",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
