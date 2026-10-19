@@ -225,6 +225,7 @@ for (const vp of viewports) {
               <div class="game-card-actions">
                 <a href="#" class="steam-store-card-btn">Buka di Steam Store</a>
                 <button type="button" class="btn-wishlist-toggle"><span class="wishlist-btn-text">Wishlist</span></button>
+                <button type="button" class="btn-compare-toggle" data-key="app:367520" data-appid="367520" data-title="Hollow Knight" data-year="2017" data-developer="Team Cherry" data-genres="Metroidvania,Souls-like" data-whyfit="Eksplorasi bawah tanah misterius dengan tingkat tantangan tinggi." data-specs="Sangat ringan untuk laptop kentang (Intel HD)." aria-pressed="false" aria-label="Bandingkan Hollow Knight"><span class="compare-btn-text">Bandingkan</span></button>
               </div>
             </div>
           </div>
@@ -246,6 +247,7 @@ for (const vp of viewports) {
               <div class="game-card-actions">
                 <a href="#" class="steam-store-card-btn">Buka di Steam Store</a>
                 <button type="button" class="btn-wishlist-toggle"><span class="wishlist-btn-text">Wishlist</span></button>
+                <button type="button" class="btn-compare-toggle" data-key="app:413150" data-appid="413150" data-title="Stardew Valley" data-year="2016" data-developer="ConcernedApe" data-genres="Farming Sim,Co-op" data-whyfit="Simulasi bertani santai pelepas stres bisa main bareng teman." data-specs="Ringan, jalan lancar di netbook RAM 4GB." aria-pressed="false" aria-label="Bandingkan Stardew Valley"><span class="compare-btn-text">Bandingkan</span></button>
               </div>
             </div>
           </div>
@@ -395,6 +397,100 @@ for (const vp of viewports) {
     localStorage.clear();
   });
 
+  // 5. Uji Modal Komparasi Game Terbuka dan Tabbed View pada Layar Ponsel
+  await page.evaluate(() => {
+    const compareBtns = document.querySelectorAll('.btn-compare-toggle');
+    if (compareBtns.length >= 2) {
+      compareBtns[0].click();
+      compareBtns[1].click();
+    }
+    const openBtn = document.getElementById('comparison-open-btn');
+    if (openBtn && !openBtn.disabled) {
+      openBtn.click();
+    }
+  });
+
+  // Tunggu dialog komparasi terbuka
+  await page.waitForFunction(() => {
+    const dialog = document.getElementById('comparison-dialog');
+    return dialog && !dialog.hidden;
+  }, { timeout: 3000 });
+
+  // Tunggu 2 frame rendering berturut-turut agar layout dialog stabil
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+
+  const isMobileViewport = vp.width < 600;
+
+  // Uji interaksi tab mobile jika pada viewport mobile (< 600px)
+  let mobileTabSwitchPassed = true;
+  if (isMobileViewport) {
+    const tabSwitchResult = await page.evaluate(() => {
+      const tabB = document.getElementById('comparison-tab-b');
+      const tabA = document.getElementById('comparison-tab-a');
+      if (!tabB || !tabA) return false;
+
+      // Klik Tab B
+      tabB.click();
+      const colA = document.querySelector('.comparison-table td.comparison-col-a');
+      const colB = document.querySelector('.comparison-table td.comparison-col-b');
+      const isColAHidden = colA ? window.getComputedStyle(colA).display === 'none' : false;
+      const isColBVisible = colB ? window.getComputedStyle(colB).display !== 'none' : false;
+
+      // Kembalikan ke Tab A
+      tabA.click();
+      const isColAVirgin = colA ? window.getComputedStyle(colA).display !== 'none' : false;
+      const isColBHidden = colB ? window.getComputedStyle(colB).display === 'none' : false;
+
+      return isColAHidden && isColBVisible && isColAVirgin && isColBHidden;
+    });
+    mobileTabSwitchPassed = tabSwitchResult;
+  }
+
+  const comparisonMetrics = await page.evaluate((isMobile) => {
+    const docEl = document.documentElement;
+    const body = document.body;
+    const winH = window.innerHeight;
+    const winW = window.innerWidth;
+    const dialog = document.getElementById('comparison-dialog');
+    const tabs = document.getElementById('comparison-mobile-tabs');
+    const content = document.getElementById('comparison-content');
+    const appEl = document.querySelector('.app');
+
+    const dialogRect = dialog ? dialog.getBoundingClientRect() : null;
+    const tabsRect = tabs ? tabs.getBoundingClientRect() : null;
+
+    const isInertSet = appEl ? appEl.hasAttribute('inert') : false;
+    const isDialogVisible = Boolean(dialogRect && dialogRect.width > 0 && dialogRect.height > 0);
+    const areTabsVisibleOnMobile = isMobile
+      ? Boolean(tabsRect && tabsRect.width > 0 && tabsRect.height > 0 && window.getComputedStyle(tabs).display === 'flex')
+      : true;
+
+    return {
+      docScrollH: docEl.scrollHeight,
+      bodyScrollH: body.scrollHeight,
+      noVerticalPageOverflow: docEl.scrollHeight <= winH + 1 && body.scrollHeight <= winH + 1,
+      noHorizontalOverflow: docEl.scrollWidth <= winW + 1,
+      isDialogVisible,
+      areTabsVisibleOnMobile,
+      isInertSet,
+      hasInternalScroll: content ? content.scrollHeight >= content.clientHeight : false,
+    };
+  }, isMobileViewport);
+
+  // Ambil Screenshot bukti modal komparasi terbuka
+  const comparisonShotPath = path.join(screenshotDir, `layout_comparison_${vp.name}.png`);
+  await page.screenshot({ path: comparisonShotPath });
+
+  // Tutup dialog komparasi dan bersihkan seleksi
+  await page.evaluate(() => {
+    const closeBtn = document.getElementById('comparison-close-btn');
+    if (closeBtn) closeBtn.click();
+    const clearBtn = document.getElementById('comparison-clear-btn');
+    if (clearBtn) clearBtn.click();
+  });
+
   const passed =
     initialMetrics.noVerticalPageOverflow &&
     initialMetrics.noHorizontalOverflow &&
@@ -407,7 +503,13 @@ for (const vp of viewports) {
     drawerMetrics.isToolbarVisible &&
     drawerMetrics.isSearchVisible &&
     drawerMetrics.isSortVisible &&
-    drawerMetrics.isItemsHeightAdequate;
+    drawerMetrics.isItemsHeightAdequate &&
+    comparisonMetrics.noVerticalPageOverflow &&
+    comparisonMetrics.noHorizontalOverflow &&
+    comparisonMetrics.isDialogVisible &&
+    comparisonMetrics.areTabsVisibleOnMobile &&
+    comparisonMetrics.isInertSet &&
+    mobileTabSwitchPassed;
 
   if (!passed) {
     allPassed = false;
@@ -438,8 +540,11 @@ for (const vp of viewports) {
   log(`  - Drawer Terisi:         ${drawerMetrics.isItemsHeightAdequate ? 'PASS (Tinggi >= ' + drawerMetrics.minItemsHeight + 'px: ' + drawerMetrics.itemsHeight.toFixed(1) + 'px)' : 'FAIL'}`);
   log(`  - Drawer Page Scroll:    ${drawerMetrics.noVerticalPageOverflow ? 'TIDAK ADA (0px)' : 'ADA MASALAH'}`);
   log(`  - Toolbar & Kontrol:     ${drawerMetrics.isToolbarVisible && drawerMetrics.isSearchVisible && drawerMetrics.isSortVisible ? 'TERLIHAT UTUH' : 'TERPOTONG'}`);
+  log(`  - Komparasi Page Scroll: ${comparisonMetrics.noVerticalPageOverflow ? 'TIDAK ADA (0px)' : 'ADA MASALAH'}`);
+  log(`  - Komparasi Tabbed View: ${comparisonMetrics.areTabsVisibleOnMobile && mobileTabSwitchPassed ? 'PASS (Responsif Sempurna)' : 'FAIL'}`);
   log(`  - Screenshot Default:    ${path.relative(projectRoot, shotPath)}`);
   log(`  - Screenshot Drawer:     ${path.relative(projectRoot, drawerShotPath)}`);
+  log(`  - Screenshot Komparasi:  ${path.relative(projectRoot, comparisonShotPath)}`);
 
   await page.close();
 }

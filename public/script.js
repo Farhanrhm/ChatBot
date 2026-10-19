@@ -1811,7 +1811,18 @@ els.messages.addEventListener("click", (e) => {
     const title = compareBtn.dataset.title;
     let game = renderedGamesMap.get(key);
     if (!game) {
-      game = { appId, title };
+      game = {
+        key,
+        appId,
+        title,
+        storeUrl: compareBtn.dataset.storeUrl || (appId ? `https://store.steampowered.com/app/${appId}/` : ""),
+        headerImage: compareBtn.dataset.headerImage || "",
+        year: compareBtn.dataset.year || "",
+        developer: compareBtn.dataset.developer || "",
+        genres: compareBtn.dataset.genres ? compareBtn.dataset.genres.split(",") : [],
+        whyFit: compareBtn.dataset.whyfit || "",
+        specsAndBudget: compareBtn.dataset.specs || "",
+      };
     }
     const res = toggleComparisonGame(selectedComparisonGames, game);
     if (res.action === "rejected") {
