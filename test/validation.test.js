@@ -1535,3 +1535,170 @@ test('wishlistCore (Langkah 2.3b #8): removeFromWishlist mempertahankan addedAt 
   assert.equal(storedList[0].addedAt, '');
   assert.equal(storedList[1].addedAt, '');
 });
+
+test('exportWishlistToJSON: menghasilkan JSON valid dengan version "1.0", itemCount, dan item tersanitasi', async () => {
+  const { exportWishlistToJSON } = await import('../public/wishlistCore.js');
+  const input = [
+    { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z' },
+    { appId: 588650, title: 'Dead Cells', storeUrl: 'https://store.steampowered.com/app/588650/' },
+  ];
+
+  const jsonStr = exportWishlistToJSON(input);
+  const parsed = JSON.parse(jsonStr);
+
+  assert.equal(parsed.version, '1.0');
+  assert.equal(parsed.source, 'SteamScout');
+  assert.equal(parsed.itemCount, 2);
+  assert.equal(Array.isArray(parsed.items), true);
+  assert.equal(parsed.items.length, 2);
+  assert.equal(parsed.items[0].appId, 1145360);
+  assert.equal(parsed.items[0].title, 'Hades');
+  assert.equal(parsed.items[0].storeUrl, 'https://store.steampowered.com/app/1145360/');
+  assert.ok(parsed.exportedAt);
+});
+
+test('exportWishlistToJSON: toleran terhadap input non-array atau objek invalid', async () => {
+  const { exportWishlistToJSON } = await import('../public/wishlistCore.js');
+  const jsonNull = exportWishlistToJSON(null);
+  const parsedNull = JSON.parse(jsonNull);
+  assert.equal(parsedNull.version, '1.0');
+  assert.equal(parsedNull.itemCount, 0);
+  assert.deepEqual(parsedNull.items, []);
+
+  const jsonDirty = exportWishlistToJSON([null, undefined, 'bukan objek', { title: 'Hollow Knight', appId: 367520 }]);
+  const parsedDirty = JSON.parse(jsonDirty);
+  assert.equal(parsedDirty.itemCount, 1);
+  assert.equal(parsedDirty.items[0].title, 'Hollow Knight');
+});
+
+test('exportWishlistToMarkdown: memformat teks Markdown untuk Discord/Reddit dengan tautan toko resmi', async () => {
+  const { exportWishlistToMarkdown } = await import('../public/wishlistCore.js');
+  const input = [
+    { appId: 1145360, title: 'Hades' },
+    { title: 'Game Tanpa ID', storeUrl: 'https://store.steampowered.com/search/?term=Game%20Tanpa%20ID' },
+  ];
+
+  const md = exportWishlistToMarkdown(input);
+  assert.ok(md.includes('**SteamScout Wishlist (2 Game)**'));
+  assert.ok(md.includes('1. [Hades](https://store.steampowered.com/app/1145360/)'));
+  assert.ok(md.includes('2. [Game Tanpa ID](https://store.steampowered.com/search/?term=Game%20Tanpa%20ID)'));
+  assert.ok(md.includes('*Diekspor dari SteamScout - Kurator Game PC*'));
+});
+
+test('exportWishlistToMarkdown: menangani wishlist kosong dengan pesan informatif', async () => {
+  const { exportWishlistToMarkdown } = await import('../public/wishlistCore.js');
+  const md = exportWishlistToMarkdown([]);
+  assert.ok(md.includes('**SteamScout Wishlist (0 Game)**'));
+  assert.ok(md.includes('Wishlist masih kosong.'));
+});
+
+test('parseAndValidateImportData: menerima format ber-version "1.0" dan format array legacy', async () => {
+  const { parseAndValidateImportData } = await import('../public/wishlistCore.js');
+
+  // Format 1.0
+  const jsonV1 = JSON.stringify({
+    version: '1.0',
+    items: [
+      { appId: 105600, title: 'Terraria' },
+      { appId: 413150, title: 'Stardew Valley' },
+    ],
+  });
+  const resV1 = parseAndValidateImportData(jsonV1, []);
+  assert.equal(resV1.success, true);
+  assert.equal(resV1.addedCount, 2);
+  assert.equal(resV1.list.length, 2);
+  assert.equal(resV1.list[0].title, 'Terraria');
+
+  // Format legacy array
+  const jsonLegacy = JSON.stringify([
+    { appId: 268910, title: 'Cuphead' },
+  ]);
+  const resLegacy = parseAndValidateImportData(jsonLegacy, []);
+  assert.equal(resLegacy.success, true);
+  assert.equal(resLegacy.addedCount, 1);
+  assert.equal(resLegacy.list[0].title, 'Cuphead');
+});
+
+test('parseAndValidateImportData: menolak JSON rusak, string kosong, atau struktur tanpa items', async () => {
+  const { parseAndValidateImportData } = await import('../public/wishlistCore.js');
+
+  const resEmpty = parseAndValidateImportData('');
+  assert.equal(resEmpty.success, false);
+  assert.ok(resEmpty.error);
+
+  const resMalformed = parseAndValidateImportData('{ rusak json: 123');
+  assert.equal(resMalformed.success, false);
+  assert.ok(resMalformed.error);
+
+  const resNoItems = parseAndValidateImportData(JSON.stringify({ name: 'Bukan Wishlist' }));
+  assert.equal(resNoItems.success, false);
+  assert.ok(resNoItems.error);
+
+  const resEmptyItems = parseAndValidateImportData(JSON.stringify({ version: '1.0', items: [] }));
+  assert.equal(resEmptyItems.success, false);
+  assert.ok(resEmptyItems.error);
+});
+
+test('parseAndValidateImportData: smart merge mencegah duplikasi, menghormati maxItems, dan auto-upgrade', async () => {
+  const { parseAndValidateImportData } = await import('../public/wishlistCore.js');
+
+  const current = [
+    { appId: 1145360, title: 'Hades', addedAt: '2026-01-01T00:00:00.000Z' },
+    { title: 'Celeste', addedAt: '2026-01-02T00:00:00.000Z' },
+  ];
+
+  const importPayload = JSON.stringify({
+    version: '1.0',
+    items: [
+      { appId: 1145360, title: 'Hades' },
+      { appId: 504230, title: 'Celeste' },
+      { appId: 367520, title: 'Hollow Knight' },
+    ],
+  });
+
+  const res = parseAndValidateImportData(importPayload, current, 50);
+  assert.equal(res.success, true);
+  assert.equal(res.addedCount, 1);
+  assert.equal(res.upgradedCount, 1);
+  assert.equal(res.list.length, 3);
+
+  const celeste = res.list.find((g) => g.title === 'Celeste');
+  assert.equal(celeste.appId, 504230);
+  assert.equal(celeste.addedAt, '2026-01-02T00:00:00.000Z');
+
+  const resMax = parseAndValidateImportData(importPayload, current, 2);
+  assert.equal(resMax.addedCount, 0);
+  assert.equal(resMax.upgradedCount, 1);
+  assert.equal(resMax.list.length, 2);
+});
+
+test('importWishlistFromJSON: memperbarui storage saat ada penambahan/upgrade dan aman saat error', async () => {
+  const { importWishlistFromJSON, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');
+
+  const storage = createMockStorage({
+    [WISHLIST_STORAGE_KEY]: JSON.stringify([
+      { appId: 1145360, title: 'Hades' },
+    ]),
+  });
+
+  const importPayload = JSON.stringify({
+    version: '1.0',
+    items: [
+      { appId: 588650, title: 'Dead Cells' },
+    ],
+  });
+
+  const res = importWishlistFromJSON(storage, importPayload);
+  assert.equal(res.success, true);
+  assert.equal(res.addedCount, 1);
+
+  const stored = JSON.parse(storage.getItem(WISHLIST_STORAGE_KEY));
+  assert.equal(stored.length, 2);
+  assert.equal(stored[1].title, 'Dead Cells');
+
+  const resDup = importWishlistFromJSON(storage, importPayload);
+  assert.equal(resDup.success, true);
+  assert.equal(resDup.addedCount, 0);
+  assert.equal(resDup.message, 'Semua game dalam berkas sudah ada di wishlist Anda.');
+});
+
