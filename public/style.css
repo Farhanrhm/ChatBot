@@ -705,6 +705,50 @@ button, textarea { font: inherit; color: inherit; }
   outline-offset: 2px;
 }
 
+.btn-compare-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  min-width: 34px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.btn-compare-toggle:hover {
+  background: rgba(102, 192, 244, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-compare-toggle[aria-pressed="true"],
+.btn-compare-toggle.is-selected {
+  background: rgba(102, 192, 244, 0.22);
+  border-color: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(102, 192, 244, 0.35);
+}
+
+.btn-compare-toggle[aria-pressed="true"]:hover,
+.btn-compare-toggle.is-selected:hover {
+  background: rgba(229, 115, 115, 0.14);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn-compare-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ========================================================
    COMPOSER & REVISI 4: SATU BARIS TOOLBAR KOMPAK DENGAN FADE
    ======================================================== */
@@ -1573,11 +1617,502 @@ body.keyboard-open .meta-hints {
   background: #d65050;
 }
 
+/* ========================================================
+   MODUL KOMPARASI GAME BERDAMPINGAN (FASE 3)
+   ======================================================== */
+
+/* Bilah Aksi Mengambang Komparasi Game (Floating Bar) */
+.comparison-bar {
+  position: fixed;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(920px, calc(100vw - 32px));
+  z-index: 85;
+  background: rgba(23, 29, 41, 0.96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(102, 192, 244, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(102, 192, 244, 0.15);
+  padding: 10px 16px;
+  animation: comparisonBarSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.comparison-bar[hidden] {
+  display: none !important;
+}
+
+@keyframes comparisonBarSlideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 14px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.comparison-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.comparison-bar-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-strong);
+  font-size: 0.88rem;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.comparison-bar-info svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.comparison-bar-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comparison-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-comparison-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 16px;
+  background: linear-gradient(90deg, #1999ff, #0070cc);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 112, 204, 0.4);
+}
+
+.btn-comparison-open:hover:not(:disabled) {
+  background: linear-gradient(90deg, #38bdf8, #1999ff);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 112, 204, 0.5);
+}
+
+.btn-comparison-open:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-comparison-clear {
+  min-height: 36px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-comparison-clear:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-strong);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Modal Dialog Komparasi Game */
+.comparison-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(840px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  z-index: 100;
+  background: var(--bg-1);
+  border: 1px solid rgba(102, 192, 244, 0.3);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75), 0 0 24px rgba(102, 192, 244, 0.1);
+  display: flex;
+  flex-direction: column;
+  animation: modalFadeScale 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.comparison-dialog[hidden] {
+  display: none !important;
+}
+
+@keyframes modalFadeScale {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.comparison-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-0);
+  flex-shrink: 0;
+}
+
+.comparison-dialog-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+}
+
+.comparison-dialog-title-wrap h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-family: var(--font-head);
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.comparison-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: #2a475e var(--bg-0);
+}
+
+/* Mobile Tab Switcher (< 600px) */
+.comparison-mobile-tabs {
+  display: none;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(18, 23, 33, 0.95);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.comparison-tab-btn {
+  flex: 1;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.15s;
+}
+
+.comparison-tab-btn.is-active,
+.comparison-tab-btn[aria-selected="true"] {
+  background: rgba(102, 192, 244, 0.18);
+  border-color: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(102, 192, 244, 0.25);
+}
+
+/* Tabel Komparasi Semantik */
+.comparison-table-wrap {
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--panel);
+  border: 1px solid rgba(102, 192, 244, 0.15);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.comparison-table th,
+.comparison-table td {
+  padding: 10px 14px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(102, 192, 244, 0.08);
+  font-size: 0.88rem;
+}
+
+.comparison-table tbody tr:last-child th,
+.comparison-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.comparison-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.comparison-table .th-attr,
+.comparison-table th.row-label {
+  width: 26%;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.comparison-table .th-game {
+  width: 37%;
+  padding: 14px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.comparison-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.comparison-hero-img {
+  width: 100%;
+  max-width: 220px;
+  aspect-ratio: 460 / 215;
+  object-fit: cover;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.comparison-hero-title {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-strong);
+  line-height: 1.3;
+  text-align: center;
+}
+
+.comparison-table td.comparison-col-a,
+.comparison-table td.comparison-col-b {
+  color: var(--text);
+  line-height: 1.45;
+}
+
+/* Blok Naratif Komparasi (Mengapa Cocok & Spek) */
+.comparison-narratives {
+  margin-bottom: 18px;
+}
+
+.comparison-narrative-group {
+  margin-bottom: 16px;
+}
+
+.comparison-narrative-heading {
+  margin: 0 0 8px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.comparison-narrative-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.comparison-narrative-card {
+  background: var(--panel);
+  border: 1px solid rgba(102, 192, 244, 0.12);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.narrative-game-badge {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--accent);
+  opacity: 0.9;
+}
+
+.narrative-text {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* Aksi Footer di dalam Modal Komparasi */
+.comparison-footer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.comparison-action-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.comparison-action-col .steam-store-card-btn {
+  flex: 1;
+  max-width: 200px;
+  justify-content: center;
+}
+
+.comparison-action-col .btn-modal-wishlist {
+  flex: 1;
+  max-width: 200px;
+}
+
+/* Responsif Layar Ponsel (< 600px): Tabbed View Aktif */
+@media (max-width: 599px) {
+  .comparison-bar {
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    width: calc(100vw - 16px);
+    padding: 8px 10px;
+  }
+
+  .comparison-bar-info {
+    font-size: 0.8rem;
+  }
+
+  .btn-comparison-open {
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 0.8rem;
+  }
+
+  .btn-comparison-clear {
+    min-height: 44px;
+  }
+
+  .comparison-dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 24px);
+    border-radius: 10px;
+  }
+
+  .comparison-dialog-header {
+    padding: 10px 14px;
+  }
+
+  .comparison-body {
+    padding: 12px 14px;
+  }
+
+  .comparison-mobile-tabs {
+    display: flex;
+  }
+
+  .comparison-table .th-attr,
+  .comparison-table th.row-label {
+    width: 38%;
+  }
+
+  .comparison-table .th-game {
+    width: 62%;
+  }
+
+  /* Sembunyikan kolom yang tidak aktif pada mode tab */
+  .comparison-col-a:not(.is-tab-active) {
+    display: none !important;
+  }
+
+  .comparison-col-b:not(.is-tab-active) {
+    display: none !important;
+  }
+
+  .comparison-col-a.is-tab-active,
+  .comparison-col-b.is-tab-active {
+    display: table-cell;
+  }
+
+  .comparison-narrative-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .comparison-narrative-card.comparison-col-a:not(.is-tab-active) {
+    display: none !important;
+  }
+
+  .comparison-narrative-card.comparison-col-b:not(.is-tab-active) {
+    display: none !important;
+  }
+
+  .comparison-narrative-card.comparison-col-a.is-tab-active,
+  .comparison-narrative-card.comparison-col-b.is-tab-active {
+    display: flex;
+  }
+
+  .comparison-footer-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .comparison-action-col.comparison-col-a:not(.is-tab-active) {
+    display: none !important;
+  }
+
+  .comparison-action-col.comparison-col-b:not(.is-tab-active) {
+    display: none !important;
+  }
+
+  .comparison-action-col.comparison-col-a.is-tab-active,
+  .comparison-action-col.comparison-col-b.is-tab-active {
+    display: flex;
+  }
+
+  .comparison-action-col .steam-store-card-btn,
+  .comparison-action-col .btn-modal-wishlist {
+    min-height: 44px;
+  }
+}
+
 /* Peningkatan Aksesibilitas: Indikator Focus Visible */
 .chip:focus-visible,
 .capsule:focus-visible,
 .filter-chip:focus-visible,
 .btn-wishlist-toggle:focus-visible,
+.btn-compare-toggle:focus-visible,
+.btn-comparison-open:focus-visible,
+.btn-comparison-clear:focus-visible,
+.comparison-tab-btn:focus-visible,
 .btn-icon:focus-visible,
 .btn-ghost:focus-visible {
   outline: 2px solid var(--accent);

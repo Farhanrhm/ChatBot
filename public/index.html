@@ -260,6 +260,28 @@
     </main>
   </div>
 
+  <!-- Bilah Aksi Mengambang Komparasi Game (Floating Bar) -->
+  <aside id="comparison-bar" class="comparison-bar" aria-label="Bilah aksi komparasi game" hidden>
+    <div class="comparison-bar-inner">
+      <div class="comparison-bar-info">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="20" x2="18" y2="10" />
+          <line x1="12" y1="20" x2="12" y2="4" />
+          <line x1="6" y1="20" x2="6" y2="14" />
+        </svg>
+        <span id="comparison-bar-text" class="comparison-bar-text">Pilih game untuk dibandingkan</span>
+      </div>
+      <div class="comparison-bar-actions">
+        <button type="button" id="comparison-open-btn" class="btn-comparison-open" disabled aria-label="Buka jendela komparasi dua game">
+          <span>Bandingkan Sekarang</span>
+        </button>
+        <button type="button" id="comparison-clear-btn" class="btn-comparison-clear" aria-label="Batalkan seleksi komparasi">
+          <span>Batal</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
   <!-- Modal Drawer Wishlist Lokal -->
   <div id="wishlist-backdrop" class="modal-backdrop" hidden></div>
   <aside
@@ -298,6 +320,48 @@
       <ul id="wishlist-items" class="wishlist-items" role="list"></ul>
     </div>
   </aside>
+
+  <!-- Modal Dialog Komparasi Game Berdampingan -->
+  <div id="comparison-backdrop" class="modal-backdrop" hidden></div>
+  <div
+    id="comparison-dialog"
+    class="comparison-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="comparison-dialog-title"
+    hidden
+  >
+    <div class="comparison-dialog-header">
+      <div class="comparison-dialog-title-wrap">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="20" x2="18" y2="10" />
+          <line x1="12" y1="20" x2="12" y2="4" />
+          <line x1="6" y1="20" x2="6" y2="14" />
+        </svg>
+        <h2 id="comparison-dialog-title">Komparasi Game</h2>
+      </div>
+      <button type="button" id="comparison-close-btn" class="btn-icon" aria-label="Tutup jendela komparasi">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mobile Tab Switcher (< 600px) -->
+    <div id="comparison-mobile-tabs" class="comparison-mobile-tabs" role="tablist" aria-label="Pilih game yang ditampilkan">
+      <button type="button" role="tab" id="comparison-tab-a" class="comparison-tab-btn is-active" aria-selected="true" aria-controls="comparison-col-a">
+        <span id="comparison-tab-a-label">Game A</span>
+      </button>
+      <button type="button" role="tab" id="comparison-tab-b" class="comparison-tab-btn" aria-selected="false" aria-controls="comparison-col-b">
+        <span id="comparison-tab-b-label">Game B</span>
+      </button>
+    </div>
+
+    <div id="comparison-content" class="comparison-body">
+      <!-- Konten tabel semantik dan naratif dirender secara dinamis -->
+    </div>
+  </div>
 
   <script type="module" src="script.js"></script>
 </body>
