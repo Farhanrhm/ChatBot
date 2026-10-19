@@ -1702,3 +1702,91 @@ test('importWishlistFromJSON: memperbarui storage saat ada penambahan/upgrade da
   assert.equal(resDup.message, 'Semua game dalam berkas sudah ada di wishlist Anda.');
 });
 
+test('extractTopGenres: mengembalikan array kosong untuk input kosong atau bukan array', async () => {
+  const { extractTopGenres } = await import('../public/wishlistCore.js');
+  assert.deepEqual(extractTopGenres(null), []);
+  assert.deepEqual(extractTopGenres([]), []);
+  assert.deepEqual(extractTopGenres('bukan array'), []);
+  assert.deepEqual(extractTopGenres([null, undefined, 123]), []);
+});
+
+test('extractTopGenres: mengurutkan berdasarkan frekuensi kemunculan terbanyak dan membatasi sesuai limit (default 7)', async () => {
+  const { extractTopGenres } = await import('../public/wishlistCore.js');
+  const wishlist = [
+    { title: 'Game 1', genres: ['Action', 'RPG', 'Roguelite', 'Indie'] },
+    { title: 'Game 2', genres: ['Roguelite', 'Action', 'Indie'] },
+    { title: 'Game 3', genres: ['Roguelite', 'Indie', 'Adventure'] },
+    { title: 'Game 4', genres: ['Roguelite', 'Strategy'] },
+    { title: 'Game 5', genres: ['RPG', 'Story Rich'] },
+    { title: 'Game 6', genres: ['Puzzle', 'Platformer', 'Atmospheric', 'Sci-Fi'] },
+  ];
+
+  // Roguelite (4), Indie (3), Action (2), RPG (2)
+  const top7 = extractTopGenres(wishlist, 7);
+  assert.equal(top7[0], 'Roguelite');
+  assert.equal(top7[1], 'Indie');
+  assert.ok(top7.includes('Action'));
+  assert.ok(top7.includes('RPG'));
+  assert.equal(top7.length, 7);
+
+  // Batas 3 teratas
+  const top3 = extractTopGenres(wishlist, 3);
+  assert.equal(top3.length, 3);
+  assert.equal(top3[0], 'Roguelite');
+  assert.equal(top3[1], 'Indie');
+});
+
+test('extractTopGenres: tie-breaker alfabetis saat frekuensi kemunculan genre sama', async () => {
+  const { extractTopGenres } = await import('../public/wishlistCore.js');
+  const wishlist = [
+    { title: 'Game 1', genres: ['Zombies', 'Action'] },
+    { title: 'Game 2', genres: ['Action', 'Zombies'] },
+  ];
+  // Action (2), Zombies (2) -> Action duluan
+  const top = extractTopGenres(wishlist);
+  assert.equal(top[0], 'Action');
+  assert.equal(top[1], 'Zombies');
+});
+
+test('filterAndSortWishlist: menyaring game berdasarkan parameter selectedGenre', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+  const items = [
+    { appId: 1, title: 'Hades', genres: ['Roguelite', 'Action'] },
+    { appId: 2, title: 'Stardew Valley', genres: ['Farming Sim', 'RPG'] },
+    { appId: 3, title: 'Dead Cells', genres: ['Roguelite', 'Metroidvania'] },
+  ];
+
+  // Filter Roguelite
+  const roguelites = filterAndSortWishlist(items, '', 'latest', 'Roguelite');
+  assert.equal(roguelites.length, 2);
+  assert.ok(roguelites.some((g) => g.title === 'Hades'));
+  assert.ok(roguelites.some((g) => g.title === 'Dead Cells'));
+
+  // Filter RPG
+  const rpgs = filterAndSortWishlist(items, '', 'latest', 'RPG');
+  assert.equal(rpgs.length, 1);
+  assert.equal(rpgs[0].title, 'Stardew Valley');
+
+  // Filter "all" atau "" tidak memfilter genre
+  const all1 = filterAndSortWishlist(items, '', 'latest', 'all');
+  assert.equal(all1.length, 3);
+  const all2 = filterAndSortWishlist(items, '', 'latest', '');
+  assert.equal(all2.length, 3);
+});
+
+test('filterAndSortWishlist: mengombinasikan filter genre, kueri pencarian teks, dan pengurutan deterministik', async () => {
+  const { filterAndSortWishlist } = await import('../public/wishlistCore.js');
+  const items = [
+    { appId: 1, title: 'Dark Souls', genres: ['Action', 'RPG'], addedAt: '2026-01-01T00:00:00.000Z' },
+    { appId: 2, title: 'Dark Souls II', genres: ['Action', 'RPG'], addedAt: '2026-01-02T00:00:00.000Z' },
+    { appId: 3, title: 'Darksiders', genres: ['Action', 'Hack and Slash'], addedAt: '2026-01-03T00:00:00.000Z' },
+  ];
+
+  // Cari "dark", genre "RPG", sortir alpha-asc
+  const res = filterAndSortWishlist(items, 'dark', 'alpha-asc', 'RPG');
+  assert.equal(res.length, 2);
+  assert.equal(res[0].title, 'Dark Souls');
+  assert.equal(res[1].title, 'Dark Souls II');
+});
+
+

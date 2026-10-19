@@ -160,11 +160,24 @@ export function sanitizeWishlistItem(raw, options) {
     addedAt = trimmed;
   }
 
+  let genres = [];
+  if (Array.isArray(item.genres)) {
+    genres = item.genres
+      .map((g) => (typeof g === 'string' ? g.trim() : ''))
+      .filter((g) => g.length > 0);
+  } else if (typeof item.genres === 'string' && item.genres.trim()) {
+    genres = item.genres
+      .split(',')
+      .map((g) => g.trim())
+      .filter((g) => g.length > 0);
+  }
+
   return {
     appId,
     title,
     storeUrl,
     addedAt,
+    genres,
   };
 }
 
@@ -564,15 +577,66 @@ function createWishlistComparator(sortBy) {
 }
 
 /**
+ * Mengekstrak 5 hingga 7 tag genre paling sering muncul dari daftar wishlist.
+ * Mengembalikan array string genre unik yang diurutkan dari frekuensi tertinggi ke terendah,
+ * dengan tie-breaker abjad alfabetis.
+ *
+ * @param {Array<object>} wishlistItems - Daftar item wishlist
+ * @param {number} [limit=7] - Batas maksimal genre yang dikembalikan (default: 7)
+ * @returns {Array<string>} Array genre terurut berdasarkan frekuensi
+ */
+export function extractTopGenres(wishlistItems, limit = 7) {
+  if (!Array.isArray(wishlistItems) || wishlistItems.length === 0) {
+    return [];
+  }
+
+  const safeLimit = (typeof limit === 'number' && limit > 0) ? Math.min(limit, 20) : 7;
+  const genreCounts = new Map();
+
+  for (const item of wishlistItems) {
+    if (!item || typeof item !== 'object') continue;
+    let list = [];
+    if (Array.isArray(item.genres)) {
+      list = item.genres;
+    } else if (typeof item.genres === 'string' && item.genres.trim()) {
+      list = item.genres.split(',');
+    }
+
+    const seenInItem = new Set();
+    for (const rawGenre of list) {
+      if (typeof rawGenre !== 'string') continue;
+      const clean = rawGenre.trim();
+      if (!clean) continue;
+      const lower = clean.toLowerCase();
+      if (seenInItem.has(lower)) continue;
+      seenInItem.add(lower);
+
+      const existing = genreCounts.get(lower) || { name: clean, count: 0 };
+      existing.count += 1;
+      genreCounts.set(lower, existing);
+    }
+  }
+
+  const sorted = Array.from(genreCounts.values()).sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.name.localeCompare(b.name, 'id', { sensitivity: 'base' });
+  });
+
+  return sorted.slice(0, safeLimit).map((entry) => entry.name);
+}
+
+/**
  * Fungsi murni untuk memfilter dan mengurutkan daftar wishlist.
+ * Mendukung penyaringan kueri teks judul dan chip genre aktif sekaligus.
  * Mengembalikan array baru tanpa mengubah array input atau objek item.
  *
  * @param {Array<object>} items - Daftar item wishlist
  * @param {string} [query=''] - Kueri pencarian teks
  * @param {string} [sortBy='latest'] - Mode pengurutan ('latest', 'oldest', 'alpha-asc')
+ * @param {string} [selectedGenre=''] - Filter genre aktif ('', 'all', 'semua', atau nama genre)
  * @returns {Array<object>} Array baru berisi referensi item yang cocok dan terurut
  */
-export function filterAndSortWishlist(items, query = '', sortBy = 'latest') {
+export function filterAndSortWishlist(items, query = '', sortBy = 'latest', selectedGenre = '') {
   if (!Array.isArray(items)) {
     return [];
   }
@@ -583,6 +647,9 @@ export function filterAndSortWishlist(items, query = '', sortBy = 'latest') {
 
   const rawQuery = typeof query === 'string' ? query : '';
   const normQuery = normalizeSearchText(rawQuery);
+
+  const rawGenre = typeof selectedGenre === 'string' ? selectedGenre.trim().toLowerCase() : '';
+  const isGenreActive = rawGenre !== '' && rawGenre !== 'all' && rawGenre !== 'semua';
 
   const matchedEntries = [];
 
@@ -596,11 +663,28 @@ export function filterAndSortWishlist(items, query = '', sortBy = 'latest') {
     const rawTitle = typeof item.title === 'string' ? item.title : '';
     const normTitle = normalizeSearchText(rawTitle);
 
-    if (normQuery === '') {
-      matchedEntries.push({ item, originalIndex: i });
-    } else if (normTitle !== '' && normTitle.includes(normQuery)) {
-      matchedEntries.push({ item, originalIndex: i });
+    const matchesQuery = normQuery === '' || (normTitle !== '' && normTitle.includes(normQuery));
+    if (!matchesQuery) {
+      continue;
     }
+
+    if (isGenreActive) {
+      let itemGenres = [];
+      if (Array.isArray(item.genres)) {
+        itemGenres = item.genres;
+      } else if (typeof item.genres === 'string' && item.genres.trim()) {
+        itemGenres = item.genres.split(',');
+      }
+
+      const hasMatchingGenre = itemGenres.some(
+        (g) => typeof g === 'string' && g.trim().toLowerCase() === rawGenre
+      );
+      if (!hasMatchingGenre) {
+        continue;
+      }
+    }
+
+    matchedEntries.push({ item, originalIndex: i });
   }
 
   matchedEntries.sort(createWishlistComparator(safeSortBy));

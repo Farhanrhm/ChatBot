@@ -1264,12 +1264,12 @@ try {
   activePage = pageExport;
   await pageExport.setViewport({ width: 1366, height: 768 });
 
-  // Inisialisasi storage dengan 2 game awal
+  // Inisialisasi storage dengan 2 game awal (lengkap dengan data genre)
   await pageExport.goto('http://localhost:3589', { waitUntil: 'networkidle0' });
   await pageExport.evaluate(() => {
     const initialList = [
-      { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z' },
-      { appId: 588650, title: 'Dead Cells', addedAt: '2026-10-19T10:05:00.000Z' },
+      { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z', genres: ['Action', 'Roguelite'] },
+      { appId: 588650, title: 'Dead Cells', addedAt: '2026-10-19T10:05:00.000Z', genres: ['Roguelite', 'Metroidvania'] },
     ];
     localStorage.setItem('steamscout_wishlist', JSON.stringify(initialList));
     const btn = document.getElementById('wishlist-btn');
@@ -1310,8 +1310,8 @@ try {
       source: 'SteamScout',
       itemCount: 2,
       items: [
-        { appId: 413150, title: 'Stardew Valley', addedAt: '2026-10-19T11:00:00.000Z' },
-        { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z' },
+        { appId: 413150, title: 'Stardew Valley', addedAt: '2026-10-19T11:00:00.000Z', genres: ['Farming Sim', 'RPG'] },
+        { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z', genres: ['Action', 'Roguelite'] },
       ],
     });
 
@@ -1345,6 +1345,72 @@ try {
     finalImportState.badgeText === '3';
   await recordResult('Impor berkas JSON wishlist memperbarui daftar game secara cerdas tanpa duplikasi', passImport, `Total game: ${finalImportState.items.length}, Badge: ${finalImportState.badgeText}, Judul: ${JSON.stringify(finalImportState.items)}`, pageExport);
 
+  // Test 11 (Test 29): Quick filter chips genre di drawer wishlist menyaring game sesuai genre aktif (Modul P2)
+  const genreChipState = await pageExport.evaluate(async () => {
+    const chipsContainer = document.getElementById('wishlist-genre-chips');
+    const isVisible = chipsContainer && !chipsContainer.hidden;
+    const chips = Array.from(document.querySelectorAll('#wishlist-genre-chips .wishlist-genre-chip'));
+    const chipLabels = chips.map((c) => c.textContent);
+
+    // 1. Klik chip "Roguelite"
+    const rogueliteBtn = chips.find((c) => c.textContent.trim().toLowerCase() === 'roguelite');
+    if (rogueliteBtn) rogueliteBtn.click();
+    await new Promise((r) => setTimeout(r, 60));
+
+    const rogueliteItems = Array.from(document.querySelectorAll('#wishlist-items .wishlist-item-title')).map((el) => el.textContent);
+    const activeChip1 = document.querySelector('#wishlist-genre-chips .wishlist-genre-chip.is-active')?.textContent?.trim().toLowerCase();
+    const rogueliteActive = activeChip1 === 'roguelite';
+
+    // 2. Klik chip "RPG"
+    const rpgBtn = Array.from(document.querySelectorAll('#wishlist-genre-chips .wishlist-genre-chip')).find((c) => c.textContent.trim().toLowerCase() === 'rpg');
+    if (rpgBtn) rpgBtn.click();
+    await new Promise((r) => setTimeout(r, 60));
+
+    const rpgItems = Array.from(document.querySelectorAll('#wishlist-items .wishlist-item-title')).map((el) => el.textContent);
+    const activeChip2 = document.querySelector('#wishlist-genre-chips .wishlist-genre-chip.is-active')?.textContent?.trim().toLowerCase();
+    const rpgActive = activeChip2 === 'rpg';
+
+    // 3. Klik chip "Semua" untuk mereset filter
+    const allBtn = Array.from(document.querySelectorAll('#wishlist-genre-chips .wishlist-genre-chip')).find((c) => c.dataset.genre === 'all');
+    if (allBtn) allBtn.click();
+    await new Promise((r) => setTimeout(r, 60));
+
+    const allItems = Array.from(document.querySelectorAll('#wishlist-items .wishlist-item-title')).map((el) => el.textContent);
+    const activeChip3 = document.querySelector('#wishlist-genre-chips .wishlist-genre-chip.is-active')?.textContent?.trim().toLowerCase();
+    const allActive = activeChip3 === 'semua';
+
+    return {
+      isVisible,
+      chipLabels,
+      rogueliteItems,
+      rogueliteActive,
+      rpgItems,
+      rpgActive,
+      allItems,
+      allActive,
+    };
+  });
+
+  const passGenreChips = genreChipState.isVisible &&
+    genreChipState.chipLabels.includes('Semua') &&
+    genreChipState.chipLabels.includes('Roguelite') &&
+    genreChipState.rogueliteActive &&
+    genreChipState.rogueliteItems.length === 2 &&
+    genreChipState.rogueliteItems.includes('Hades') &&
+    genreChipState.rogueliteItems.includes('Dead Cells') &&
+    genreChipState.rpgActive &&
+    genreChipState.rpgItems.length === 1 &&
+    genreChipState.rpgItems[0] === 'Stardew Valley' &&
+    genreChipState.allActive &&
+    genreChipState.allItems.length === 3;
+
+  await recordResult(
+    'Quick filter chips genre menyaring game wishlist secara dinamis dan responsif (Modul P2)',
+    passGenreChips,
+    `Chips: [${genreChipState.chipLabels.join(', ')}], Roguelite count: ${genreChipState.rogueliteItems.length}, RPG count: ${genreChipState.rpgItems.length}, All count: ${genreChipState.allItems.length}`,
+    pageExport
+  );
+
   await pageExport.close();
   activePage = null;
 
@@ -1375,7 +1441,7 @@ try {
   fs.appendFileSync(logFile, JSON.stringify(results, null, 2) + '\n');
 } catch {}
 
-const allPassed = results.length >= 28 && results.every((r) => r.passed);
+const allPassed = results.length >= 29 && results.every((r) => r.passed);
 if (allPassed) {
   log('\nSEMUA UJI PERILAKU DOM LULUS 100%! Sistem stabil dan terbukti tangguh.\n');
   process.exit(0);

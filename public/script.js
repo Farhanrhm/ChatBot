@@ -9,6 +9,7 @@ import {
   MAX_WISHLIST_ITEMS,
   WISHLIST_STORAGE_KEY,
   filterAndSortWishlist,
+  extractTopGenres,
   exportWishlistToJSON,
   exportWishlistToMarkdown,
   importWishlistFromJSON,
@@ -710,6 +711,7 @@ function formatBotContent(raw) {
                   data-appid="${appId ? escapeHtml(String(appId)) : ""}"
                   data-title="${title}"
                   data-store-url="${storeUrl}"
+                  data-genres="${Array.isArray(g.genres) ? escapeHtml(g.genres.join(",")) : ""}"
                   aria-pressed="false"
                   aria-label="Simpan ${title} ke wishlist"
                   title="Simpan ke wishlist"
@@ -1338,15 +1340,17 @@ function updateAllWishlistCardButtons() {
   });
 }
 
-/* State modul filter dan pengurutan wishlist (Langkah 2.3) */
+/* State modul filter dan pengurutan wishlist (Langkah 2.3 & Modul P2) */
 let wishlistQuery = "";
 let wishlistSortBy = "latest";
+let wishlistSelectedGenre = "all";
 let filterAnnounceTimer = null;
 let lastAnnouncedFilterMessage = "";
 
 let wishlistToolbar = null;
 let wishlistSearchInput = null;
 let wishlistSortSelect = null;
+let wishlistGenreChips = null;
 let wishlistFilterAnnouncer = null;
 let wishlistFilterEmpty = null;
 
@@ -1363,10 +1367,13 @@ function scheduleFilterAnnouncement(immediate = false) {
 
   const totalList = getWishlist(globalThis.localStorage);
   const totalCount = totalList.length;
-  const filtered = filterAndSortWishlist(totalList, wishlistQuery, wishlistSortBy);
+  const filtered = filterAndSortWishlist(totalList, wishlistQuery, wishlistSortBy, wishlistSelectedGenre);
   const filteredCount = filtered.length;
 
-  const msg = `Menampilkan ${filteredCount} dari ${totalCount} game`;
+  let msg = `Menampilkan ${filteredCount} dari ${totalCount} game`;
+  if (wishlistSelectedGenre && wishlistSelectedGenre !== "all" && wishlistSelectedGenre !== "semua") {
+    msg += ` kategori genre ${wishlistSelectedGenre}`;
+  }
 
   const doAnnounce = () => {
     if (!els.wishlistPanel || els.wishlistPanel.hidden) return;
@@ -1436,22 +1443,45 @@ function initWishlistToolbar() {
   wishlistToolbar.appendChild(wishlistSearchInput);
   wishlistToolbar.appendChild(wishlistSortSelect);
 
-  // 4. Buat kontainer pesan empty state khusus hasil filter kosong
+  // 4. Buat kontainer quick filter chips genre (Modul P2)
+  wishlistGenreChips = document.createElement("div");
+  wishlistGenreChips.id = "wishlist-genre-chips";
+  wishlistGenreChips.className = "wishlist-genre-chips";
+  wishlistGenreChips.setAttribute("role", "group");
+  wishlistGenreChips.setAttribute("aria-label", "Filter genre wishlist");
+  wishlistGenreChips.hidden = true;
+
+  wishlistGenreChips.addEventListener("click", (e) => {
+    const btn = e.target.closest(".wishlist-genre-chip");
+    if (!btn) return;
+    const clicked = btn.dataset.genre || "all";
+    if (wishlistSelectedGenre.toLowerCase() === clicked.toLowerCase() && clicked.toLowerCase() !== "all") {
+      wishlistSelectedGenre = "all";
+    } else {
+      wishlistSelectedGenre = clicked;
+    }
+    updateWishlistUI();
+    scheduleFilterAnnouncement(true);
+  });
+
+  // 5. Buat kontainer pesan empty state khusus hasil filter kosong
   wishlistFilterEmpty = document.createElement("div");
   wishlistFilterEmpty.id = "wishlist-filter-empty";
   wishlistFilterEmpty.className = "wishlist-empty";
   wishlistFilterEmpty.hidden = true;
 
-  // 5. Sisipkan toolbar dan filterEmpty sebelum wishlist-items di dalam content
+  // 6. Sisipkan toolbar, genre chips, dan filterEmpty sebelum wishlist-items di dalam content
   if (els.wishlistItems && els.wishlistItems.parentNode === content) {
     content.insertBefore(wishlistToolbar, els.wishlistItems);
+    content.insertBefore(wishlistGenreChips, els.wishlistItems);
     content.insertBefore(wishlistFilterEmpty, els.wishlistItems);
   } else {
     content.appendChild(wishlistToolbar);
+    content.appendChild(wishlistGenreChips);
     content.appendChild(wishlistFilterEmpty);
   }
 
-  // 6. Buat announcer live region terpisah khusus filter & sort (kelas sr-only sudah ada di style.css)
+  // 7. Buat announcer live region terpisah khusus filter & sort (kelas sr-only sudah ada di style.css)
   wishlistFilterAnnouncer = document.createElement("div");
   wishlistFilterAnnouncer.id = "wishlist-filter-announcer";
   wishlistFilterAnnouncer.className = "sr-only";
@@ -1668,8 +1698,9 @@ function updateWishlistUI() {
   }
 
   if (totalCount === 0) {
-    // Wishlist kosong total: sembunyikan toolbar, tampilkan pesan kosong bawaan
+    // Wishlist kosong total: sembunyikan toolbar dan chip genre, tampilkan pesan kosong bawaan
     if (wishlistToolbar) wishlistToolbar.hidden = true;
+    if (wishlistGenreChips) wishlistGenreChips.hidden = true;
     if (els.wishlistEmpty) els.wishlistEmpty.hidden = false;
     if (wishlistFilterEmpty) wishlistFilterEmpty.hidden = true;
     els.wishlistItems.replaceChildren();
@@ -1684,7 +1715,47 @@ function updateWishlistUI() {
     if (wishlistToolbar) wishlistToolbar.hidden = false;
     if (els.wishlistEmpty) els.wishlistEmpty.hidden = true;
 
-    const filteredList = filterAndSortWishlist(totalList, wishlistQuery, wishlistSortBy);
+    // Render quick filter chips genre (Modul P2: batasi 5-7 genre teratas)
+    const topGenres = extractTopGenres(totalList, 7);
+    if (topGenres.length === 0) {
+      if (wishlistGenreChips) wishlistGenreChips.hidden = true;
+    } else {
+      if (wishlistGenreChips) {
+        wishlistGenreChips.hidden = false;
+        if (
+          wishlistSelectedGenre !== "all" &&
+          !topGenres.some((g) => g.toLowerCase() === wishlistSelectedGenre.toLowerCase())
+        ) {
+          wishlistSelectedGenre = "all";
+        }
+
+        const chipsFrag = document.createDocumentFragment();
+
+        const allBtn = document.createElement("button");
+        allBtn.type = "button";
+        const isAllActive = wishlistSelectedGenre === "all";
+        allBtn.className = `wishlist-genre-chip${isAllActive ? " is-active" : ""}`;
+        allBtn.dataset.genre = "all";
+        allBtn.setAttribute("aria-pressed", isAllActive ? "true" : "false");
+        allBtn.textContent = "Semua";
+        chipsFrag.appendChild(allBtn);
+
+        topGenres.forEach((genre) => {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          const isActive = wishlistSelectedGenre.toLowerCase() === genre.toLowerCase();
+          chip.className = `wishlist-genre-chip${isActive ? " is-active" : ""}`;
+          chip.dataset.genre = genre;
+          chip.setAttribute("aria-pressed", isActive ? "true" : "false");
+          chip.textContent = genre;
+          chipsFrag.appendChild(chip);
+        });
+
+        wishlistGenreChips.replaceChildren(chipsFrag);
+      }
+    }
+
+    const filteredList = filterAndSortWishlist(totalList, wishlistQuery, wishlistSortBy, wishlistSelectedGenre);
 
     if (filteredList.length === 0) {
       // Ada item di wishlist tetapi tidak ada yang cocok dengan filter
@@ -1692,7 +1763,15 @@ function updateWishlistUI() {
         const cleanQ = (wishlistQuery || "").replace(/\s+/g, " ").trim();
         const chars = Array.from(cleanQ);
         const displayQ = chars.length > 40 ? chars.slice(0, 40).join("") + "…" : cleanQ;
-        wishlistFilterEmpty.textContent = `Tidak ada game yang cocok dengan "${displayQ}"`;
+        const hasGenre = wishlistSelectedGenre && wishlistSelectedGenre !== "all";
+
+        if (cleanQ && hasGenre) {
+          wishlistFilterEmpty.textContent = `Tidak ada game genre "${wishlistSelectedGenre}" yang cocok dengan "${displayQ}"`;
+        } else if (hasGenre) {
+          wishlistFilterEmpty.textContent = `Tidak ada game dengan genre "${wishlistSelectedGenre}"`;
+        } else {
+          wishlistFilterEmpty.textContent = `Tidak ada game yang cocok dengan "${displayQ}"`;
+        }
         wishlistFilterEmpty.hidden = false;
       }
       els.wishlistItems.replaceChildren();
@@ -1738,6 +1817,7 @@ function closeWishlistPanel() {
   // Reset state saat drawer ditutup
   wishlistQuery = "";
   wishlistSortBy = "latest";
+  wishlistSelectedGenre = "all";
   if (wishlistSearchInput) wishlistSearchInput.value = "";
   if (wishlistSortSelect) wishlistSortSelect.value = "latest";
   cancelFilterAnnouncement();
@@ -1958,13 +2038,15 @@ els.messages.addEventListener("click", (e) => {
   const appId = toggleBtn.dataset.appid;
   const title = toggleBtn.dataset.title;
   const storeUrl = toggleBtn.dataset.storeUrl;
+  const rawGenres = toggleBtn.dataset.genres || "";
+  const genres = rawGenres ? rawGenres.split(",").map((g) => g.trim()).filter(Boolean) : [];
 
   const isCurrentlySaved = isInWishlist(globalThis.localStorage, { appId, title });
   if (isCurrentlySaved) {
     removeFromWishlist(globalThis.localStorage, { appId, title });
     announceMessage(`${title} dihapus dari wishlist`);
   } else {
-    const addResult = addToWishlist(globalThis.localStorage, { appId, title, storeUrl });
+    const addResult = addToWishlist(globalThis.localStorage, { appId, title, storeUrl, genres });
     if (!addResult.success && addResult.error) {
       showToast(addResult.error);
       announceMessage(addResult.error);
@@ -2285,6 +2367,7 @@ function renderComparisonContent(data) {
             data-appid="${data.gameA.appId ? escapeHtml(String(data.gameA.appId)) : ""}"
             data-title="${escapeHtml(data.gameA.title)}"
             data-store-url="${escapeHtml(data.gameA.storeUrl)}"
+            data-genres="${Array.isArray(data.gameA.genres) ? escapeHtml(data.gameA.genres.join(",")) : ""}"
             aria-pressed="${isSavedA ? "true" : "false"}"
             aria-label="Simpan ${escapeHtml(data.gameA.title)} ke wishlist"
           >
@@ -2310,6 +2393,7 @@ function renderComparisonContent(data) {
             data-appid="${data.gameB.appId ? escapeHtml(String(data.gameB.appId)) : ""}"
             data-title="${escapeHtml(data.gameB.title)}"
             data-store-url="${escapeHtml(data.gameB.storeUrl)}"
+            data-genres="${Array.isArray(data.gameB.genres) ? escapeHtml(data.gameB.genres.join(",")) : ""}"
             aria-pressed="${isSavedB ? "true" : "false"}"
             aria-label="Simpan ${escapeHtml(data.gameB.title)} ke wishlist"
           >
@@ -2331,6 +2415,8 @@ function renderComparisonContent(data) {
       const appId = btn.dataset.appid;
       const title = btn.dataset.title;
       const storeUrl = btn.dataset.storeUrl;
+      const rawGenres = btn.dataset.genres || "";
+      const genres = rawGenres ? rawGenres.split(",").map((g) => g.trim()).filter(Boolean) : [];
       const isSaved = isInWishlist(globalThis.localStorage, { appId, title });
 
       if (isSaved) {
@@ -2340,7 +2426,7 @@ function renderComparisonContent(data) {
         const txt = btn.querySelector(".wishlist-btn-text");
         if (txt) txt.textContent = "Wishlist";
       } else {
-        const addRes = addToWishlist(globalThis.localStorage, { appId, title, storeUrl });
+        const addRes = addToWishlist(globalThis.localStorage, { appId, title, storeUrl, genres });
         if (!addRes.success && addRes.error) {
           showToast(addRes.error);
           announceMessage(addRes.error);
