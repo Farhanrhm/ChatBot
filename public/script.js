@@ -1992,8 +1992,10 @@ if (window.visualViewport) {
 function updateComparisonUI() {
   // 1. Sinkronkan seluruh tombol .btn-compare-toggle di kartu obrolan
   document.querySelectorAll(".btn-compare-toggle").forEach((btn) => {
+    const appId = btn.dataset.appid ? Number.parseInt(btn.dataset.appid, 10) : null;
+    const title = btn.dataset.title;
     const key = btn.dataset.key;
-    const isSelected = selectedComparisonGames.some((g) => g.key === key || getItemKey(g) === key);
+    const isSelected = isGameInComparison(selectedComparisonGames, { key, appId, title });
     btn.setAttribute("aria-pressed", isSelected ? "true" : "false");
     btn.classList.toggle("is-selected", isSelected);
   });

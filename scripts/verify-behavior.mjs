@@ -931,6 +931,324 @@ try {
   await pageWatchdogB.close();
   activePage = null;
 
+  // UJI PERILAKU & AKSESIBILITAS: KOMPARASI GAME BERDAMPINGAN (FASE 3)
+  const pageComp = await browser.newPage();
+  activePage = pageComp;
+  await pageComp.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+
+  // 1. Suntikkan 3 game rekomendasi ke obrolan
+  await pageComp.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    const messages = document.getElementById('messages');
+    const welcome = document.getElementById('welcome');
+    if (welcome) welcome.hidden = true;
+
+    const botMsg = document.createElement('div');
+    botMsg.className = 'msg bot';
+    botMsg.innerHTML = `
+      <div class="avatar">AI</div>
+      <div class="bubble">
+        <div class="game-cards">
+          <div class="game-card" id="card-1">
+            <div class="game-card-inner">
+              <h4 class="game-card-title">Hades</h4>
+              <div class="game-card-actions">
+                <button type="button" class="btn-wishlist-toggle" data-appid="1145360" data-title="Hades" data-store-url="https://store.steampowered.com/app/1145360/">
+                  <span class="wishlist-btn-text">Wishlist</span>
+                </button>
+                <button type="button" class="btn-compare-toggle" data-key="app:1145360" data-appid="1145360" data-title="Hades" data-year="2020" data-developer="Supergiant Games" data-genres="Rogue-like,Action" data-whyfit="Action roguelike cepat." data-specs="Ringan.">
+                  <span class="compare-btn-text">Bandingkan</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="game-card" id="card-2">
+            <div class="game-card-inner">
+              <h4 class="game-card-title">Dead Cells</h4>
+              <div class="game-card-actions">
+                <button type="button" class="btn-wishlist-toggle" data-appid="588650" data-title="Dead Cells" data-store-url="https://store.steampowered.com/app/588650/">
+                  <span class="wishlist-btn-text">Wishlist</span>
+                </button>
+                <button type="button" class="btn-compare-toggle" data-key="app:588650" data-appid="588650" data-title="Dead Cells" data-year="2018" data-developer="Motion Twin" data-genres="Roguelite,Metroidvania" data-whyfit="Eksplorasi kastil seru." data-specs="Sangat bersahabat.">
+                  <span class="compare-btn-text">Bandingkan</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="game-card" id="card-3">
+            <div class="game-card-inner">
+              <h4 class="game-card-title">Risk of Rain 2</h4>
+              <div class="game-card-actions">
+                <button type="button" class="btn-wishlist-toggle" data-appid="632360" data-title="Risk of Rain 2" data-store-url="https://store.steampowered.com/app/632360/">
+                  <span class="wishlist-btn-text">Wishlist</span>
+                </button>
+                <button type="button" class="btn-compare-toggle" data-key="app:632360" data-appid="632360" data-title="Risk of Rain 2" data-year="2020" data-developer="Hopoo Games" data-genres="Third-Person Shooter,Co-op" data-whyfit="Multiplayer adiktif." data-specs="Butuh GPU moderat.">
+                  <span class="compare-btn-text">Bandingkan</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    messages.appendChild(botMsg);
+  });
+
+  // Test 1: Seleksi 1 game memunculkan floating bar dengan instruksi memilih 1 game lagi
+  await pageComp.evaluate(() => {
+    const btns = document.querySelectorAll('.btn-compare-toggle');
+    btns[0].click();
+  });
+
+  const barState1 = await pageComp.evaluate(() => {
+    const bar = document.getElementById('comparison-bar');
+    const text = document.getElementById('comparison-bar-text')?.textContent;
+    const openBtn = document.getElementById('comparison-open-btn');
+    const firstCardBtn = document.querySelectorAll('.btn-compare-toggle')[0];
+    return {
+      barHidden: bar?.hidden,
+      text,
+      openBtnDisabled: openBtn?.disabled,
+      btnPressed: firstCardBtn?.getAttribute('aria-pressed'),
+      btnSelected: firstCardBtn?.classList.contains('is-selected'),
+    };
+  });
+
+  const passSelect1 = barState1.barHidden === false &&
+    barState1.text.includes('1 game dipilih') &&
+    barState1.text.includes('Pilih 1 game lagi') &&
+    barState1.openBtnDisabled === true &&
+    barState1.btnPressed === 'true' &&
+    barState1.btnSelected === true;
+  await recordResult('Seleksi 1 game memunculkan floating bar dengan instruksi memilih 1 game lagi', passSelect1, `Bar hidden: ${barState1.barHidden}, Teks: "${barState1.text}", Tombol bandingkan disabled: ${barState1.openBtnDisabled}`, pageComp);
+
+  // Test 2: Seleksi 2 game mengaktifkan tombol Bandingkan Sekarang
+  await pageComp.evaluate(() => {
+    const btns = document.querySelectorAll('.btn-compare-toggle');
+    btns[1].click();
+  });
+
+  const barState2 = await pageComp.evaluate(() => {
+    const bar = document.getElementById('comparison-bar');
+    const text = document.getElementById('comparison-bar-text')?.textContent;
+    const openBtn = document.getElementById('comparison-open-btn');
+    const secondCardBtn = document.querySelectorAll('.btn-compare-toggle')[1];
+    return {
+      barHidden: bar?.hidden,
+      text,
+      openBtnDisabled: openBtn?.disabled,
+      btnPressed: secondCardBtn?.getAttribute('aria-pressed'),
+      btnSelected: secondCardBtn?.classList.contains('is-selected'),
+    };
+  });
+
+  const passSelect2 = barState2.barHidden === false &&
+    barState2.text.includes('2 game siap dibandingkan') &&
+    barState2.openBtnDisabled === false &&
+    barState2.btnPressed === 'true' &&
+    barState2.btnSelected === true;
+  await recordResult('Seleksi 2 game mengaktifkan tombol Bandingkan Sekarang', passSelect2, `Bar hidden: ${barState2.barHidden}, Teks: "${barState2.text}", Tombol bandingkan disabled: ${barState2.openBtnDisabled}`, pageComp);
+
+  // Test 3: Mencoba menambah game ke-3 ditolak dan memicu toast (Mutasi M1)
+  await pageComp.evaluate(() => {
+    const btns = document.querySelectorAll('.btn-compare-toggle');
+    btns[2].click();
+  });
+
+  const thirdGameState = await pageComp.evaluate(() => {
+    const thirdBtn = document.querySelectorAll('.btn-compare-toggle')[2];
+    const toast = document.querySelector('.wishlist-toast');
+    return {
+      thirdPressed: thirdBtn?.getAttribute('aria-pressed'),
+      thirdSelected: thirdBtn?.classList.contains('is-selected'),
+      toastVisible: toast && !toast.hidden,
+      toastText: toast?.textContent,
+    };
+  });
+
+  const passRejectThird = thirdGameState.thirdPressed === 'false' &&
+    thirdGameState.thirdSelected === false &&
+    thirdGameState.toastVisible &&
+    thirdGameState.toastText.includes('Maksimal 2 game');
+  await recordResult('Penolakan seleksi lebih dari 2 game memicu toast batasan (Mutasi M1)', passRejectThird, `Status game 3: ${thirdGameState.thirdPressed}, Toast: "${thirdGameState.toastText}"`, pageComp);
+
+  // Test 4: Membuka modal komparasi mengaktifkan atribut inert pada latar belakang dan memfokuskan tombol tutup (Mutasi M2)
+  await pageComp.focus('#comparison-open-btn');
+  await pageComp.click('#comparison-open-btn');
+
+  await pageComp.waitForFunction(() => {
+    const dialog = document.getElementById('comparison-dialog');
+    return dialog && !dialog.hidden;
+  }, { timeout: 3000 });
+
+  const modalOpenState = await pageComp.evaluate(() => {
+    const appEl = document.querySelector('.app');
+    const dialog = document.getElementById('comparison-dialog');
+    const backdrop = document.getElementById('comparison-backdrop');
+    const activeId = document.activeElement ? document.activeElement.id : null;
+    return {
+      hasInert: appEl?.hasAttribute('inert'),
+      dialogVisible: dialog && !dialog.hidden,
+      backdropVisible: backdrop && !backdrop.hidden,
+      activeId,
+    };
+  });
+
+  const passModalOpen = modalOpenState.hasInert === true &&
+    modalOpenState.dialogVisible === true &&
+    modalOpenState.backdropVisible === true &&
+    modalOpenState.activeId === 'comparison-close-btn';
+  await recordResult('Membuka modal komparasi mengaktifkan atribut inert pada latar belakang dan fokus pada tombol tutup (Mutasi M2)', passModalOpen, `Inert aktif: ${modalOpenState.hasInert}, Dialog tampil: ${modalOpenState.dialogVisible}, Fokus: ${modalOpenState.activeId}`, pageComp);
+
+  // Test 5: Focus trap mengurung navigasi Tab di dalam modal komparasi
+  const focusTrapState = await pageComp.evaluate(async () => {
+    const dialog = document.getElementById('comparison-dialog');
+    const closeBtn = document.getElementById('comparison-close-btn');
+
+    // Dapatkan semua elemen interaktif yang terlihat di dalam modal
+    const focusables = Array.from(dialog.querySelectorAll('button:not([disabled]):not([hidden]), a[href]:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'))
+      .filter((el) => el.offsetParent !== null || el.getClientRects().length > 0 || el === closeBtn);
+
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+
+    // Coba Shift+Tab dari elemen pertama
+    first.focus();
+    dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+    const focusedAfterShiftTab = document.activeElement;
+
+    // Coba Tab dari elemen terakhir
+    last.focus();
+    dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: false, bubbles: true }));
+    const focusedAfterTab = document.activeElement;
+
+    return {
+      totalFocusables: focusables.length,
+      firstTag: first.tagName,
+      lastTag: last.tagName,
+      wrappedToLast: focusedAfterShiftTab === last,
+      wrappedToFirst: focusedAfterTab === first,
+    };
+  });
+
+  const passFocusTrap = focusTrapState.totalFocusables >= 2 &&
+    focusTrapState.wrappedToLast === true &&
+    focusTrapState.wrappedToFirst === true;
+  await recordResult('Focus trap mengurung navigasi Tab di dalam modal komparasi', passFocusTrap, `Elemen fokus: ${focusTrapState.totalFocusables}, Wrap first->last: ${focusTrapState.wrappedToLast}, Wrap last->first: ${focusTrapState.wrappedToFirst}`, pageComp);
+
+  // Test 6: Sinkronisasi dua arah wishlist dari modal komparasi memperbarui state kartu chat dan drawer (Mutasi M5)
+  // Klik tombol wishlist Game A (Hades) di dalam modal
+  await pageComp.evaluate(() => {
+    const modalWishlistBtns = document.querySelectorAll('.btn-modal-wishlist');
+    if (modalWishlistBtns.length > 0) modalWishlistBtns[0].click();
+  });
+
+  const wishlistSyncState1 = await pageComp.evaluate(() => {
+    const modalBtnA = document.querySelectorAll('.btn-modal-wishlist')[0];
+    const cardBtnA = document.querySelector('#card-1 .btn-wishlist-toggle');
+    const badge = document.getElementById('wishlist-badge')?.textContent;
+    const wishlistStorage = JSON.parse(localStorage.getItem('steamscout_wishlist') || '[]');
+    const isSavedInStorage = wishlistStorage.some((g) => g.title === 'Hades');
+    return {
+      modalPressed: modalBtnA?.getAttribute('aria-pressed'),
+      modalText: modalBtnA?.querySelector('.wishlist-btn-text')?.textContent,
+      cardPressed: cardBtnA?.getAttribute('aria-pressed'),
+      cardText: cardBtnA?.querySelector('.wishlist-btn-text')?.textContent,
+      badge,
+      isSavedInStorage,
+    };
+  });
+
+  const passWishlistModalAdd = wishlistSyncState1.modalPressed === 'true' &&
+    wishlistSyncState1.modalText === 'Tersimpan' &&
+    wishlistSyncState1.cardPressed === 'true' &&
+    wishlistSyncState1.cardText === 'Tersimpan' &&
+    wishlistSyncState1.badge === '1' &&
+    wishlistSyncState1.isSavedInStorage === true;
+
+  // Klik sekali lagi untuk menghapus dari modal
+  await pageComp.evaluate(() => {
+    const modalWishlistBtns = document.querySelectorAll('.btn-modal-wishlist');
+    if (modalWishlistBtns.length > 0) modalWishlistBtns[0].click();
+  });
+
+  const wishlistSyncState2 = await pageComp.evaluate(() => {
+    const modalBtnA = document.querySelectorAll('.btn-modal-wishlist')[0];
+    const cardBtnA = document.querySelector('#card-1 .btn-wishlist-toggle');
+    const badge = document.getElementById('wishlist-badge')?.textContent;
+    const wishlistStorage = JSON.parse(localStorage.getItem('steamscout_wishlist') || '[]');
+    const isSavedInStorage = wishlistStorage.some((g) => g.title === 'Hades');
+    return {
+      modalPressed: modalBtnA?.getAttribute('aria-pressed'),
+      cardPressed: cardBtnA?.getAttribute('aria-pressed'),
+      badge,
+      isSavedInStorage,
+    };
+  });
+
+  const passWishlistModalRemove = wishlistSyncState2.modalPressed === 'false' &&
+    wishlistSyncState2.cardPressed === 'false' &&
+    wishlistSyncState2.badge === '0' &&
+    wishlistSyncState2.isSavedInStorage === false;
+
+  const passWishlistSync = passWishlistModalAdd && passWishlistModalRemove;
+  await recordResult('Sinkronisasi dua arah wishlist dari modal komparasi memperbarui state kartu chat dan drawer (Mutasi M5)', passWishlistSync, `Tambah: cardPressed=${wishlistSyncState1.cardPressed}, badge=${wishlistSyncState1.badge}; Hapus: cardPressed=${wishlistSyncState2.cardPressed}, badge=${wishlistSyncState2.badge}`, pageComp);
+
+  // Test 7: Penekanan tombol Escape menutup modal dan memulihkan fokus pemicu
+  await pageComp.keyboard.press('Escape');
+
+  await pageComp.waitForFunction(() => {
+    const dialog = document.getElementById('comparison-dialog');
+    return dialog && dialog.hidden;
+  }, { timeout: 3000 });
+
+  const escapeCloseState = await pageComp.evaluate(() => {
+    const appEl = document.querySelector('.app');
+    const dialog = document.getElementById('comparison-dialog');
+    const backdrop = document.getElementById('comparison-backdrop');
+    const activeId = document.activeElement ? document.activeElement.id : null;
+    return {
+      hasInert: appEl?.hasAttribute('inert'),
+      dialogHidden: dialog?.hidden,
+      backdropHidden: backdrop?.hidden,
+      activeId,
+    };
+  });
+
+  const passEscapeClose = escapeCloseState.hasInert === false &&
+    escapeCloseState.dialogHidden === true &&
+    escapeCloseState.backdropHidden === true &&
+    escapeCloseState.activeId === 'comparison-open-btn';
+  await recordResult('Penekanan tombol Escape menutup modal dan memulihkan fokus pemicu', passEscapeClose, `Inert dicabut: ${!escapeCloseState.hasInert}, Dialog hidden: ${escapeCloseState.dialogHidden}, Fokus kembali: ${escapeCloseState.activeId}`, pageComp);
+
+  // Test 8: Menekan tombol bersihkan obrolan (reset chat) mengosongkan seleksi komparasi dan menyembunyikan floating bar (Mutasi M3)
+  // Mock confirm dialog agar selalu setuju
+  await pageComp.evaluate(() => {
+    window.confirm = () => true;
+    const resetBtn = document.getElementById('reset-btn');
+    if (resetBtn) resetBtn.click();
+  });
+
+  const resetState = await pageComp.evaluate(() => {
+    const bar = document.getElementById('comparison-bar');
+    const selectedBtns = document.querySelectorAll('.btn-compare-toggle.is-selected');
+    const dialog = document.getElementById('comparison-dialog');
+    return {
+      barHidden: bar?.hidden,
+      selectedCount: selectedBtns.length,
+      dialogHidden: dialog?.hidden,
+    };
+  });
+
+  const passResetClear = resetState.barHidden === true &&
+    resetState.selectedCount === 0 &&
+    resetState.dialogHidden === true;
+  await recordResult('Reset obrolan mengosongkan seleksi komparasi dan menyembunyikan floating bar (Mutasi M3)', passResetClear, `Bar hidden: ${resetState.barHidden}, Seleksi tersisa: ${resetState.selectedCount}`, pageComp);
+
+  await pageComp.close();
+  activePage = null;
+
 } catch (err) {
   logError(`\n[ERROR Verifikasi Perilaku] ${err.message}`);
   results.push({
@@ -958,7 +1276,7 @@ try {
   fs.appendFileSync(logFile, JSON.stringify(results, null, 2) + '\n');
 } catch {}
 
-const allPassed = results.length >= 18 && results.every((r) => r.passed);
+const allPassed = results.length >= 26 && results.every((r) => r.passed);
 if (allPassed) {
   log('\nSEMUA UJI PERILAKU DOM LULUS 100%! Sistem stabil dan terbukti tangguh.\n');
   process.exit(0);
