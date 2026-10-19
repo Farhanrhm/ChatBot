@@ -1750,6 +1750,181 @@ body.keyboard-open .meta-hints {
 }
 
 /* ========================================================
+   MODUL RIWAYAT OBROLAN MULTI-SESI VIA INDEXEDDB (MODUL P4)
+   ======================================================== */
+
+.sessions-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid rgba(102, 192, 244, 0.12);
+  padding-top: 16px;
+}
+
+.sessions-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sessions-sidebar-head h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.btn-new-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(102, 192, 244, 0.12);
+  border: 1px solid rgba(102, 192, 244, 0.25);
+  border-radius: 4px;
+  color: var(--accent);
+  padding: 3px 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.btn-new-session:hover {
+  background: rgba(102, 192, 244, 0.22);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.sessions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 240px;
+  scrollbar-width: thin;
+  scrollbar-color: #2a475e transparent;
+}
+
+.session-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.session-item:hover {
+  background: rgba(42, 71, 94, 0.35);
+  border-color: rgba(102, 192, 244, 0.15);
+}
+
+.session-item.is-active {
+  background: rgba(42, 71, 94, 0.7);
+  border-color: rgba(102, 192, 244, 0.4);
+}
+
+.session-item.is-active .session-item-title {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.session-item-title {
+  font-size: 0.82rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.btn-session-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.session-item:hover .btn-session-delete,
+.session-item:focus-within .btn-session-delete {
+  opacity: 1;
+}
+
+.btn-session-delete:hover {
+  color: var(--danger);
+  background: rgba(229, 115, 115, 0.15);
+}
+
+/* Tombol Sesi Topbar Mobile & Toolbar Drawer Sesi */
+.btn-sessions-top {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .btn-sessions-top {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.sessions-drawer-toolbar {
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-0);
+}
+
+.btn-new-chat-action {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(102, 192, 244, 0.15);
+  border: 1px solid var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 44px;
+  transition: background 0.15s;
+}
+
+.btn-new-chat-action:hover {
+  background: rgba(102, 192, 244, 0.25);
+}
+
+/* ========================================================
    MODUL KOMPARASI GAME BERDAMPINGAN (FASE 3)
    ======================================================== */
 
@@ -2245,6 +2420,11 @@ body.keyboard-open .meta-hints {
 .btn-comparison-open:focus-visible,
 .btn-comparison-clear:focus-visible,
 .comparison-tab-btn:focus-visible,
+.btn-new-session:focus-visible,
+.btn-new-chat-action:focus-visible,
+.btn-sessions-top:focus-visible,
+.btn-session-delete:focus-visible,
+.session-item-title:focus-visible,
 .btn-icon:focus-visible,
 .btn-ghost:focus-visible {
   outline: 2px solid var(--accent);

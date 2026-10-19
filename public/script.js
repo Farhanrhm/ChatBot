@@ -27,6 +27,18 @@ import {
   formatComparisonPrice,
 } from "./comparisonCore.js";
 
+import {
+  openDB,
+  createSession,
+  getSession,
+  saveSession,
+  getAllSessions,
+  deleteSession,
+  clearAllSessions,
+  sanitizeSessionTitle,
+  migrateFromLegacyStorage,
+} from "./chatHistoryCore.js";
+
 const API_URL = "/api/chat";
 const STORAGE_KEY = "steamscout_chat_history";
 
@@ -293,7 +305,23 @@ const els = {
   comparisonTabALabel: $("#comparison-tab-a-label"),
   comparisonTabBLabel: $("#comparison-tab-b-label"),
   comparisonContent: $("#comparison-content"),
+  sessionsSidebar: $(".sessions-sidebar"),
+  newSessionBtn: $("#new-session-btn"),
+  sessionsList: $("#sessions-list"),
+  sessionsBtn: $("#sessions-btn"),
+  sessionsPanel: $("#sessions-panel"),
+  sessionsBackdrop: $("#sessions-backdrop"),
+  sessionsCloseBtn: $("#sessions-close-btn"),
+  drawerNewSessionBtn: $("#drawer-new-session-btn"),
+  drawerSessionsList: $("#drawer-sessions-list"),
+  sessionsEmpty: $("#sessions-empty"),
 };
+
+/* State Riwayat Obrolan Multi-Sesi (Modul P4) */
+let currentSessionId = null;
+let currentSessionTitle = "Obrolan Baru";
+let isSessionsDrawerOpen = false;
+let previousSessionsActiveElement = null;
 
 /* State Komparasi Game Berdampingan */
 const renderedGamesMap = new Map();
@@ -379,12 +407,26 @@ function updateOnlineStatus() {
   }
 }
 
-/* Penyimpanan Riwayat Sesi (sessionStorage) */
+/* Penyimpanan Riwayat Sesi (IndexedDB & sessionStorage) */
 function saveHistoryToStorage() {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   } catch (err) {
     console.warn("Gagal menyimpan riwayat ke sessionStorage:", err);
+  }
+
+  if (currentSessionId) {
+    saveSession({
+      id: currentSessionId,
+      title: currentSessionTitle,
+      messages: history,
+    })
+      .then(() => {
+        renderSessionsList();
+      })
+      .catch((err) => {
+        console.warn("Gagal menyimpan sesi ke IndexedDB:", err);
+      });
   }
 }
 
@@ -405,6 +447,238 @@ function clearHistoryStorage() {
     sessionStorage.removeItem(STORAGE_KEY);
   } catch (err) {
     console.warn("Gagal mengosongkan sessionStorage:", err);
+  }
+}
+
+/* Manajemen Sesi Obrolan Multi-Sesi IndexedDB (Modul P4) */
+async function renderSessionsList() {
+  try {
+    const sessions = await getAllSessions();
+
+    const targets = [
+      { container: els.sessionsList, isDrawer: false },
+      { container: els.drawerSessionsList, isDrawer: true },
+    ];
+
+    targets.forEach(({ container, isDrawer }) => {
+      if (!container) return;
+      container.innerHTML = "";
+
+      if (sessions.length === 0) {
+        if (isDrawer && els.sessionsEmpty) els.sessionsEmpty.hidden = false;
+        return;
+      }
+
+      if (isDrawer && els.sessionsEmpty) els.sessionsEmpty.hidden = true;
+
+      sessions.forEach((sess) => {
+        const li = document.createElement("li");
+        const isActive = sess.id === currentSessionId;
+        li.className = `session-item${isActive ? " is-active" : ""}`;
+        li.dataset.id = sess.id;
+
+        const titleBtn = document.createElement("button");
+        titleBtn.type = "button";
+        titleBtn.className = "session-item-title";
+        titleBtn.textContent = sess.title || "Obrolan Baru";
+        titleBtn.title = sess.title || "Obrolan Baru";
+        titleBtn.setAttribute("aria-label", `Buka sesi: ${sess.title || "Obrolan Baru"}`);
+        titleBtn.addEventListener("click", () => switchSession(sess.id));
+
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "btn-session-delete";
+        delBtn.setAttribute("aria-label", `Hapus sesi ${sess.title || "Obrolan Baru"}`);
+        delBtn.title = "Hapus sesi";
+        delBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        `;
+        delBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          deleteSessionPrompt(sess.id, sess.title || "Obrolan Baru");
+        });
+
+        li.appendChild(titleBtn);
+        li.appendChild(delBtn);
+        container.appendChild(li);
+      });
+    });
+  } catch (err) {
+    console.warn("Gagal merender daftar sesi:", err);
+  }
+}
+
+async function switchSession(id) {
+  if (!id || id === currentSessionId) {
+    if (isSessionsDrawerOpen) closeSessionsDrawer();
+    return;
+  }
+
+  if (currentRequestController) {
+    currentRequestController.abort();
+    currentRequestController = null;
+  }
+
+  try {
+    const sess = await getSession(id);
+    if (!sess) return;
+
+    currentSessionId = sess.id;
+    currentSessionTitle = sess.title || "Obrolan Baru";
+    history = Array.isArray(sess.messages) ? sess.messages : [];
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+
+    resetComparisonState();
+    els.messages.innerHTML = "";
+
+    if (history.length > 0) {
+      setWelcomeVisible(false);
+      history.forEach((msg) => {
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+      });
+    } else {
+      setWelcomeVisible(true);
+    }
+
+    renderSessionsList();
+    if (isSessionsDrawerOpen) closeSessionsDrawer();
+    announceMessage(`Beralih ke sesi obrolan: ${currentSessionTitle}`);
+    els.input.focus({ preventScroll: true });
+  } catch (err) {
+    console.warn("Gagal beralih sesi:", err);
+  }
+}
+
+async function handleNewSession() {
+  if (history.length === 0) {
+    if (isSessionsDrawerOpen) closeSessionsDrawer();
+    els.input.focus({ preventScroll: true });
+    return;
+  }
+
+  if (currentRequestController) {
+    currentRequestController.abort();
+    currentRequestController = null;
+  }
+
+  try {
+    const newSess = await createSession({ title: "Obrolan Baru", messages: [] });
+    currentSessionId = newSess.id;
+    currentSessionTitle = newSess.title;
+    history = [];
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+
+    resetComparisonState();
+    els.messages.innerHTML = "";
+    setWelcomeVisible(true);
+    renderSessionsList();
+
+    if (isSessionsDrawerOpen) closeSessionsDrawer();
+    announceMessage("Sesi obrolan baru telah dibuat");
+    els.input.focus({ preventScroll: true });
+  } catch (err) {
+    console.warn("Gagal membuat sesi baru:", err);
+  }
+}
+
+async function deleteSessionPrompt(id, title) {
+  if (!confirm(`Hapus sesi obrolan "${title}"?`)) return;
+
+  try {
+    await deleteSession(id);
+    announceMessage(`Sesi "${title}" telah dihapus`);
+
+    if (id === currentSessionId) {
+      const remaining = await getAllSessions();
+      if (remaining.length > 0) {
+        await switchSession(remaining[0].id);
+      } else {
+        const fresh = await createSession({ title: "Obrolan Baru", messages: [] });
+        currentSessionId = fresh.id;
+        currentSessionTitle = fresh.title;
+        history = [];
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+        resetComparisonState();
+        els.messages.innerHTML = "";
+        setWelcomeVisible(true);
+        renderSessionsList();
+      }
+    } else {
+      renderSessionsList();
+    }
+  } catch (err) {
+    console.warn("Gagal menghapus sesi:", err);
+  }
+}
+
+function openSessionsDrawer() {
+  if (!els.sessionsPanel || !els.sessionsBackdrop) return;
+  previousSessionsActiveElement = document.activeElement;
+  els.sessionsPanel.hidden = false;
+  els.sessionsBackdrop.hidden = false;
+  if (els.sessionsBtn) els.sessionsBtn.setAttribute("aria-expanded", "true");
+  isSessionsDrawerOpen = true;
+  document.body.style.overflow = "hidden";
+  renderSessionsList();
+  if (els.sessionsCloseBtn) {
+    els.sessionsCloseBtn.focus();
+  }
+  announceMessage("Panel riwayat sesi obrolan dibuka");
+}
+
+function closeSessionsDrawer() {
+  if (!els.sessionsPanel || !els.sessionsBackdrop) return;
+  els.sessionsPanel.hidden = true;
+  els.sessionsBackdrop.hidden = true;
+  if (els.sessionsBtn) els.sessionsBtn.setAttribute("aria-expanded", "false");
+  isSessionsDrawerOpen = false;
+  document.body.style.overflow = "";
+  if (previousSessionsActiveElement && typeof previousSessionsActiveElement.focus === "function") {
+    previousSessionsActiveElement.focus();
+  }
+  announceMessage("Panel riwayat sesi obrolan ditutup");
+}
+
+async function initChatSessions() {
+  try {
+    await migrateFromLegacyStorage(globalThis.sessionStorage);
+    const sessions = await getAllSessions();
+    if (sessions.length > 0) {
+      const latest = sessions[0];
+      currentSessionId = latest.id;
+      currentSessionTitle = latest.title || "Obrolan Baru";
+      history = Array.isArray(latest.messages) ? latest.messages : [];
+    } else {
+      const initial = await createSession({ title: "Obrolan Baru", messages: [] });
+      currentSessionId = initial.id;
+      currentSessionTitle = initial.title;
+      history = [];
+    }
+
+    renderSessionsList();
+
+    if (history.length > 0) {
+      setWelcomeVisible(false);
+      history.forEach((msg) => {
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+      });
+    } else {
+      setWelcomeVisible(true);
+    }
+  } catch (err) {
+    console.warn("Gagal inisialisasi sesi obrolan IndexedDB:", err);
+    history = loadHistoryFromStorage();
+    if (history.length > 0) {
+      setWelcomeVisible(false);
+      history.forEach((msg) => {
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+      });
+    } else {
+      setWelcomeVisible(true);
+    }
   }
 }
 
@@ -1247,6 +1521,10 @@ async function sendMessage(text) {
     setToolbarCollapsed(true);
   }
 
+  if (currentSessionTitle === "Obrolan Baru") {
+    currentSessionTitle = sanitizeSessionTitle(text);
+  }
+
   addMessage("user", text, filterSummary);
   history.push({ role: "user", text });
   saveHistoryToStorage();
@@ -1310,10 +1588,25 @@ els.resetBtn.addEventListener("click", () => {
   }
 
   history = [];
+  currentSessionTitle = "Obrolan Baru";
   clearHistoryStorage();
   resetComparisonState();
   els.messages.innerHTML = "";
   setWelcomeVisible(true);
+
+  if (currentSessionId) {
+    saveSession({
+      id: currentSessionId,
+      title: "Obrolan Baru",
+      messages: [],
+    })
+      .then(() => {
+        renderSessionsList();
+      })
+      .catch((err) => {
+        console.warn("Gagal mereset sesi:", err);
+      });
+  }
 
   // Buka kembali toolbar dan bersihkan filter aktif
   hasUserToggledToolbar = false;
@@ -2538,6 +2831,70 @@ if (els.comparisonDialog) {
   });
 }
 
+// Event listener untuk kontrol riwayat sesi obrolan (Modul P4)
+if (els.sessionsBtn) {
+  els.sessionsBtn.addEventListener("click", openSessionsDrawer);
+}
+
+if (els.sessionsCloseBtn) {
+  els.sessionsCloseBtn.addEventListener("click", closeSessionsDrawer);
+}
+
+if (els.sessionsBackdrop) {
+  els.sessionsBackdrop.addEventListener("click", closeSessionsDrawer);
+}
+
+if (els.newSessionBtn) {
+  els.newSessionBtn.addEventListener("click", handleNewSession);
+}
+
+if (els.drawerNewSessionBtn) {
+  els.drawerNewSessionBtn.addEventListener("click", handleNewSession);
+}
+
+if (els.sessionsPanel) {
+  els.sessionsPanel.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeSessionsDrawer();
+      return;
+    }
+
+    if (e.key === "Tab") {
+      const focusables = Array.from(
+        els.sessionsPanel.querySelectorAll(
+          'button:not([disabled]):not([hidden]), a[href]:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => {
+        if (el === els.sessionsCloseBtn) return true;
+        return el.closest("[hidden]") === null && (el.offsetParent !== null || el.getClientRects().length > 0);
+      });
+
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      if (focusables.length === 1) {
+        e.preventDefault();
+        focusables[0].focus();
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  });
+}
+
 /* Inisialisasi dan muat riwayat sesi */
 migrateWishlist(globalThis.localStorage);
 renderQuickPrompts();
@@ -2547,16 +2904,8 @@ loadPreferencesFromStorage();
 updateFilterUI();
 setToolbarCollapsed(isToolbarCollapsed);
 
-const savedHistory = loadHistoryFromStorage();
-if (savedHistory.length > 0) {
-  history = savedHistory;
-  setWelcomeVisible(false);
-  history.forEach((msg) => {
-    addMessage(msg.role === "user" ? "user" : "bot", msg.text);
-  });
-} else {
-  setWelcomeVisible(true);
-}
+// Memuat riwayat multi-sesi via IndexedDB (Modul P4)
+initChatSessions();
 
 requestAnimationFrame(updateToolbarScrollEdges);
 els.input.focus({ preventScroll: true });

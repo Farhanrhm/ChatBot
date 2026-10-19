@@ -847,6 +847,11 @@ try {
   const passWatchdogA = streamCalledA && fallbackPostCalledA;
   await recordResult('Watchdog sebelum token pertama: stream macet fallback otomatis ke POST /api/chat', passWatchdogA, `Stream dipanggil: ${streamCalledA}, Fallback POST: ${fallbackPostCalledA}`, pageWatchdogA);
 
+  await pageWatchdogA.evaluate(() => {
+    try {
+      indexedDB.deleteDatabase('SteamScoutDB');
+    } catch {}
+  });
   await pageWatchdogA.close();
 
   // B. Macet DI TENGAH stream (setelah token intro tampil): pertahankan teks parsial, tampilkan notifikasi ramah & tombol Coba lagi
@@ -855,6 +860,10 @@ try {
   await pageWatchdogB.evaluateOnNewDocument(() => {
     window.__STREAM_FIRST_TIMEOUT_MS = 800;
     window.__STREAM_INTER_TIMEOUT_MS = 300;
+    try {
+      sessionStorage.clear();
+      indexedDB.deleteDatabase('SteamScoutDB');
+    } catch {}
   });
 
   await pageWatchdogB.setRequestInterception(true);
@@ -932,9 +941,13 @@ try {
 
   const userMsgCountAfter = await pageWatchdogB.$$eval('.msg.user', (els) => els.length);
   const passNoDuplicate = retryRequestSent && userMsgCountBefore === 1 && userMsgCountAfter === 1;
-
   await recordResult('Tombol Coba lagi tidak menambah pesan user ganda', passNoDuplicate, `Request terkirim: ${retryRequestSent}, Jumlah pesan user: sebelum = ${userMsgCountBefore}, sesudah = ${userMsgCountAfter}`, pageWatchdogB);
 
+  await pageWatchdogB.evaluate(() => {
+    try {
+      indexedDB.deleteDatabase('SteamScoutDB');
+    } catch {}
+  });
   await pageWatchdogB.close();
   activePage = null;
 
@@ -947,6 +960,9 @@ try {
   await pageComp.evaluate(() => {
     localStorage.clear();
     sessionStorage.clear();
+    try {
+      indexedDB.deleteDatabase('SteamScoutDB');
+    } catch {}
     const messages = document.getElementById('messages');
     const welcome = document.getElementById('welcome');
     if (welcome) welcome.hidden = true;
@@ -1476,6 +1492,101 @@ try {
   );
 
   await pageExport.close();
+
+  // =========================================================================
+  // 17. RIWAYAT OBROLAN MULTI-SESI VIA INDEXEDDB (MODUL P4)
+  // =========================================================================
+  log('\n--- Menguji Riwayat Obrolan Multi-Sesi via IndexedDB (Modul P4) ---');
+  const pageHistory = await browser.newPage();
+  activePage = pageHistory;
+  await pageHistory.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await pageHistory.evaluate(() => document.fonts?.ready);
+
+  // Tunggu IndexedDB dan UI sesi siap
+  await pageHistory.waitForFunction(() => {
+    const list = document.getElementById('sessions-list');
+    return list && list.children.length >= 1;
+  }, { timeout: 5000 });
+
+  const historyTestResult = await pageHistory.evaluate(async () => {
+    const sessionsList = document.getElementById('sessions-list');
+    const newSessionBtn = document.getElementById('new-session-btn');
+    const input = document.getElementById('user-input');
+    const form = document.getElementById('chat-form');
+    const messages = document.getElementById('messages');
+
+    // 1. Periksa sesi awal yang otomatis dibuat
+    const initialSessionCount = sessionsList.children.length;
+    const initialItem = sessionsList.querySelector('.session-item.is-active');
+    const initialTitle = initialItem ? initialItem.querySelector('.session-item-title').textContent : '';
+
+    // 2. Kirim pesan ke sesi aktif dan pastikan judul terupdate
+    input.value = 'Rekomendasi game roguelite aksi';
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+
+    // Tunggu pesan muncul di container messages
+    await new Promise((r) => setTimeout(r, 600));
+
+    const updatedItem = sessionsList.querySelector('.session-item.is-active');
+    const updatedTitle = updatedItem ? updatedItem.querySelector('.session-item-title').textContent : '';
+
+    // 3. Tekan tombol "+ Baru" untuk membuat sesi kedua
+    newSessionBtn.click();
+    await new Promise((r) => setTimeout(r, 500));
+
+    const sessionCountAfterNew = sessionsList.children.length;
+    const messagesAfterNew = messages.children.length;
+    const welcomeVisibleAfterNew = !document.getElementById('welcome').hidden;
+
+    // 4. Kirim pesan ke sesi kedua
+    input.value = 'Game simulator santai';
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await new Promise((r) => setTimeout(r, 600));
+
+    const session2Item = sessionsList.querySelector('.session-item.is-active');
+    const session2Title = session2Item ? session2Item.querySelector('.session-item-title').textContent : '';
+
+    // 5. Beralih kembali ke sesi pertama
+    const allSessionButtons = sessionsList.querySelectorAll('.session-item-title');
+    const firstSessionBtn = Array.from(allSessionButtons).find((b) => b.textContent.includes('roguelite'));
+    if (firstSessionBtn) {
+      firstSessionBtn.click();
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    const messagesRestored = messages.children.length > 0;
+    const restoredText = messages.textContent;
+
+    return {
+      initialSessionCount,
+      initialTitle,
+      updatedTitle,
+      sessionCountAfterNew,
+      messagesAfterNew,
+      welcomeVisibleAfterNew,
+      session2Title,
+      messagesRestored,
+      hasRogueliteMsg: restoredText.includes('roguelite'),
+    };
+  });
+
+  const passMultiSession = historyTestResult.initialSessionCount >= 1 &&
+    historyTestResult.updatedTitle.includes('roguelite') &&
+    historyTestResult.sessionCountAfterNew >= 2 &&
+    historyTestResult.messagesAfterNew === 0 &&
+    historyTestResult.welcomeVisibleAfterNew === true &&
+    historyTestResult.session2Title.includes('simulator') &&
+    historyTestResult.messagesRestored === true &&
+    historyTestResult.hasRogueliteMsg === true;
+
+  await recordResult(
+    'Riwayat obrolan multi-sesi IndexedDB mendukung pembuatan, perpindahan, dan pemulihan konteks pesan (Modul P4)',
+    Boolean(passMultiSession),
+    `Awal: ${historyTestResult.initialSessionCount} sesi ("${historyTestResult.initialTitle}"), Update: "${historyTestResult.updatedTitle}", Sesi baru: ${historyTestResult.sessionCountAfterNew} sesi, Sesi 2: "${historyTestResult.session2Title}", Pulih: ${historyTestResult.messagesRestored} (${historyTestResult.hasRogueliteMsg})`,
+    pageHistory
+  );
+
+  await pageHistory.close();
   activePage = null;
 
 } catch (err) {
@@ -1505,7 +1616,7 @@ try {
   fs.appendFileSync(logFile, JSON.stringify(results, null, 2) + '\n');
 } catch {}
 
-const allPassed = results.length >= 30 && results.every((r) => r.passed);
+const allPassed = results.length >= 31 && results.every((r) => r.passed);
 if (allPassed) {
   log('\nSEMUA UJI PERILAKU DOM LULUS 100%! Sistem stabil dan terbukti tangguh.\n');
   process.exit(0);

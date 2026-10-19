@@ -1816,5 +1816,109 @@ test('PWA (Modul P3): berkas sw.js menerapkan caching UI dan Network-Only untuk 
   assert.ok(content.includes('caches.match'), 'Harus menerapkan Cache matching');
 });
 
+test('chatHistoryCore (Modul P4): sanitizeSessionTitle merapikan spasi dan memotong panjang string dengan aman', async () => {
+  const { sanitizeSessionTitle } = await import('../public/chatHistoryCore.js');
+  assert.equal(sanitizeSessionTitle(''), 'Obrolan Baru');
+  assert.equal(sanitizeSessionTitle(null), 'Obrolan Baru');
+  assert.equal(sanitizeSessionTitle('   Cari game    roguelite seru   '), 'Cari game roguelite seru');
+  assert.equal(sanitizeSessionTitle('Game RPG dengan alur cerita luar biasa dan grafis memukau', 20), 'Game RPG dengan alur…');
+});
+
+test('chatHistoryCore (Modul P4): createSession, getSession, dan saveSession mengelola sesi secara independen', async () => {
+  const { createSession, getSession, saveSession, clearAllSessions } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  const sess = await createSession({
+    title: 'Sesi Uji Coba',
+    messages: [{ role: 'user', text: 'Halo SteamScout' }],
+  });
+
+  assert.ok(sess.id && sess.id.startsWith('session_'));
+  assert.equal(sess.title, 'Sesi Uji Coba');
+  assert.equal(sess.messages.length, 1);
+
+  const fetched = await getSession(sess.id);
+  assert.ok(fetched);
+  assert.equal(fetched.id, sess.id);
+  assert.equal(fetched.messages[0].text, 'Halo SteamScout');
+
+  // Perbarui pesan sesi
+  sess.messages.push({ role: 'model', text: 'Halo! Ada yang bisa dibantu?' });
+  const saved = await saveSession(sess);
+  assert.equal(saved.messages.length, 2);
+
+  const refetched = await getSession(sess.id);
+  assert.equal(refetched.messages.length, 2);
+});
+
+test('chatHistoryCore (Modul P4): getAllSessions mengurutkan sesi berdasarkan waktu pembaruan terbaru (updatedAt descending)', async () => {
+  const { createSession, saveSession, getAllSessions, clearAllSessions } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  const s1 = await createSession({ title: 'Sesi Pertama', messages: [] });
+  // Berikan sedikit jeda
+  await new Promise((r) => setTimeout(r, 10));
+  const s2 = await createSession({ title: 'Sesi Kedua', messages: [] });
+
+  let all = await getAllSessions();
+  assert.equal(all.length, 2);
+  assert.equal(all[0].id, s2.id); // S2 lebih baru
+  assert.equal(all[1].id, s1.id);
+
+  // Perbarui S1 agar menjadi yang paling baru
+  await new Promise((r) => setTimeout(r, 10));
+  s1.messages.push({ role: 'user', text: 'Update S1' });
+  await saveSession(s1);
+
+  all = await getAllSessions();
+  assert.equal(all[0].id, s1.id); // Sekarang S1 di urutan pertama
+  assert.equal(all[1].id, s2.id);
+});
+
+test('chatHistoryCore (Modul P4): deleteSession menghapus sesi spesifik dan clearAllSessions mengosongkan seluruh sesi', async () => {
+  const { createSession, getSession, deleteSession, clearAllSessions, getAllSessions } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  const s1 = await createSession({ title: 'Sesi 1' });
+  const s2 = await createSession({ title: 'Sesi 2' });
+
+  const delResult = await deleteSession(s1.id);
+  assert.equal(delResult, true);
+  assert.equal(await getSession(s1.id), null);
+  assert.ok(await getSession(s2.id));
+
+  await clearAllSessions();
+  const emptyList = await getAllSessions();
+  assert.equal(emptyList.length, 0);
+});
+
+test('chatHistoryCore (Modul P4): migrateFromLegacyStorage memigrasikan riwayat sessionStorage lawas tanpa duplikasi', async () => {
+  const { migrateFromLegacyStorage, clearAllSessions, getAllSessions } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  const mockStorage = {
+    data: {
+      steamscout_chat_history: JSON.stringify([
+        { role: 'user', text: 'Rekomendasi game indie' },
+        { role: 'model', text: 'Berikut rekomendasinya...' },
+      ]),
+    },
+    getItem(k) { return this.data[k] || null; },
+  };
+
+  const migrated = await migrateFromLegacyStorage(mockStorage);
+  assert.ok(migrated);
+  assert.equal(migrated.title, 'Rekomendasi game indie');
+  assert.equal(migrated.messages.length, 2);
+
+  // Migrasi kedua tidak boleh menduplikasi karena sudah ada sesi di DB
+  const secondTry = await migrateFromLegacyStorage(mockStorage);
+  assert.equal(secondTry, null);
+
+  const all = await getAllSessions();
+  assert.equal(all.length, 1);
+});
+
+
 
 
