@@ -375,6 +375,11 @@ try {
   const focusEmptyStart = await pageFocus.evaluate(() => document.activeElement.id);
   await pageFocus.keyboard.press('Tab');
   const focusEmptyTab = await pageFocus.evaluate(() => document.activeElement.id);
+  // Navigasi Tab berlanjut melewati tombol aksi hingga berputar kembali ke tombol tutup
+  await pageFocus.keyboard.press('Tab'); // ke wishlist-copy-btn
+  await pageFocus.keyboard.press('Tab'); // ke wishlist-import-btn
+  await pageFocus.keyboard.press('Tab'); // wrap kembali ke wishlist-close-btn
+  const focusWrapped = await pageFocus.evaluate(() => document.activeElement.id);
   await pageFocus.keyboard.press('Escape');
 
   // Tunggu drawer tertutup
@@ -387,11 +392,13 @@ try {
   const drawerHiddenEmpty = await pageFocus.$eval('#wishlist-panel', (el) => el.hidden);
 
   const passFocusEmpty = focusEmptyStart === 'wishlist-close-btn' &&
-                         focusEmptyTab === 'wishlist-close-btn' &&
+                         focusEmptyTab === 'wishlist-export-btn' &&
+                         focusWrapped === 'wishlist-close-btn' &&
                          drawerHiddenEmpty &&
                          focusAfterEsc === 'wishlist-btn';
 
-  await recordResult('Focus trap saat drawer kosong (menahan fokus dan kembali ke tombol pembuka via Esc)', passFocusEmpty, `Awal: ${focusEmptyStart}, Tab: ${focusEmptyTab}, Pulih: ${focusAfterEsc}`, pageFocus);
+  await recordResult('Focus trap saat drawer kosong (menahan fokus dan kembali ke tombol pembuka via Esc)', passFocusEmpty, `Awal: ${focusEmptyStart}, Tab1: ${focusEmptyTab}, Wrap: ${focusWrapped}, Pulih: ${focusAfterEsc}`, pageFocus);
+
 
   // B. Drawer saat daftar terisi item
   await pageFocus.evaluate(() => {
@@ -1249,6 +1256,98 @@ try {
   await pageComp.close();
   activePage = null;
 
+  // =========================================================================
+  // PENGUJIAN PERILAKU MODUL P1: EKSPOR & IMPOR WISHLIST
+  // =========================================================================
+  log('\n--- UJI MODUL P1: EKSPOR DAN IMPOR WISHLIST ---');
+  const pageExport = await browser.newPage();
+  activePage = pageExport;
+  await pageExport.setViewport({ width: 1366, height: 768 });
+
+  // Inisialisasi storage dengan 2 game awal
+  await pageExport.goto('http://localhost:3589', { waitUntil: 'networkidle0' });
+  await pageExport.evaluate(() => {
+    const initialList = [
+      { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z' },
+      { appId: 588650, title: 'Dead Cells', addedAt: '2026-10-19T10:05:00.000Z' },
+    ];
+    localStorage.setItem('steamscout_wishlist', JSON.stringify(initialList));
+    const btn = document.getElementById('wishlist-btn');
+    if (btn) btn.click();
+  });
+
+  await pageExport.waitForFunction(() => {
+    const panel = document.getElementById('wishlist-panel');
+    return panel && !panel.hidden;
+  }, { timeout: 3000 });
+
+  // Test 9 (Test 27): Tombol salin markdown dan ekspor JSON wishlist memicu toast sukses
+  const exportCopyState = await pageExport.evaluate(async () => {
+    const copyBtn = document.getElementById('wishlist-copy-btn');
+    if (copyBtn) copyBtn.click();
+    await new Promise((r) => setTimeout(r, 80));
+    const toast1 = document.querySelector('.wishlist-toast')?.textContent;
+
+    const exportBtn = document.getElementById('wishlist-export-btn');
+    if (exportBtn) exportBtn.click();
+    await new Promise((r) => setTimeout(r, 80));
+    const toast2 = document.querySelector('.wishlist-toast')?.textContent;
+
+    return {
+      copyToast: toast1,
+      exportToast: toast2,
+    };
+  });
+
+  const passExportCopy = (exportCopyState.copyToast && exportCopyState.copyToast.includes('Daftar game berhasil disalin')) ||
+    (exportCopyState.exportToast && exportCopyState.exportToast.includes('Berhasil mengekspor 2 game'));
+  await recordResult('Tombol salin markdown dan ekspor JSON wishlist memicu notifikasi toast sukses', Boolean(passExportCopy), `Toast salin: "${exportCopyState.copyToast}", Toast ekspor: "${exportCopyState.exportToast}"`, pageExport);
+
+  // Test 10 (Test 28): Impor JSON wishlist memperbarui daftar game secara cerdas tanpa duplikasi
+  await pageExport.evaluate(() => {
+    const importPayload = JSON.stringify({
+      version: '1.0',
+      source: 'SteamScout',
+      itemCount: 2,
+      items: [
+        { appId: 413150, title: 'Stardew Valley', addedAt: '2026-10-19T11:00:00.000Z' },
+        { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z' },
+      ],
+    });
+
+    const input = document.getElementById('wishlist-import-input');
+    const file = new File([importPayload], 'steamscout_backup.json', { type: 'application/json' });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    input.files = dataTransfer.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  await pageExport.waitForFunction(() => {
+    const items = document.querySelectorAll('#wishlist-items .wishlist-item');
+    return items.length >= 3;
+  }, { timeout: 3000 });
+
+  const finalImportState = await pageExport.evaluate(() => {
+    const items = Array.from(document.querySelectorAll('#wishlist-items .wishlist-item-title')).map((el) => el.textContent);
+    const countText = document.getElementById('wishlist-drawer-count')?.textContent;
+    const badgeText = document.getElementById('wishlist-badge')?.textContent;
+    return {
+      items,
+      countText,
+      badgeText,
+    };
+  });
+
+  const passImport = finalImportState.items.includes('Stardew Valley') &&
+    finalImportState.items.length === 3 &&
+    finalImportState.countText === '(3/50)' &&
+    finalImportState.badgeText === '3';
+  await recordResult('Impor berkas JSON wishlist memperbarui daftar game secara cerdas tanpa duplikasi', passImport, `Total game: ${finalImportState.items.length}, Badge: ${finalImportState.badgeText}, Judul: ${JSON.stringify(finalImportState.items)}`, pageExport);
+
+  await pageExport.close();
+  activePage = null;
+
 } catch (err) {
   logError(`\n[ERROR Verifikasi Perilaku] ${err.message}`);
   results.push({
@@ -1276,7 +1375,7 @@ try {
   fs.appendFileSync(logFile, JSON.stringify(results, null, 2) + '\n');
 } catch {}
 
-const allPassed = results.length >= 26 && results.every((r) => r.passed);
+const allPassed = results.length >= 28 && results.every((r) => r.passed);
 if (allPassed) {
   log('\nSEMUA UJI PERILAKU DOM LULUS 100%! Sistem stabil dan terbukti tangguh.\n');
   process.exit(0);
@@ -1284,3 +1383,4 @@ if (allPassed) {
   logError('\nTerdapat pengujian perilaku yang gagal atau belum lengkap.\n');
   process.exit(1);
 }
+
