@@ -273,7 +273,12 @@ async function fetchWithTimeout(url, { signal, timeoutMs = PER_REQUEST_TIMEOUT_M
   }
 
   try {
-    const res = await fetchFn(url, { signal: controller.signal });
+    const res = await fetchFn(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'SobatSteam/1.0',
+      },
+    });
     return res;
   } finally {
     clearTimeout(timer);

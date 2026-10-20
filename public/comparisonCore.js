@@ -1,7 +1,7 @@
 
 
 /**
- * SteamScout: Modul Inti Komparasi Game Berdampingan (Tanpa DOM / Testable)
+ * SobatSteam: Modul Inti Komparasi Game Berdampingan (Tanpa DOM / Testable)
  *
  * Mengelola state seleksi perbandingan game (maksimal 2 game),
  * validasi protokol aman (HTTPS), pemisahan field terstruktur dan naratif,

@@ -12,3 +12,17 @@ Only an explicit choice of antislop during or after selects a session mode. A re
 If the mode is unresolved, ask during/after and end the response; wait for the answer before any UI review, planning, or concept. For read-only tasks, put the active-mode notice only at the start of the final answer, never in progress messages. For editing tasks, announce before the first edit and omit it from the final answer.
 To update antislop later: `npx antislop-ai --update`, or run `npx antislop-ai` and pick Overwrite them.
 <!-- antislop:end -->
+
+## SobatSteam Architecture Guidelines
+SobatSteam adalah kurator dan teman ngobrol pencarian game PC di ekosistem Steam.
+
+### Aturan Tipografi & Bahasa
+- Seluruh teks UI, komentar berkas, dan string prompt dilarang menggunakan karakter em-dash; wajib menggunakan tanda hubung standar (`-`).
+- Gunakan kosakata "dikurangi", jangan pernah menggunakan kata "dieliminasi".
+
+### Kepatuhan Tata Letak
+- Wajib mempertahankan `0px` page scroll overflow pada seluruh 5 viewport pengujian (1366x768, 1024x575, 1920x1080, 375x667, 412x915).
+
+### Penyimpanan & Kompatibilitas Mundur
+- Kunci penyimpanan wishlist utama: `sobatsteam_wishlist` (dengan fallback otomatis membaca data lama `steamscout_wishlist`).
+- Kunci sesi aktif: `sobatsteam_active_session_id` (dengan fallback otomatis membaca data lama `steamscout_active_session_id`).

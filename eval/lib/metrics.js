@@ -1,5 +1,5 @@
 /**
- * Modul penghitungan metrik evaluasi kualitas jawaban SteamScout.
+ * Modul penghitungan metrik evaluasi kualitas jawaban SobatSteam.
  * Memisahkan metrik infrastruktur (429, timeout) dari metrik kualitas,
  * mencatat penyebut secara eksplisit, dan menghitung latensi statistik (min, median, max).
  */

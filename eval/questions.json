@@ -316,7 +316,7 @@
     "id": "edge-02",
     "category": "edge",
     "title": "Input panjang mendekati batas 1000 karakter",
-    "prompt": "Saya mencari rekomendasi game petualangan seru di Steam. Mau game yang grafisnya bagus, ceritanya menarik, karakternya berkesan, dan gameplay memuaskan. Kalau bisa jangan yang terlalu sulit, tapi ada tantangannya. Bisa dimainkan offline di PC saat santai di akhir pekan. Terima kasih banyak kurator SteamScout!",
+    "prompt": "Saya mencari rekomendasi game petualangan seru di Steam. Mau game yang grafisnya bagus, ceritanya menarik, karakternya berkesan, dan gameplay memuaskan. Kalau bisa jangan yang terlalu sulit, tapi ada tantangannya. Bisa dimainkan offline di PC saat santai di akhir pekan. Terima kasih banyak kurator SobatSteam!",
     "expectedGamesCount": [2, 3]
   },
   {

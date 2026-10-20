@@ -15,7 +15,7 @@ if (!fs.existsSync(screenshotDir)) {
 }
 
 const logFile = path.join(screenshotDir, 'behavior.log');
-fs.writeFileSync(logFile, `=== VERIFIKASI PERILAKU STEAMSCOUT (${new Date().toISOString()}) ===\n`);
+fs.writeFileSync(logFile, `=== VERIFIKASI PERILAKU SOBATSTEAM (${new Date().toISOString()}) ===\n`);
 
 function log(msg) {
   console.log(msg);
@@ -185,14 +185,14 @@ try {
   // Tambahkan item dari tab A
   await pageA.evaluate(() => {
     const item = { appId: 105600, title: 'Terraria', storeUrl: 'https://store.steampowered.com/app/105600/' };
-    localStorage.setItem('steamscout_wishlist', JSON.stringify([item]));
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify([item]));
   });
 
   // Picu storage event ke Tab B (di browser multi-tab, event ini terkirim otomatis oleh OS/engine)
   await pageB.evaluate(() => {
     window.dispatchEvent(new StorageEvent('storage', {
-      key: 'steamscout_wishlist',
-      newValue: localStorage.getItem('steamscout_wishlist'),
+      key: 'sobatsteam_wishlist',
+      newValue: localStorage.getItem('sobatsteam_wishlist'),
     }));
   });
 
@@ -209,17 +209,17 @@ try {
 
   // Tab B menambahkan item kedua tanpa menghapus item dari Tab A
   await pageB.evaluate(() => {
-    const raw = localStorage.getItem('steamscout_wishlist');
+    const raw = localStorage.getItem('sobatsteam_wishlist');
     const list = raw ? JSON.parse(raw) : [];
     list.push({ appId: 413150, title: 'Stardew Valley', storeUrl: 'https://store.steampowered.com/app/413150/' });
-    localStorage.setItem('steamscout_wishlist', JSON.stringify(list));
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(list));
   });
 
   // Picu storage event ke Tab A
   await pageA.evaluate(() => {
     window.dispatchEvent(new StorageEvent('storage', {
-      key: 'steamscout_wishlist',
-      newValue: localStorage.getItem('steamscout_wishlist'),
+      key: 'sobatsteam_wishlist',
+      newValue: localStorage.getItem('sobatsteam_wishlist'),
     }));
   });
 
@@ -227,12 +227,12 @@ try {
   activePage = pageA;
   await pageA.waitForFunction(() => {
     const el = document.getElementById('wishlist-badge');
-    const raw = localStorage.getItem('steamscout_wishlist') || '[]';
+    const raw = localStorage.getItem('sobatsteam_wishlist') || '[]';
     return el && el.textContent.trim() === '2' && JSON.parse(raw).length === 2;
   }, { timeout: 3000 });
 
   const badgeA2 = await pageA.$eval('#wishlist-badge', (el) => el.textContent.trim());
-  const listA = await pageA.evaluate(() => JSON.parse(localStorage.getItem('steamscout_wishlist') || '[]'));
+  const listA = await pageA.evaluate(() => JSON.parse(localStorage.getItem('sobatsteam_wishlist') || '[]'));
   const passSync2 = badgeA2 === '2' && listA.length === 2 && listA.some((g) => g.title === 'Terraria');
   await recordResult('Tab A menerima update dari Tab B tanpa kehilangan data awal', passSync2, `Badge Tab A = ${badgeA2}, Total = ${listA.length}`, pageA);
 
@@ -402,7 +402,7 @@ try {
 
   // B. Drawer saat daftar terisi item
   await pageFocus.evaluate(() => {
-    localStorage.setItem('steamscout_wishlist', JSON.stringify([
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify([
       { appId: 105600, title: 'Terraria', storeUrl: 'https://store.steampowered.com/app/105600/' },
       { appId: 413150, title: 'Stardew Valley', storeUrl: 'https://store.steampowered.com/app/413150/' },
     ]));
@@ -455,7 +455,7 @@ try {
       { appId: 367520, title: 'Hollow Knight', storeUrl: 'https://store.steampowered.com/app/367520/', addedAt: '2026-01-03T10:00:00.000Z' },
       { appId: 504230, title: 'Celeste', storeUrl: 'https://store.steampowered.com/app/504230/', addedAt: '2026-01-04T10:00:00.000Z' },
     ];
-    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(items));
   });
   await pageSearch.click('#wishlist-btn');
   await pageSearch.waitForFunction(() => {
@@ -538,7 +538,7 @@ try {
       { appId: 10, title: 'Counter-Strike 2', storeUrl: 'https://store.steampowered.com/app/10/', addedAt: '2026-01-01T10:00:00.000Z' },
       { appId: 20, title: 'Portal 2', storeUrl: 'https://store.steampowered.com/app/20/', addedAt: '2026-01-02T10:00:00.000Z' },
     ];
-    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(items));
   });
 
   await pageSyncB.click('#wishlist-btn');
@@ -552,15 +552,15 @@ try {
   }, { timeout: 3000 });
 
   await pageSyncA.evaluate(() => {
-    const list = JSON.parse(localStorage.getItem('steamscout_wishlist') || '[]');
+    const list = JSON.parse(localStorage.getItem('sobatsteam_wishlist') || '[]');
     list.push({ appId: 30, title: 'Portal Revolution', storeUrl: 'https://store.steampowered.com/app/30/', addedAt: '2026-01-03T10:00:00.000Z' });
-    localStorage.setItem('steamscout_wishlist', JSON.stringify(list));
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(list));
   });
 
   await pageSyncB.evaluate(() => {
     window.dispatchEvent(new StorageEvent('storage', {
-      key: 'steamscout_wishlist',
-      newValue: localStorage.getItem('steamscout_wishlist'),
+      key: 'sobatsteam_wishlist',
+      newValue: localStorage.getItem('sobatsteam_wishlist'),
     }));
   });
 
@@ -595,7 +595,7 @@ try {
       { appId: 103, title: 'Beta Two', storeUrl: 'https://store.steampowered.com/app/103/', addedAt: '2026-01-03T10:00:00.000Z' },
       { appId: 104, title: 'Beta Three', storeUrl: 'https://store.steampowered.com/app/104/', addedAt: '2026-01-04T10:00:00.000Z' },
     ];
-    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(items));
   });
 
   await pageDel.click('#wishlist-btn');
@@ -613,7 +613,7 @@ try {
   await pageDel.waitForFunction(() => document.querySelectorAll('.wishlist-item').length === 2, { timeout: 3000 });
 
   const storageAfterDel1 = await pageDel.evaluate(() => {
-    const list = JSON.parse(localStorage.getItem('steamscout_wishlist') || '[]');
+    const list = JSON.parse(localStorage.getItem('sobatsteam_wishlist') || '[]');
     const appIds = list.map((g) => g.appId);
     const focusedDatasetKey = document.activeElement ? document.activeElement.dataset?.key : null;
     return { appIds, focusedDatasetKey };
@@ -632,7 +632,7 @@ try {
   await pageDel.waitForFunction(() => document.querySelectorAll('.wishlist-item').length === 1, { timeout: 3000 });
 
   const storageAfterDel2 = await pageDel.evaluate(() => {
-    const list = JSON.parse(localStorage.getItem('steamscout_wishlist') || '[]');
+    const list = JSON.parse(localStorage.getItem('sobatsteam_wishlist') || '[]');
     const appIds = list.map((g) => g.appId);
     const focusedDatasetKey = document.activeElement ? document.activeElement.dataset?.key : null;
     return { appIds, focusedDatasetKey };
@@ -670,7 +670,7 @@ try {
       { appId: 2, title: 'Game B', storeUrl: 'https://store.steampowered.com/app/2/', addedAt: '2026-01-02T10:00:00.000Z' },
       { appId: 3, title: 'Game C', storeUrl: 'https://store.steampowered.com/app/3/', addedAt: '2026-01-03T10:00:00.000Z' },
     ];
-    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(items));
   });
 
   await pageLive.click('#wishlist-btn');
@@ -716,7 +716,7 @@ try {
     const items = [
       { appId: 1, title: 'Portal', storeUrl: 'https://store.steampowered.com/app/1/', addedAt: '2026-01-01T10:00:00.000Z' },
     ];
-    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(items));
   });
 
   await pageTrap.click('#wishlist-btn');
@@ -763,7 +763,7 @@ try {
     const items = [
       { appId: 1, title: 'Cyberpunk 2077', storeUrl: 'https://store.steampowered.com/app/1/', addedAt: '2026-01-01T10:00:00.000Z' },
     ];
-    localStorage.setItem('steamscout_wishlist', JSON.stringify(items));
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(items));
   });
 
   await pageXss.click('#wishlist-btn');
@@ -1171,7 +1171,7 @@ try {
     const modalBtnA = document.querySelectorAll('.btn-modal-wishlist')[0];
     const cardBtnA = document.querySelector('#card-1 .btn-wishlist-toggle');
     const badge = document.getElementById('wishlist-badge')?.textContent;
-    const wishlistStorage = JSON.parse(localStorage.getItem('steamscout_wishlist') || '[]');
+    const wishlistStorage = JSON.parse(localStorage.getItem('sobatsteam_wishlist') || '[]');
     const isSavedInStorage = wishlistStorage.some((g) => g.title === 'Hades');
     return {
       modalPressed: modalBtnA?.getAttribute('aria-pressed'),
@@ -1200,7 +1200,7 @@ try {
     const modalBtnA = document.querySelectorAll('.btn-modal-wishlist')[0];
     const cardBtnA = document.querySelector('#card-1 .btn-wishlist-toggle');
     const badge = document.getElementById('wishlist-badge')?.textContent;
-    const wishlistStorage = JSON.parse(localStorage.getItem('steamscout_wishlist') || '[]');
+    const wishlistStorage = JSON.parse(localStorage.getItem('sobatsteam_wishlist') || '[]');
     const isSavedInStorage = wishlistStorage.some((g) => g.title === 'Hades');
     return {
       modalPressed: modalBtnA?.getAttribute('aria-pressed'),
@@ -1287,7 +1287,7 @@ try {
       { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z', genres: ['Action', 'Roguelite'] },
       { appId: 588650, title: 'Dead Cells', addedAt: '2026-10-19T10:05:00.000Z', genres: ['Roguelite', 'Metroidvania'] },
     ];
-    localStorage.setItem('steamscout_wishlist', JSON.stringify(initialList));
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(initialList));
     const btn = document.getElementById('wishlist-btn');
     if (btn) btn.click();
   });
@@ -1473,7 +1473,10 @@ try {
     };
   });
 
+  const manifestObj = JSON.parse(fs.readFileSync(path.join(publicDir, 'manifest.json'), 'utf8'));
   const passPwaOffline = offlineState.manifestLink === 'manifest.json' &&
+    manifestObj.short_name === 'SobatSteam' &&
+    manifestObj.name === 'SobatSteam: Teman Ngobrol Cari Game PC' &&
     offlineState.bannerOfflineHidden === false &&
     offlineState.statusTextOffline?.includes('Offline') &&
     offlineState.isOfflineClass === true &&

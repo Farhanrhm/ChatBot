@@ -1,9 +1,9 @@
-# SteamScout: Your Personal Game Curator
+# SobatSteam: Teman Ngobrol Cari Game PC
 
 [![CI Test Suite](https://github.com/Farhanrhm/ChatBot/actions/workflows/ci.yml/badge.svg)](https://github.com/Farhanrhm/ChatBot/actions/workflows/ci.yml)
 [![Demo](https://img.shields.io/badge/demo-online-blue)](https://chat-bot-three-gold.vercel.app/)
 
-SteamScout adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. Menggunakan persona kurator game berbahasa Indonesia santai khas gamer, SteamScout membantu pemain menemukan 2-3 game yang relevan berdasarkan genre, spesifikasi perangkat (laptop kentang atau PC gaming), mode bermain (single-player atau co-op), budget, dan suasana hati.
+SobatSteam adalah aplikasi web chatbot rekomendasi game PC di ekosistem Steam. Menggunakan persona teman ngobrol kurator game berbahasa Indonesia santai khas gamer, SobatSteam membantu pemain menemukan 2-3 game yang relevan berdasarkan genre, spesifikasi perangkat (laptop kentang atau PC gaming), mode bermain (single-player atau co-op), budget, dan suasana hati.
 
 ---
 
@@ -16,15 +16,15 @@ Pengguna menyampaikan kriteria atau preferensi game yang dicari melalui kolom pe
 ## Antarmuka Aplikasi
 
 ### 1. Tampilan Utama Desktop
-![Tampilan Utama Desktop SteamScout](./docs/screenshots/image.png)
+![Tampilan Utama Desktop SobatSteam](./docs/screenshots/image.png)
 *Navigasi sidebar, status koneksi, percakapan rekomendasi game terstruktur, dan toolbar filter preferensi.*
 
 ### 2. Drawer Modal Wishlist
-![Tampilan Drawer Modal Wishlist SteamScout](./docs/screenshots/wishlist_drawer.png)
+![Tampilan Drawer Modal Wishlist SobatSteam](./docs/screenshots/wishlist_drawer.png)
 *Panel drawer wishlist tersimpan dengan focus trap keyboard, navigasi tautan toko Steam, dan tombol hapus.*
 
 ### 3. Tampilan Responsif Ponsel (Mobile)
-![Tampilan Responsif Mobile SteamScout](./docs/screenshots/mobile_preview.png)
+![Tampilan Responsif Mobile SobatSteam](./docs/screenshots/mobile_preview.png)
 *Tata letak responsif pada viewport layar ponsel dengan target sentuh optimal dan navigasi anti-scroll.*
 
 ---
