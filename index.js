@@ -40,7 +40,7 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || 'TEST_DUMMY_KEY',
 });
 
-// Keamanan header via Helmet (mengizinkan Google Fonts untuk tema SteamScout)
+// Keamanan header via Helmet (mengizinkan Google Fonts untuk tema SobatSteam)
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -237,14 +237,14 @@ export function toContents(conversation) {
 }
 
 /**
- * Skema JSON terstruktur untuk kurasi game SteamScout
+ * Skema JSON terstruktur untuk kurasi game SobatSteam
  */
 export const STEAM_RECOMMENDER_SCHEMA = {
   type: 'object',
   properties: {
     intro: {
       type: 'string',
-      description: 'Kalimat pembuka santai khas kurator gamer SteamScout (1-2 kalimat).',
+      description: 'Kalimat pembuka santai khas teman kurator gamer SobatSteam (1-2 kalimat).',
     },
     games: {
       type: 'array',
@@ -316,7 +316,7 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 1000) {
         err?.message?.includes('overloaded');
 
       if (is503 && attempt < retries) {
-        console.warn(`[SteamScout] Gemini 503 sibuk. Mencoba ulang dalam ${delayMs}ms (Percobaan ${attempt + 1}/${retries})...`);
+        console.warn(`[SobatSteam] Gemini 503 sibuk. Mencoba ulang dalam ${delayMs}ms (Percobaan ${attempt + 1}/${retries})...`);
         await new Promise((res) => setTimeout(res, delayMs));
         delayMs *= 2;
         continue;
@@ -378,7 +378,7 @@ app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req,
     }
 
     // Catat error di server tanpa membocorkan API key atau data user
-    console.error('[SteamScout Error]', err?.name || 'Error', err?.message || err);
+    console.error('[SobatSteam Error]', err?.name || 'Error', err?.message || err);
 
     if (err?.message === 'REQUEST_TIMEOUT') {
       return res.status(504).json({
@@ -387,7 +387,7 @@ app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req,
     }
 
     if (err?.status === 404 || err?.message?.includes('404') || err?.message?.includes('NOT_FOUND')) {
-      console.error(`[SteamScout Model Error] Model '${GEMINI_MODEL}' tidak ditemukan (HTTP 404 NOT_FOUND). Model mungkin telah dihentikan (deprecated) atau nama model salah. Gunakan model aktif seperti 'gemini-3.1-flash-lite' di .env.`);
+      console.error(`[SobatSteam Model Error] Model '${GEMINI_MODEL}' tidak ditemukan (HTTP 404 NOT_FOUND). Model mungkin telah dihentikan (deprecated) atau nama model salah. Gunakan model aktif seperti 'gemini-3.1-flash-lite' di .env.`);
       return res.status(502).json({
         error: `Model AI '${GEMINI_MODEL}' tidak ditemukan atau telah dihentikan. Silakan periksa konfigurasi GEMINI_MODEL di server.`,
       });
@@ -479,7 +479,7 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
       res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
       return res.end();
     }
-    console.error('[SteamScout Stream Error]', err?.name || 'Error', err?.message || err);
+    console.error('[SobatSteam Stream Error]', err?.name || 'Error', err?.message || err);
     res.write(`data: ${JSON.stringify({ error: 'Terjadi kesalahan saat memproses streaming rekomendasi.' })}\n\n`);
     res.end();
   }
@@ -490,19 +490,19 @@ const isServerless = Boolean(process.env.VERCEL);
 
 if (!isTestMode && !isServerless) {
   const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`SteamScout server ready on http://0.0.0.0:${PORT}`);
+    console.log(`SobatSteam server ready on http://0.0.0.0:${PORT}`);
   });
 
   // Penanganan Graceful Shutdown dengan batas waktu paksa 10 detik
   const handleShutdown = (signal) => {
-    console.log(`[SteamScout] Menerima sinyal ${signal}. Menutup server secara aman...`);
+    console.log(`[SobatSteam] Menerima sinyal ${signal}. Menutup server secara aman...`);
     setTimeout(() => {
-      console.error('[SteamScout] Batas waktu shutdown tercapai (10 detik). Memaksa keluar.');
+      console.error('[SobatSteam] Batas waktu shutdown tercapai (10 detik). Memaksa keluar.');
       process.exit(1);
     }, 10000).unref();
 
     server.close(() => {
-      console.log('[SteamScout] Server Express ditutup bersih. Tidak ada koneksi tertinggal.');
+      console.log('[SobatSteam] Server Express ditutup bersih. Tidak ada koneksi tertinggal.');
       process.exit(0);
     });
   };

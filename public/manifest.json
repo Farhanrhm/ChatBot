@@ -1,7 +1,7 @@
 {
-  "name": "SteamScout: Kurator Game PC",
-  "short_name": "SteamScout",
-  "description": "Kurator Game PC Cerdas untuk menemukan rekomendasi game Steam terbaik.",
+  "name": "SobatSteam: Teman Ngobrol Cari Game PC",
+  "short_name": "SobatSteam",
+  "description": "Teman ngobrol cari game PC di ekosistem Steam berbahasa Indonesia.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

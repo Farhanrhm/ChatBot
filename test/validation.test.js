@@ -672,24 +672,24 @@ test('wishlistCore: normalizeGameTitle dan isSameGame menyamakan variasi simbol 
 
 test('Audit Bukti: Reset chat membersihkan session storage percakapan dan preferensi tanpa menyentuh wishlist', () => {
   const sessionStorageMock = createMockStorage({
-    steamscout_chat_history: JSON.stringify([{ role: 'user', text: 'Halo' }]),
-    steamscout_filter_preferences: JSON.stringify({ spec: 'potato', budget: 'free', mode: 'coop' }),
+    sobatsteam_chat_history: JSON.stringify([{ role: 'user', text: 'Halo' }]),
+    sobatsteam_filter_preferences: JSON.stringify({ spec: 'potato', budget: 'free', mode: 'coop' }),
   });
   const localStorageMock = createMockStorage({
-    steamscout_wishlist: JSON.stringify([{ appId: 413150, title: 'Stardew Valley' }]),
+    sobatsteam_wishlist: JSON.stringify([{ appId: 413150, title: 'Stardew Valley' }]),
   });
 
   // Simulasikan tindakan reset chat
-  sessionStorageMock.removeItem('steamscout_chat_history');
-  sessionStorageMock.setItem('steamscout_filter_preferences', JSON.stringify({ spec: 'any', budget: 'any', mode: 'any' }));
+  sessionStorageMock.removeItem('sobatsteam_chat_history');
+  sessionStorageMock.setItem('sobatsteam_filter_preferences', JSON.stringify({ spec: 'any', budget: 'any', mode: 'any' }));
 
   // Verifikasi sessionStorage tereset
-  assert.equal(sessionStorageMock.getItem('steamscout_chat_history'), null);
-  const prefs = JSON.parse(sessionStorageMock.getItem('steamscout_filter_preferences'));
+  assert.equal(sessionStorageMock.getItem('sobatsteam_chat_history'), null);
+  const prefs = JSON.parse(sessionStorageMock.getItem('sobatsteam_filter_preferences'));
   assert.deepEqual(prefs, { spec: 'any', budget: 'any', mode: 'any' });
 
   // Verifikasi wishlist di localStorage TETAP UTUH tidak termutasi
-  const wishlistRaw = localStorageMock.getItem('steamscout_wishlist');
+  const wishlistRaw = localStorageMock.getItem('sobatsteam_wishlist');
   assert.ok(wishlistRaw);
   const wishlist = JSON.parse(wishlistRaw);
   assert.equal(wishlist.length, 1);
@@ -1547,7 +1547,7 @@ test('exportWishlistToJSON: menghasilkan JSON valid dengan version "1.0", itemCo
   const parsed = JSON.parse(jsonStr);
 
   assert.equal(parsed.version, '1.0');
-  assert.equal(parsed.source, 'SteamScout');
+  assert.equal(parsed.source, 'SobatSteam');
   assert.equal(parsed.itemCount, 2);
   assert.equal(Array.isArray(parsed.items), true);
   assert.equal(parsed.items.length, 2);
@@ -1579,16 +1579,16 @@ test('exportWishlistToMarkdown: memformat teks Markdown untuk Discord/Reddit den
   ];
 
   const md = exportWishlistToMarkdown(input);
-  assert.ok(md.includes('**SteamScout Wishlist (2 Game)**'));
+  assert.ok(md.includes('**SobatSteam Wishlist (2 Game)**'));
   assert.ok(md.includes('1. [Hades](https://store.steampowered.com/app/1145360/)'));
   assert.ok(md.includes('2. [Game Tanpa ID](https://store.steampowered.com/search/?term=Game%20Tanpa%20ID)'));
-  assert.ok(md.includes('*Diekspor dari SteamScout - Kurator Game PC*'));
+  assert.ok(md.includes('*Diekspor dari SobatSteam - Teman Ngobrol Cari Game PC*'));
 });
 
 test('exportWishlistToMarkdown: menangani wishlist kosong dengan pesan informatif', async () => {
   const { exportWishlistToMarkdown } = await import('../public/wishlistCore.js');
   const md = exportWishlistToMarkdown([]);
-  assert.ok(md.includes('**SteamScout Wishlist (0 Game)**'));
+  assert.ok(md.includes('**SobatSteam Wishlist (0 Game)**'));
   assert.ok(md.includes('Wishlist masih kosong.'));
 });
 
@@ -1617,6 +1617,25 @@ test('parseAndValidateImportData: menerima format ber-version "1.0" dan format a
   assert.equal(resLegacy.success, true);
   assert.equal(resLegacy.addedCount, 1);
   assert.equal(resLegacy.list[0].title, 'Cuphead');
+});
+
+test('parseAndValidateImportData: menerima berkas ekspor legacy bertanda source: "SteamScout"', async () => {
+  const { parseAndValidateImportData } = await import('../public/wishlistCore.js');
+  const legacyExport = JSON.stringify({
+    version: '1.0',
+    source: 'SteamScout',
+    exportedAt: '2026-10-18T10:00:00.000Z',
+    itemCount: 2,
+    items: [
+      { appId: 105600, title: 'Terraria' },
+      { appId: 413150, title: 'Stardew Valley' },
+    ],
+  });
+  const res = parseAndValidateImportData(legacyExport, []);
+  assert.equal(res.success, true);
+  assert.equal(res.addedCount, 2);
+  assert.equal(res.list.length, 2);
+  assert.equal(res.list[0].title, 'Terraria');
 });
 
 test('parseAndValidateImportData: menolak JSON rusak, string kosong, atau struktur tanpa items', async () => {
@@ -1796,8 +1815,8 @@ test('PWA (Modul P3): berkas manifest.json valid dan memenuhi standar PWA', asyn
   assert.ok(fs.existsSync(manifestPath), 'manifest.json harus ada di folder public');
 
   const content = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  assert.equal(content.name, 'SteamScout: Kurator Game PC');
-  assert.equal(content.short_name, 'SteamScout');
+  assert.equal(content.name, 'SobatSteam: Teman Ngobrol Cari Game PC');
+  assert.equal(content.short_name, 'SobatSteam');
   assert.equal(content.display, 'standalone');
   assert.equal(content.theme_color, '#171a21');
   assert.equal(content.background_color, '#171a21');
@@ -1811,7 +1830,7 @@ test('PWA (Modul P3): berkas sw.js menerapkan caching UI dan Network-Only untuk 
   assert.ok(fs.existsSync(swPath), 'sw.js harus ada di folder public');
 
   const content = fs.readFileSync(swPath, 'utf8');
-  assert.ok(content.includes('steamscout-shell-v1'), 'Harus mendefinisikan CACHE_NAME');
+  assert.ok(content.includes('sobatsteam-shell-v1'), 'Harus mendefinisikan CACHE_NAME');
   assert.ok(content.includes('url.pathname.startsWith("/api/")'), 'Harus strict Network-Only untuk endpoint API');
   assert.ok(content.includes('caches.match'), 'Harus menerapkan Cache matching');
 });
@@ -1821,7 +1840,7 @@ test('chatHistoryCore (Modul P4): sanitizeSessionTitle merapikan spasi dan memot
   assert.equal(sanitizeSessionTitle(''), 'Obrolan Baru');
   assert.equal(sanitizeSessionTitle(null), 'Obrolan Baru');
   assert.equal(sanitizeSessionTitle('   Cari game    roguelite seru   '), 'Cari game roguelite seru');
-  assert.equal(sanitizeSessionTitle('Game RPG dengan alur cerita luar biasa dan grafis memukau', 20), 'Game RPG dengan alur…');
+  assert.equal(sanitizeSessionTitle('SobatSteam - Teman Ngobrol Cari Game PC', 20), 'SobatSteam - Teman N…');
 });
 
 test('chatHistoryCore (Modul P4): createSession, getSession, dan saveSession mengelola sesi secara independen', async () => {
@@ -1830,7 +1849,7 @@ test('chatHistoryCore (Modul P4): createSession, getSession, dan saveSession men
 
   const sess = await createSession({
     title: 'Sesi Uji Coba',
-    messages: [{ role: 'user', text: 'Halo SteamScout' }],
+    messages: [{ role: 'user', text: 'Halo SobatSteam' }],
   });
 
   assert.ok(sess.id && sess.id.startsWith('session_'));
@@ -1840,7 +1859,7 @@ test('chatHistoryCore (Modul P4): createSession, getSession, dan saveSession men
   const fetched = await getSession(sess.id);
   assert.ok(fetched);
   assert.equal(fetched.id, sess.id);
-  assert.equal(fetched.messages[0].text, 'Halo SteamScout');
+  assert.equal(fetched.messages[0].text, 'Halo SobatSteam');
 
   // Perbarui pesan sesi
   sess.messages.push({ role: 'model', text: 'Halo! Ada yang bisa dibantu?' });

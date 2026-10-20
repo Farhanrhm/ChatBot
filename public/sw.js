@@ -1,4 +1,4 @@
-const CACHE_NAME = "steamscout-shell-v1";
+const CACHE_NAME = "sobatsteam-shell-v1";
 
 const PRECACHE_ASSETS = [
   "/",
@@ -43,7 +43,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // 1. Strict Network-Only untuk endpoint API SteamScout
+  // 1. Strict Network-Only untuk endpoint API SobatSteam
   if (url.pathname.startsWith("/api/")) {
     return;
   }

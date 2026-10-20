@@ -15,7 +15,7 @@ if (!fs.existsSync(screenshotDir)) {
 }
 
 const logFile = path.join(screenshotDir, 'layout.log');
-fs.writeFileSync(logFile, `=== VERIFIKASI LAYOUT STEAMSCOUT (${new Date().toISOString()}) ===\n`);
+fs.writeFileSync(logFile, `=== VERIFIKASI LAYOUT SOBATSTEAM (${new Date().toISOString()}) ===\n`);
 
 function log(msg) {
   console.log(msg);
@@ -150,7 +150,7 @@ let allPassed = true;
 const summaryResults = [];
 
 log('====================================================');
-log('MEMULAI VERIFIKASI LAYOUT & VIEWPORT STEAMSCOUT');
+log('MEMULAI VERIFIKASI LAYOUT & VIEWPORT SOBATSTEAM');
 log('====================================================');
 
 for (const vp of viewports) {
@@ -201,7 +201,7 @@ for (const vp of viewports) {
     botMsg.innerHTML = `
       <div class="avatar">AI</div>
       <div class="bubble">
-        <p class="bot-intro">Berikut rekomendasi game pilihan SteamScout:</p>
+        <p class="bot-intro">Berikut rekomendasi game pilihan SobatSteam:</p>
         <div class="game-cards">
           <div class="game-card">
             <div class="game-card-banner">
@@ -326,7 +326,7 @@ for (const vp of viewports) {
         addedAt: Date.now() - i * 60000,
       });
     }
-    localStorage.setItem('steamscout_wishlist', JSON.stringify(dummyGames));
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(dummyGames));
     const wishlistBtn = document.getElementById('wishlist-btn');
     if (wishlistBtn) wishlistBtn.click();
   });

@@ -1,5 +1,5 @@
 /**
- * Modul Metrik Murni Evaluasi SteamScout (Tanpa Efek Samping / Jaringan)
+ * Modul Metrik Murni Evaluasi SobatSteam (Tanpa Efek Samping / Jaringan)
  * Digunakan untuk klasifikasi akurasi developer/tahun, deteksi kebocoran harga,
  * klaim gratis, klaim co-op, dan klasifikasi kegagalan verifikasi Steam.
  */

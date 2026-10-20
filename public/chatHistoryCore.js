@@ -266,14 +266,17 @@ export async function clearAllSessions() {
 /**
  * Migrasi otomatis riwayat lawas dari sessionStorage ke IndexedDB saat pertama kali dibuka.
  * @param {Storage} storage - Objek storage (biasanya sessionStorage)
- * @param {string} [storageKey='steamscout_chat_history'] - Kunci storage riwayat lama
+ * @param {string} [storageKey='sobatsteam_chat_history'] - Kunci storage riwayat lama
  * @returns {Promise<object|null>} Sesi hasil migrasi atau null bila tidak ada data lawas
  */
-export async function migrateFromLegacyStorage(storage, storageKey = "steamscout_chat_history") {
+export async function migrateFromLegacyStorage(storage, storageKey = "sobatsteam_chat_history") {
   if (!storage || typeof storage.getItem !== "function") return null;
 
   try {
-    const raw = storage.getItem(storageKey);
+    let raw = storage.getItem(storageKey);
+    if (!raw && storageKey === "sobatsteam_chat_history") {
+      raw = storage.getItem("steamscout_chat_history");
+    }
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);

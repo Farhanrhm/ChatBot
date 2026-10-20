@@ -1,5 +1,5 @@
 /**
- * SteamScout: Modul Inti Wishlist Lokal (Tanpa DOM / Testable)
+ * SobatSteam: Modul Inti Wishlist Lokal (Tanpa DOM / Testable)
  *
  * Mengelola penyimpanan daftar game ke browser storage (localStorage).
  * Aturan desain & perbaikan:
@@ -14,7 +14,8 @@
  * 7. migrateWishlist: fungsi migrasi aman tanpa efek samping pada getWishlist.
  */
 
-export const WISHLIST_STORAGE_KEY = 'steamscout_wishlist';
+export const WISHLIST_STORAGE_KEY = 'sobatsteam_wishlist';
+export const LEGACY_WISHLIST_STORAGE_KEY = 'steamscout_wishlist';
 export const MAX_WISHLIST_ITEMS = 50;
 
 /**
@@ -192,7 +193,32 @@ export function getWishlist(storage = globalThis.localStorage) {
   if (!storage || typeof storage.getItem !== 'function') return [];
   try {
     const raw = storage.getItem(WISHLIST_STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      // Fallback migrasi otomatis data lama (zero data-loss)
+      const legacyRaw = storage.getItem(LEGACY_WISHLIST_STORAGE_KEY);
+      if (legacyRaw) {
+        try {
+          const legacyParsed = JSON.parse(legacyRaw);
+          if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
+            const migrated = legacyParsed
+              .filter((item) => {
+                if (!item || typeof item !== 'object') return false;
+                const hasTitle = typeof item.title === 'string' && item.title.trim().length > 0;
+                const hasAppId = item.appId !== undefined && item.appId !== null && String(item.appId).trim() !== '';
+                return hasTitle || hasAppId;
+              })
+              .map(sanitizeWishlistItem);
+            if (migrated.length > 0) {
+              if (typeof storage.setItem === 'function') {
+                storage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(migrated));
+              }
+              return migrated;
+            }
+          }
+        } catch {}
+      }
+      return [];
+    }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
@@ -697,7 +723,7 @@ export function filterAndSortWishlist(items, query = '', sortBy = 'latest', sele
  *
  * @param {Array<object>} wishlist - Daftar item wishlist
  * @param {object} [options]
- * @param {string} [options.source='SteamScout']
+ * @param {string} [options.source='SobatSteam']
  * @returns {string} String JSON valid terindentasi
  */
 export function exportWishlistToJSON(wishlist, options = {}) {
@@ -708,7 +734,7 @@ export function exportWishlistToJSON(wishlist, options = {}) {
 
   const source = options && typeof options === 'object' && typeof options.source === 'string' && options.source.trim()
     ? options.source.trim()
-    : 'SteamScout';
+    : 'SobatSteam';
 
   const payload = {
     version: '1.0',
@@ -734,7 +760,7 @@ export function exportWishlistToMarkdown(wishlist) {
     .map((item) => sanitizeWishlistItem(item));
 
   const count = validItems.length;
-  const lines = [`**SteamScout Wishlist (${count} Game)**`];
+  const lines = [`**SobatSteam Wishlist (${count} Game)**`];
 
   if (count === 0) {
     lines.push('Wishlist masih kosong.');
@@ -748,7 +774,7 @@ export function exportWishlistToMarkdown(wishlist) {
     });
   }
 
-  lines.push('*Diekspor dari SteamScout - Kurator Game PC*');
+  lines.push('*Diekspor dari SobatSteam - Teman Ngobrol Cari Game PC*');
   return lines.join('\n');
 }
 

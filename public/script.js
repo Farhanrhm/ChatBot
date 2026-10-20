@@ -8,6 +8,7 @@ import {
   getItemKey,
   MAX_WISHLIST_ITEMS,
   WISHLIST_STORAGE_KEY,
+  LEGACY_WISHLIST_STORAGE_KEY,
   filterAndSortWishlist,
   extractTopGenres,
   exportWishlistToJSON,
@@ -40,13 +41,18 @@ import {
 } from "./chatHistoryCore.js";
 
 const API_URL = "/api/chat";
-const STORAGE_KEY = "steamscout_chat_history";
+const STORAGE_KEY = "sobatsteam_chat_history";
+const LEGACY_STORAGE_KEY = "steamscout_chat_history";
+
+const ACTIVE_SESSION_KEY = "sobatsteam_active_session_id";
+const LEGACY_ACTIVE_SESSION_KEY = "steamscout_active_session_id";
 
 /* Batas waktu watchdog streaming (Revisi 1) */
 const STREAM_FIRST_CHUNK_TIMEOUT_MS = Number(globalThis.__STREAM_FIRST_TIMEOUT_MS) || 30000;
 const STREAM_INTER_CHUNK_TIMEOUT_MS = Number(globalThis.__STREAM_INTER_TIMEOUT_MS) || 15000;
 
-const PREFERENCES_STORAGE_KEY = "steamscout_filter_preferences";
+const PREFERENCES_STORAGE_KEY = "sobatsteam_filter_preferences";
+const LEGACY_PREFERENCES_STORAGE_KEY = "steamscout_filter_preferences";
 
 // State preferensi filter cepat
 const activePreferences = {
@@ -65,7 +71,10 @@ function savePreferencesToStorage() {
 
 function loadPreferencesFromStorage() {
   try {
-    const raw = sessionStorage.getItem(PREFERENCES_STORAGE_KEY);
+    let raw = sessionStorage.getItem(PREFERENCES_STORAGE_KEY);
+    if (!raw) {
+      raw = sessionStorage.getItem(LEGACY_PREFERENCES_STORAGE_KEY);
+    }
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object") {
@@ -173,12 +182,16 @@ function updateToolbarScrollEdges() {
 }
 
 /* REVISI 6: Cache ringan judul terverifikasi ke App ID di sisi frontend */
-const VERIFIED_APPID_CACHE_KEY = "steamscout_verified_appid_cache";
+const VERIFIED_APPID_CACHE_KEY = "sobatsteam_verified_appid_cache";
+const LEGACY_VERIFIED_APPID_CACHE_KEY = "steamscout_verified_appid_cache";
 const MAX_VERIFIED_APPID_CACHE = 100;
 
 function getVerifiedAppIdCache() {
   try {
-    const raw = localStorage.getItem(VERIFIED_APPID_CACHE_KEY);
+    let raw = localStorage.getItem(VERIFIED_APPID_CACHE_KEY);
+    if (!raw) {
+      raw = localStorage.getItem(LEGACY_VERIFIED_APPID_CACHE_KEY);
+    }
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
@@ -251,10 +264,16 @@ const QUICK_PROMPTS = [
 
 const BOT_AVATAR = `
   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M6 8h12a4 4 0 0 1 4 4v2.5a3 3 0 0 1-5.3 1.9L15 14.5H9l-1.7 1.9A3 3 0 0 1 2 14.5V12a4 4 0 0 1 4-4z"/>
-    <path d="M8 10.5v3M6.5 12h3"/>
-    <circle cx="15.5" cy="11.5" r=".6" fill="currentColor"/>
-    <circle cx="17.5" cy="13" r=".6" fill="currentColor"/>
+    <path d="M4 11a8 8 0 0 1 16 0" />
+    <rect x="2" y="10" width="2" height="4" rx="1" fill="currentColor" />
+    <rect x="20" y="10" width="2" height="4" rx="1" fill="currentColor" />
+    <path d="M6 10h12a3 3 0 0 1 3 3v2a3 3 0 0 1-5 2.2L14 15h-4l-2 2.2A3 3 0 0 1 3 15v-2a3 3 0 0 1 3-3z" />
+    <path d="M7 12.5v2M6 13.5h2" stroke-width="1.5" />
+    <circle cx="11" cy="12.5" r="0.6" fill="currentColor" />
+    <circle cx="13" cy="12.5" r="0.6" fill="currentColor" />
+    <path d="M11 14.2q1 0.8 2 0" stroke-width="1.2" />
+    <circle cx="17" cy="12.5" r="0.6" fill="currentColor" />
+    <circle cx="18" cy="13.5" r="0.6" fill="currentColor" />
   </svg>`;
 
 const $ = (selector) => document.querySelector(selector);
@@ -432,7 +451,10 @@ function saveHistoryToStorage() {
 
 function loadHistoryFromStorage() {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    let raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      raw = sessionStorage.getItem(LEGACY_STORAGE_KEY);
+    }
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -445,6 +467,7 @@ function loadHistoryFromStorage() {
 function clearHistoryStorage() {
   try {
     sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch (err) {
     console.warn("Gagal mengosongkan sessionStorage:", err);
   }
@@ -527,6 +550,9 @@ async function switchSession(id) {
     if (!sess) return;
 
     currentSessionId = sess.id;
+    try {
+      localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+    } catch {}
     currentSessionTitle = sess.title || "Obrolan Baru";
     history = Array.isArray(sess.messages) ? sess.messages : [];
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
@@ -567,6 +593,9 @@ async function handleNewSession() {
   try {
     const newSess = await createSession({ title: "Obrolan Baru", messages: [] });
     currentSessionId = newSess.id;
+    try {
+      localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+    } catch {}
     currentSessionTitle = newSess.title;
     history = [];
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
@@ -598,6 +627,9 @@ async function deleteSessionPrompt(id, title) {
       } else {
         const fresh = await createSession({ title: "Obrolan Baru", messages: [] });
         currentSessionId = fresh.id;
+        try {
+          localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+        } catch {}
         currentSessionTitle = fresh.title;
         history = [];
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
@@ -647,15 +679,43 @@ async function initChatSessions() {
     await migrateFromLegacyStorage(globalThis.sessionStorage);
     const sessions = await getAllSessions();
     if (sessions.length > 0) {
-      const latest = sessions[0];
-      currentSessionId = latest.id;
-      currentSessionTitle = latest.title || "Obrolan Baru";
-      history = Array.isArray(latest.messages) ? latest.messages : [];
+      // Baca sesi aktif dari localStorage dengan fallback data lama
+      let targetSessionId = null;
+      try {
+        targetSessionId = localStorage.getItem(ACTIVE_SESSION_KEY);
+        if (!targetSessionId) {
+          const legacyId = localStorage.getItem(LEGACY_ACTIVE_SESSION_KEY);
+          if (legacyId) {
+            targetSessionId = legacyId;
+            localStorage.setItem(ACTIVE_SESSION_KEY, legacyId);
+          }
+        }
+      } catch (err) {
+        console.warn("Gagal membaca active session dari localStorage:", err);
+      }
+
+      let activeSession = null;
+      if (targetSessionId) {
+        activeSession = await getSession(targetSessionId);
+      }
+      if (!activeSession) {
+        activeSession = sessions[0];
+      }
+
+      currentSessionId = activeSession.id;
+      currentSessionTitle = activeSession.title || "Obrolan Baru";
+      history = Array.isArray(activeSession.messages) ? activeSession.messages : [];
+      try {
+        localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+      } catch {}
     } else {
       const initial = await createSession({ title: "Obrolan Baru", messages: [] });
       currentSessionId = initial.id;
       currentSessionTitle = initial.title;
       history = [];
+      try {
+        localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+      } catch {}
     }
 
     renderSessionsList();
@@ -1146,7 +1206,7 @@ function createTypingIndicator() {
 
   const typing = document.createElement("div");
   typing.className = "typing";
-  typing.setAttribute("aria-label", "SteamScout sedang mencari rekomendasi...");
+  typing.setAttribute("aria-label", "SobatSteam sedang mencari rekomendasi...");
   typing.appendChild(document.createElement("span"));
   typing.appendChild(document.createElement("span"));
   typing.appendChild(document.createElement("span"));
@@ -2221,7 +2281,7 @@ function handleWishlistExport() {
   const dateStr = new Date().toISOString().slice(0, 10);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `steamscout_wishlist_backup_${dateStr}.json`;
+  a.download = `sobatsteam-wishlist-${dateStr}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -2377,8 +2437,8 @@ els.messages.addEventListener("click", (e) => {
 
 /* REVISI 2: Sinkronisasi wishlist antar-tab (Storage Event) */
 window.addEventListener("storage", (e) => {
-  // Hanya proses jika kunci steamscout_wishlist atau null (akibat localStorage.clear())
-  if (e.key !== WISHLIST_STORAGE_KEY && e.key !== null) return;
+  // Hanya proses jika kunci sobatsteam_wishlist, steamscout_wishlist, atau null (akibat localStorage.clear())
+  if (e.key !== WISHLIST_STORAGE_KEY && e.key !== LEGACY_WISHLIST_STORAGE_KEY && e.key !== null) return;
 
   // PENTING: Hanya MEMBACA dan memperbarui tampilan.
   // DILARANG menulis ke localStorage atau memanggil fungsi migrasi/deduplikasi di sini!
