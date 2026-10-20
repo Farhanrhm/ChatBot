@@ -1281,8 +1281,24 @@ body.keyboard-open .meta-hints {
   inset: 0;
   background: rgba(10, 14, 20, 0.75);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 90;
-  transition: opacity 0.2s ease;
+  animation: backdropFadeIn 0.22s ease-out;
+}
+
+.modal-backdrop.is-closing {
+  animation: backdropFadeOut 0.2s ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes backdropFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 .wishlist-drawer {
@@ -1297,12 +1313,22 @@ body.keyboard-open .meta-hints {
   z-index: 100;
   display: flex;
   flex-direction: column;
-  animation: drawerSlideIn 0.22s ease-out;
+  animation: drawerSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wishlist-drawer.is-closing {
+  animation: drawerSlideOut 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
 }
 
 @keyframes drawerSlideIn {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
+}
+
+@keyframes drawerSlideOut {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
 }
 
 .wishlist-header {

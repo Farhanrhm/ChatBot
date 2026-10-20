@@ -2212,7 +2212,20 @@ function updateWishlistUI() {
   updateAllWishlistCardButtons();
 }
 
+let isWishlistClosing = false;
+let wishlistCloseTimer = null;
+
 function openWishlistPanel() {
+  if (isWishlistClosing) {
+    if (wishlistCloseTimer) {
+      clearTimeout(wishlistCloseTimer);
+      wishlistCloseTimer = null;
+    }
+    isWishlistClosing = false;
+    if (els.wishlistPanel) els.wishlistPanel.classList.remove("is-closing");
+    if (els.wishlistBackdrop) els.wishlistBackdrop.classList.remove("is-closing");
+  }
+
   previousActiveElement = document.activeElement;
   els.wishlistBackdrop.hidden = false;
   els.wishlistPanel.hidden = false;
@@ -2222,27 +2235,49 @@ function openWishlistPanel() {
 }
 
 function closeWishlistPanel() {
-  els.wishlistBackdrop.hidden = true;
-  els.wishlistPanel.hidden = true;
+  if (els.wishlistPanel.hidden || isWishlistClosing) return;
+
   els.wishlistBtn.setAttribute("aria-expanded", "false");
 
-  // Reset state saat drawer ditutup
-  wishlistQuery = "";
-  wishlistSortBy = "latest";
-  wishlistSelectedGenre = "all";
-  if (wishlistSearchInput) wishlistSearchInput.value = "";
-  if (wishlistSortSelect) wishlistSortSelect.value = "latest";
-  cancelFilterAnnouncement();
-  if (wishlistFilterAnnouncer) wishlistFilterAnnouncer.textContent = "";
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  if (previousActiveElement && typeof previousActiveElement.focus === "function") {
-    previousActiveElement.focus();
+  const finishClose = () => {
+    isWishlistClosing = false;
+    wishlistCloseTimer = null;
+    els.wishlistPanel.classList.remove("is-closing");
+    els.wishlistBackdrop.classList.remove("is-closing");
+    els.wishlistBackdrop.hidden = true;
+    els.wishlistPanel.hidden = true;
+
+    // Reset state saat drawer ditutup
+    wishlistQuery = "";
+    wishlistSortBy = "latest";
+    wishlistSelectedGenre = "all";
+    if (wishlistSearchInput) wishlistSearchInput.value = "";
+    if (wishlistSortSelect) wishlistSortSelect.value = "latest";
+    cancelFilterAnnouncement();
+    if (wishlistFilterAnnouncer) wishlistFilterAnnouncer.textContent = "";
+
+    if (previousActiveElement && typeof previousActiveElement.focus === "function") {
+      previousActiveElement.focus();
+    }
+  };
+
+  if (prefersReducedMotion) {
+    finishClose();
+    return;
   }
+
+  isWishlistClosing = true;
+  els.wishlistPanel.classList.add("is-closing");
+  els.wishlistBackdrop.classList.add("is-closing");
+
+  wishlistCloseTimer = setTimeout(finishClose, 200);
 }
 
 if (els.wishlistBtn) {
   els.wishlistBtn.addEventListener("click", () => {
-    if (els.wishlistPanel.hidden) {
+    if (els.wishlistPanel.hidden || isWishlistClosing) {
       openWishlistPanel();
     } else {
       closeWishlistPanel();
@@ -2260,6 +2295,11 @@ if (els.wishlistBackdrop) {
 
 if (els.wishlistPanel) {
   els.wishlistPanel.addEventListener("keydown", (e) => {
+    if (isWishlistClosing) {
+      e.preventDefault();
+      return;
+    }
+
     if (e.key === "Escape") {
       e.preventDefault();
       closeWishlistPanel();
