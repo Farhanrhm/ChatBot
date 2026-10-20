@@ -164,9 +164,7 @@ async function recordResult(testName, passed, detail = '', page = null) {
 try {
   const baseUrl = `http://127.0.0.1:${PORT}`;
 
-  // =========================================================================
-  // 1. SINKRONISASI WISHLIST ANTAR-TAB (REVISI 2)
-  // =========================================================================
+  // 1. Sinkronisasi Wishlist Antar-Tab
   log('\n--- Menguji Sinkronisasi Wishlist Antar-Tab ---');
   const pageA = await browser.newPage();
   const pageB = await browser.newPage();
@@ -239,9 +237,7 @@ try {
   await pageA.close();
   await pageB.close();
 
-  // =========================================================================
-  // 2. DETEKSI STATUS OFFLINE & KONTROL (REVISI 4)
-  // =========================================================================
+  // 2. Deteksi Status Offline dan Kontrol
   log('\n--- Menguji Deteksi Offline ---');
   const pageOffline = await browser.newPage();
   activePage = pageOffline;
@@ -294,9 +290,7 @@ try {
 
   await pageOffline.close();
 
-  // =========================================================================
-  // 3. REGION LIVE SCREEN READER (REVISI 3)
-  // =========================================================================
+  // 3. Region Live Screen Reader
   log('\n--- Menguji Region Live Screen Reader ---');
   const pageA11y = await browser.newPage();
   activePage = pageA11y;
@@ -352,9 +346,7 @@ try {
 
   await pageA11y.close();
 
-  // =========================================================================
-  // 4. FOCUS TRAP DRAWER WISHLIST (REVISI 5)
-  // =========================================================================
+  // 4. Focus Trap Drawer Wishlist
   log('\n--- Menguji Focus Trap Drawer Wishlist ---');
   const pageFocus = await browser.newPage();
   activePage = pageFocus;
@@ -438,9 +430,7 @@ try {
 
   await pageFocus.close();
 
-  // =========================================================================
-  // 5. PENGURUTAN DAN PENCARIAN WISHLIST (FASE 2)
-  // =========================================================================
+  // 5. Pengurutan dan Pencarian Wishlist
   log('\n--- Menguji Pengurutan dan Pencarian Wishlist ---');
 
   // A. Live filtering tanpa kehilangan fokus dan tanpa pergantian node DOM
@@ -794,9 +784,7 @@ try {
 
   await pageXss.close();
 
-  // =========================================================================
-  // 6. WATCHDOG STREAMING (REVISI 1)
-  // =========================================================================
+  // 6. Watchdog Streaming
   log('\n--- Menguji Watchdog Streaming ---');
 
   // A. Macet SEBELUM token pertama: fallback otomatis ke POST /api/chat
@@ -1272,9 +1260,7 @@ try {
   await pageComp.close();
   activePage = null;
 
-  // =========================================================================
-  // PENGUJIAN PERILAKU MODUL P1: EKSPOR & IMPOR WISHLIST
-  // =========================================================================
+  // 7. Pengujian Ekspor dan Impor Wishlist
   log('\n--- UJI MODUL P1: EKSPOR DAN IMPOR WISHLIST ---');
   const pageExport = await browser.newPage();
   activePage = pageExport;
@@ -1496,9 +1482,7 @@ try {
 
   await pageExport.close();
 
-  // =========================================================================
-  // 17. RIWAYAT OBROLAN MULTI-SESI VIA INDEXEDDB (MODUL P4)
-  // =========================================================================
+  // 8. Riwayat Obrolan Multi-Sesi via IndexedDB
   log('\n--- Menguji Riwayat Obrolan Multi-Sesi via IndexedDB (Modul P4) ---');
   const pageHistory = await browser.newPage();
   activePage = pageHistory;

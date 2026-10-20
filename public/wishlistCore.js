@@ -19,7 +19,7 @@ export const LEGACY_WISHLIST_STORAGE_KEY = 'steamscout_wishlist';
 export const MAX_WISHLIST_ITEMS = 50;
 
 /**
- * REVISI 2: Normalisasi judul game secara deterministik.
+ * Normalisasi judul game secara deterministik.
  *
  * Aturan:
  * 1. Konversi ke huruf kecil dan trim.
@@ -28,9 +28,8 @@ export const MAX_WISHLIST_ITEMS = 50;
  * 4. Hapus apostrof dan tanda kutip ("Baldur's" -> "baldurs").
  * 5. Ganti pemisah (: - _ dan unicode dashes) dengan spasi.
  * 6. Rapikan spasi ganda menjadi spasi tunggal.
- * 7. PENTING: JANGAN menghapus sufiks edisi ("Game of the Year Edition", "Deluxe")
- *    atau nomor seri ("2", "3") secara agresif agar judul sekuel/edisi berbeda
- *    tidak salah tergabung saat appId belum tersedia.
+ * 7. Mempertahankan sufiks edisi ("Game of the Year Edition", "Deluxe")
+ *    dan nomor seri agar judul sekuel/edisi berbeda tidak salah tergabung saat appId belum tersedia.
  *
  * @param {string} [title]
  * @returns {string}

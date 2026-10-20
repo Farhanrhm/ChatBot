@@ -412,7 +412,7 @@ test('DailyCapLimiter: reset counter otomatis saat tanggal berganti', async () =
   assert.equal(nextDayResult.allowed, true);
 });
 
-// --- Pengujian Unit Wishlist Lokal (wishlistCore.js) ---
+// Pengujian Unit Wishlist Lokal (wishlistCore.js)
 
 function createMockStorage(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -785,7 +785,7 @@ test('wishlistCore: menangani storage yang tidak tersedia atau melempar error', 
   assert.equal(removeRes.success, false);
 });
 
-// --- Pengujian Unit Filter Preferensi Cepat (Prompt C) ---
+// Pengujian Unit Filter Preferensi Cepat
 
 test('validatePreferences: mengembalikan nilai default "any" untuk input kosong atau undefined', async () => {
   const { validatePreferences } = await import('../index.js');
@@ -867,7 +867,7 @@ test('Filter Preferensi: riwayat conversation asli tidak tercemar dan tidak term
   assert.equal(rawConversation[rawConversation.length - 1].text, 'Ada yang grafis pixel?');
 });
 
-// --- Pengujian Karakterisasi & Regresi Offline Temuan Evaluasi (Post-Hoc Analysis Fixtures) ---
+// Pengujian Karakterisasi dan Regresi Offline Temuan Evaluasi
 
 test('Tes Karakterisasi Historis: mencatat observasi kegagalan pencarian sebelum perbaikan kueri dan edisi', async () => {
   const fs = await import('node:fs');
@@ -1255,7 +1255,7 @@ test('filterAndSortWishlist: tidak memutasi array input atau objek item (deep fr
   assert.strictEqual(result[0], rawItem2, 'Item dalam hasil harus merupakan referensi objek yang sama');
 });
 
-// --- Pengujian Unit Langkah 2.3b (Perilaku addedAt dan Anti-Regresi Mutasi) ---
+// Pengujian Unit Perilaku addedAt dan Anti-Regresi Mutasi
 
 test('wishlistCore (Langkah 2.3b #1): getWishlist pada data legacy tanpa addedAt menghasilkan string kosong dan tidak memutasi storage', async () => {
   const { getWishlist, WISHLIST_STORAGE_KEY } = await import('../public/wishlistCore.js');

@@ -47,7 +47,7 @@ const LEGACY_STORAGE_KEY = "steamscout_chat_history";
 const ACTIVE_SESSION_KEY = "sobatsteam_active_session_id";
 const LEGACY_ACTIVE_SESSION_KEY = "steamscout_active_session_id";
 
-/* Batas waktu watchdog streaming (Revisi 1) */
+/* Batas waktu watchdog streaming */
 const STREAM_FIRST_CHUNK_TIMEOUT_MS = Number(globalThis.__STREAM_FIRST_TIMEOUT_MS) || 30000;
 const STREAM_INTER_CHUNK_TIMEOUT_MS = Number(globalThis.__STREAM_INTER_TIMEOUT_MS) || 15000;
 
@@ -2819,7 +2819,6 @@ function renderComparisonContent(data) {
   });
 }
 
-// Event listener untuk kontrol komparasi
 if (els.comparisonOpenBtn) {
   els.comparisonOpenBtn.addEventListener("click", openComparisonDialog);
 }
@@ -2891,7 +2890,6 @@ if (els.comparisonDialog) {
   });
 }
 
-// Event listener untuk kontrol riwayat sesi obrolan (Modul P4)
 if (els.sessionsBtn) {
   els.sessionsBtn.addEventListener("click", openSessionsDrawer);
 }
