@@ -26,7 +26,7 @@
 
 [hidden] { display: none !important; }
 
-/* REVISI 1: Penguncian Penuh Viewport (Anti Page-Scroll) */
+/* Penguncian Penuh Viewport (Anti Page-Scroll) */
 html, body {
   height: 100%;
   margin: 0;
@@ -85,7 +85,7 @@ button, textarea { font: inherit; color: inherit; }
   border-radius: 8px;
   color: #0e1a24;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  box-shadow: 0 0 16px rgba(102, 192, 244, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 .logo-mark.mini {
@@ -183,7 +183,6 @@ button, textarea { font: inherit; color: inherit; }
 .status i {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--online);
-  box-shadow: 0 0 8px var(--online);
 }
 
 .status.is-offline {
@@ -192,10 +191,9 @@ button, textarea { font: inherit; color: inherit; }
 
 .status.is-offline i {
   background: #ff5252;
-  box-shadow: 0 0 8px rgba(255, 82, 82, 0.7);
 }
 
-/* Banner Notifikasi Status Offline (Modul P3) */
+/* Banner Notifikasi Status Offline */
 .offline-banner {
   display: flex;
   align-items: center;
@@ -764,7 +762,7 @@ button, textarea { font: inherit; color: inherit; }
   background: rgba(102, 192, 244, 0.22);
   border-color: var(--accent);
   color: #ffffff;
-  box-shadow: 0 0 10px rgba(102, 192, 244, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .btn-compare-toggle[aria-pressed="true"]:hover,
@@ -812,7 +810,7 @@ button, textarea { font: inherit; color: inherit; }
   pointer-events: none;
 }
 
-/* REVISI 4: Efek Fade Mask di Tepi Kiri & Kanan */
+/* Efek Fade Mask di Tepi Kiri & Kanan */
 .quick-toolbar-wrap::before,
 .quick-toolbar-wrap::after {
   content: "";
@@ -914,7 +912,7 @@ button, textarea { font: inherit; color: inherit; }
   border-color: var(--accent);
   color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 0 8px rgba(102, 192, 244, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .clear-filters-btn {
@@ -1052,6 +1050,11 @@ button, textarea { font: inherit; color: inherit; }
   line-height: 1.4;
   font-size: 14.5px;
 }
+#user-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
 #user-input::placeholder { color: #8f98a0; }
 
 .char-counter {
@@ -1146,11 +1149,9 @@ body.keyboard-open .meta-hints {
 }
 .retry:hover { background: rgba(229, 115, 115, 0.2); }
 
-/* ========================================================
-   RESPONSIVE & MEDIA QUERIES
-   ======================================================== */
+/* Responsif & Media Queries */
 
-/* REVISI 6: Layar Pendek (max-height: 700px) */
+/* Layar Pendek (max-height: 700px) */
 /* HANYA mengecilkan ukuran dan padding, TIDAK menyembunyikan toolbar via display:none */
 @media (max-height: 700px) {
   .topbar {
@@ -1370,7 +1371,7 @@ body.keyboard-open .meta-hints {
   scrollbar-color: #2a475e var(--bg-0);
 }
 
-/* Toolbar Wishlist: Pencarian & Pengurutan (Langkah 2.4) */
+/* Toolbar Wishlist: Pencarian & Pengurutan */
 .wishlist-toolbar {
   display: flex;
   flex-direction: column;
@@ -1435,7 +1436,7 @@ body.keyboard-open .meta-hints {
   border-color: var(--accent);
 }
 
-/* Quick Filter Chips Genre Wishlist (Modul P2) */
+/* Quick Filter Chips Genre Wishlist */
 .wishlist-genre-chips {
   display: flex;
   gap: 6px;
@@ -1480,7 +1481,7 @@ body.keyboard-open .meta-hints {
   color: #ffffff;
   background: #1a6296;
   border-color: var(--accent);
-  box-shadow: 0 0 6px rgba(102, 192, 244, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .wishlist-genre-chip:focus-visible {
@@ -1594,7 +1595,7 @@ body.keyboard-open .meta-hints {
   outline-offset: 2px;
 }
 
-/* Footer Wishlist: Ekspor, Salin Teks, dan Impor (Modul P1) */
+/* Footer Wishlist: Ekspor, Salin Teks, dan Impor */
 .wishlist-footer {
   padding: 12px 18px;
   background: var(--bg-0);
@@ -2147,7 +2148,7 @@ body.keyboard-open .meta-hints {
   background: rgba(102, 192, 244, 0.18);
   border-color: var(--accent);
   color: #ffffff;
-  box-shadow: 0 0 10px rgba(102, 192, 244, 0.25);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Tabel Komparasi Semantik */
