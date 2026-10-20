@@ -48,8 +48,8 @@ const ACTIVE_SESSION_KEY = "sobatsteam_active_session_id";
 const LEGACY_ACTIVE_SESSION_KEY = "steamscout_active_session_id";
 
 /* Batas waktu watchdog streaming */
-const STREAM_FIRST_CHUNK_TIMEOUT_MS = Number(globalThis.__STREAM_FIRST_TIMEOUT_MS) || 30000;
-const STREAM_INTER_CHUNK_TIMEOUT_MS = Number(globalThis.__STREAM_INTER_TIMEOUT_MS) || 15000;
+const STREAM_FIRST_CHUNK_TIMEOUT_MS = Number(globalThis.__STREAM_FIRST_TIMEOUT_MS) || 45000;
+const STREAM_INTER_CHUNK_TIMEOUT_MS = Number(globalThis.__STREAM_INTER_TIMEOUT_MS) || 20000;
 
 const PREFERENCES_STORAGE_KEY = "sobatsteam_filter_preferences";
 const LEGACY_PREFERENCES_STORAGE_KEY = "steamscout_filter_preferences";
@@ -552,6 +552,7 @@ async function switchSession(id) {
     currentSessionId = sess.id;
     try {
       localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+      sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
     } catch {}
     currentSessionTitle = sess.title || "Obrolan Baru";
     history = Array.isArray(sess.messages) ? sess.messages : [];
@@ -586,7 +587,7 @@ async function handleNewSession() {
   }
 
   if (currentRequestController) {
-    currentRequestController.abort();
+    currentRequestController.abort("user_cancelled");
     currentRequestController = null;
   }
 
@@ -595,6 +596,7 @@ async function handleNewSession() {
     currentSessionId = newSess.id;
     try {
       localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+      sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
     } catch {}
     currentSessionTitle = newSess.title;
     history = [];
@@ -629,6 +631,7 @@ async function deleteSessionPrompt(id, title) {
         currentSessionId = fresh.id;
         try {
           localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+          sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
         } catch {}
         currentSessionTitle = fresh.title;
         history = [];
@@ -679,27 +682,34 @@ async function initChatSessions() {
     await migrateFromLegacyStorage(globalThis.sessionStorage);
     const sessions = await getAllSessions();
     if (sessions.length > 0) {
-      // Baca sesi aktif dari localStorage dengan fallback data lama
+      // Periksa apakah tab ini merupakan refresh dari sesi yang sedang aktif (via sessionStorage)
       let targetSessionId = null;
       try {
-        targetSessionId = localStorage.getItem(ACTIVE_SESSION_KEY);
+        targetSessionId = sessionStorage.getItem(ACTIVE_SESSION_KEY);
         if (!targetSessionId) {
-          const legacyId = localStorage.getItem(LEGACY_ACTIVE_SESSION_KEY);
-          if (legacyId) {
-            targetSessionId = legacyId;
-            localStorage.setItem(ACTIVE_SESSION_KEY, legacyId);
-          }
+          targetSessionId = sessionStorage.getItem(LEGACY_ACTIVE_SESSION_KEY);
         }
       } catch (err) {
-        console.warn("Gagal membaca active session dari localStorage:", err);
+        console.warn("Gagal membaca active session dari sessionStorage:", err);
       }
 
       let activeSession = null;
       if (targetSessionId) {
         activeSession = await getSession(targetSessionId);
       }
+
+      // Jika membuka tab atau jendela baru (sessionStorage kosong) atau sesi target tidak ditemukan:
+      // Aktifkan sesi kosong "Obrolan Baru" jika sudah ada, atau buat sesi bersih baru agar
+      // tidak otomatis memulihkan obrolan masa lalu ke layar utama
       if (!activeSession) {
-        activeSession = sessions[0];
+        const emptySession = sessions.find(
+          (s) => (!s.messages || s.messages.length === 0) && s.title === "Obrolan Baru"
+        );
+        if (emptySession) {
+          activeSession = emptySession;
+        } else {
+          activeSession = await createSession({ title: "Obrolan Baru", messages: [] });
+        }
       }
 
       currentSessionId = activeSession.id;
@@ -707,6 +717,7 @@ async function initChatSessions() {
       history = Array.isArray(activeSession.messages) ? activeSession.messages : [];
       try {
         localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+        sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
       } catch {}
     } else {
       const initial = await createSession({ title: "Obrolan Baru", messages: [] });
@@ -715,6 +726,7 @@ async function initChatSessions() {
       history = [];
       try {
         localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+        sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
       } catch {}
     }
 
@@ -905,6 +917,13 @@ function formatMarkdown(text) {
   return html;
 }
 
+/* Deteksi apakah posisi scroll pengguna berada di dekat dasar chat */
+function isNearBottom(threshold = 120) {
+  if (!els.chat) return true;
+  const distanceToBottom = els.chat.scrollHeight - els.chat.scrollTop - els.chat.clientHeight;
+  return distanceToBottom <= threshold;
+}
+
 /* Auto-scroll ke pesan terbaru pada elemen chat */
 function scrollToBottom() {
   if (els.chat) {
@@ -970,7 +989,7 @@ function formatBotContent(raw) {
         const bannerHtml = !isUnverified && headerImg
           ? `<div class="game-card-banner">
               ${discountBadgeHtml}
-              <img src="${headerImg}" alt="Poster resmi ${title}" loading="lazy" onerror="this.parentElement.style.display='none'">
+              <img src="${headerImg}" alt="Poster resmi ${title}" loading="lazy">
             </div>`
           : "";
 
@@ -1308,15 +1327,16 @@ async function requestReply(isRetry = false) {
   let partialBotRow = null;
   let partialBotBubble = null;
   let streamAbortedByWatchdog = false;
+  let fallbackAbortedByWatchdog = false;
 
   const streamController = new AbortController();
-  const onMainAbort = () => streamController.abort();
+  const onMainAbort = () => streamController.abort("user_cancelled");
   controller.signal.addEventListener("abort", onMainAbort, { once: true });
 
   const onStreamStall = () => {
     streamAbortedByWatchdog = true;
     try {
-      streamController.abort();
+      streamController.abort("watchdog_timeout");
     } catch {}
   };
 
@@ -1402,7 +1422,10 @@ async function requestReply(isRetry = false) {
       clearWatchdog();
     }
 
-    if (thisEpoch !== currentRequestEpoch || controller.signal.aborted) {
+    const isUserCancelledAtStream =
+      thisEpoch !== currentRequestEpoch ||
+      (controller.signal.aborted && controller.signal.reason === "user_cancelled");
+    if (isUserCancelledAtStream) {
       return;
     }
 
@@ -1431,8 +1454,13 @@ async function requestReply(isRetry = false) {
         return;
       }
 
-      // BELUM ada token sama sekali yang tampil: fallback otomatis ke POST /api/chat (1 kali)
-      armWatchdog(STREAM_FIRST_CHUNK_TIMEOUT_MS, () => controller.abort());
+      // BELUM ada token sama sekali: fallback otomatis ke POST /api/chat (1 kali)
+      armWatchdog(STREAM_FIRST_CHUNK_TIMEOUT_MS, () => {
+        fallbackAbortedByWatchdog = true;
+        try {
+          controller.abort("watchdog_timeout");
+        } catch {}
+      });
 
       const res = await fetch(API_URL, {
         method: "POST",
@@ -1454,7 +1482,10 @@ async function requestReply(isRetry = false) {
     }
 
     if (typing.parentElement) typing.remove();
-    if (thisEpoch !== currentRequestEpoch || controller.signal.aborted) return;
+    const isUserCancelledAtEnd =
+      thisEpoch !== currentRequestEpoch ||
+      (controller.signal.aborted && controller.signal.reason === "user_cancelled");
+    if (isUserCancelledAtEnd) return;
 
     if (!finalData) {
       throw new Error("Balasan dari server kosong.");
@@ -1515,7 +1546,10 @@ async function requestReply(isRetry = false) {
   } catch (err) {
     clearWatchdog();
     if (typing.parentElement) typing.remove();
-    if (thisEpoch !== currentRequestEpoch || controller.signal.aborted) return;
+    const isUserCancelled =
+      thisEpoch !== currentRequestEpoch ||
+      (controller.signal.aborted && controller.signal.reason === "user_cancelled");
+    if (isUserCancelled && !fallbackAbortedByWatchdog && !streamAbortedByWatchdog) return;
 
     if (hasDisplayedPartial && partialBotBubble) {
       if (!partialBotBubble.querySelector(".stream-disconnected-notice")) {
@@ -1539,8 +1573,8 @@ async function requestReply(isRetry = false) {
     }
 
     let displayMsg = err.message;
-    if (err.name === "AbortError") {
-      displayMsg = "Waktu permintaan habis (timeout). Mohon periksa koneksi dan coba lagi.";
+    if (err.name === "AbortError" || fallbackAbortedByWatchdog || streamAbortedByWatchdog) {
+      displayMsg = "Waktu permintaan habis (timeout). Server atau AI memerlukan waktu lebih lama dari biasanya. Mohon periksa koneksi dan coba lagi.";
     } else if (err instanceof TypeError) {
       displayMsg = "Tidak dapat terhubung ke server. Pastikan koneksi aktif dan server lokal menyala, lalu coba lagi.";
     }
@@ -1569,7 +1603,7 @@ async function sendMessage(text) {
 
   // Batalkan stream aktif sebelumnya jika ada pesan baru yang dikirim
   if (currentRequestController) {
-    currentRequestController.abort();
+    currentRequestController.abort("user_cancelled");
     currentRequestController = null;
   }
 
@@ -1643,9 +1677,10 @@ els.resetBtn.addEventListener("click", () => {
 
   // Batalkan stream aktif jika pengguna menekan Reset chat
   if (currentRequestController) {
-    currentRequestController.abort();
+    currentRequestController.abort("user_cancelled");
     currentRequestController = null;
   }
+  currentRequestEpoch++;
 
   history = [];
   currentSessionTitle = "Obrolan Baru";
@@ -2678,13 +2713,13 @@ function renderComparisonContent(data) {
               <th scope="col" class="th-attr">Kriteria</th>
               <th scope="col" id="col-game-a" class="th-game comparison-col-a is-tab-active">
                 <div class="comparison-hero">
-                  ${data.gameA.headerImage ? `<img src="${escapeHtml(data.gameA.headerImage)}" alt="Cover ${escapeHtml(data.gameA.title)}" class="comparison-hero-img" loading="lazy" onerror="this.style.display='none'">` : ""}
+                  ${data.gameA.headerImage ? `<img src="${escapeHtml(data.gameA.headerImage)}" alt="Cover ${escapeHtml(data.gameA.title)}" class="comparison-hero-img" loading="lazy">` : ""}
                   <h3 class="comparison-hero-title">${escapeHtml(data.gameA.title)}</h3>
                 </div>
               </th>
               <th scope="col" id="col-game-b" class="th-game comparison-col-b">
                 <div class="comparison-hero">
-                  ${data.gameB.headerImage ? `<img src="${escapeHtml(data.gameB.headerImage)}" alt="Cover ${escapeHtml(data.gameB.title)}" class="comparison-hero-img" loading="lazy" onerror="this.style.display='none'">` : ""}
+                  ${data.gameB.headerImage ? `<img src="${escapeHtml(data.gameB.headerImage)}" alt="Cover ${escapeHtml(data.gameB.title)}" class="comparison-hero-img" loading="lazy">` : ""}
                   <h3 class="comparison-hero-title">${escapeHtml(data.gameB.title)}</h3>
                 </div>
               </th>
@@ -2967,6 +3002,49 @@ initChatSessions();
 
 requestAnimationFrame(updateToolbarScrollEdges);
 els.input.focus({ preventScroll: true });
+
+// Penyesuaian saat pengguna kembali dari tab lain (visibilitychange)
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    // Hanya auto-scroll jika sedang ada permintaan AI aktif DAN posisi scroll pengguna memang di dasar chat
+    if (isLoading && isNearBottom(120)) {
+      scrollToBottom();
+    }
+  }
+});
+
+// Penanganan error pemuatan gambar poster Steam dengan pengalihan otomatis ke CDN cadangan
+document.addEventListener(
+  "error",
+  (e) => {
+    const target = e.target;
+    if (target && target.tagName === "IMG") {
+      const src = target.src || "";
+      // Coba beralih ke CDN cadangan Steam jika simpul awal gagal dimuat
+      if (src.includes("fastly.steamstatic.com")) {
+        target.src = src.replace("shared.fastly.steamstatic.com/store_item_assets", "cdn.akamai.steamstatic.com");
+        return;
+      }
+      if (src.includes("akamai.steamstatic.com") && !src.includes("cloudflare")) {
+        target.src = src.replace("cdn.akamai.steamstatic.com", "shared.cloudflare.steamstatic.com/store_item_assets");
+        return;
+      }
+      if (src.includes("cloudflare.steamstatic.com")) {
+        target.src = src.replace("shared.cloudflare.steamstatic.com/store_item_assets", "steamcdn-a.akamaihd.net");
+        return;
+      }
+
+      // Jika seluruh CDN gagal, sembunyikan wadah poster secara bersih tanpa meninggalkan kotak rusak
+      const banner = target.closest(".game-card-banner");
+      if (banner) {
+        banner.style.display = "none";
+      } else if (target.classList.contains("comparison-hero-img")) {
+        target.style.display = "none";
+      }
+    }
+  },
+  true // Wajib capture phase karena event error pada <img> tidak melakukan bubbling
+);
 
 /* Registrasi Service Worker untuk Progressive Web App (Modul P3) */
 if ("serviceWorker" in navigator) {

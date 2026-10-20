@@ -53,9 +53,14 @@ app.use(
         imgSrc: [
           "'self'",
           'data:',
+          'https://*.steamstatic.com',
+          'https://*.akamaihd.net',
+          'https://steamcdn-a.akamaihd.net',
           'https://shared.fastly.steamstatic.com',
+          'https://shared.cloudflare.steamstatic.com',
           'https://shared.akamai.steamstatic.com',
           'https://cdn.akamai.steamstatic.com',
+          'https://cdn.cloudflare.steamstatic.com',
         ],
       },
     },
@@ -286,7 +291,7 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 1000) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('REQUEST_TIMEOUT')), 30000);
+        setTimeout(() => reject(new Error('REQUEST_TIMEOUT')), 45000);
       });
 
       const apiPromise = ai.models.generateContent({
