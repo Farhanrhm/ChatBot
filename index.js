@@ -31,7 +31,8 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Konfigurasi model dan parameter dari environment
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3-flash-preview';
 const GEMINI_TEMPERATURE = Number(process.env.GEMINI_TEMPERATURE) || 0.75;
 const PORT = process.env.PORT || 3000;
 
@@ -53,9 +54,14 @@ app.use(
         imgSrc: [
           "'self'",
           'data:',
+          'https://*.steamstatic.com',
+          'https://*.akamaihd.net',
+          'https://steamcdn-a.akamaihd.net',
           'https://shared.fastly.steamstatic.com',
+          'https://shared.cloudflare.steamstatic.com',
           'https://shared.akamai.steamstatic.com',
           'https://cdn.akamai.steamstatic.com',
+          'https://cdn.cloudflare.steamstatic.com',
         ],
       },
     },
@@ -275,6 +281,21 @@ export const STEAM_RECOMMENDER_SCHEMA = {
 };
 
 /**
+ * Membersihkan pembungkus markdown block code (misal ```json ... ```) dari teks respons AI.
+ *
+ * @param {string} raw
+ * @returns {string}
+ */
+export function cleanJsonResponse(raw) {
+  if (typeof raw !== 'string') return '';
+  let str = raw.trim();
+  if (str.startsWith('```')) {
+    str = str.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+  }
+  return str;
+}
+
+/**
  * Memanggil Gemini API dengan batas timeout 30 detik dan retry 2x untuk status 503.
  *
  * @param {Array} contents
@@ -282,15 +303,24 @@ export const STEAM_RECOMMENDER_SCHEMA = {
  * @param {number} delayMs
  * @returns {Promise<string>}
  */
-async function callGeminiWithRetry(contents, retries = 2, delayMs = 1000) {
+async function callGeminiWithRetry(contents, retries = 2, delayMs = 600) {
+  const models = [GEMINI_MODEL];
+  if (GEMINI_FALLBACK_MODEL && !models.includes(GEMINI_FALLBACK_MODEL)) {
+    models.push(GEMINI_FALLBACK_MODEL);
+  }
+  ['gemini-3.5-flash-lite', 'gemini-3-flash-preview'].forEach((m) => {
+    if (!models.includes(m)) models.push(m);
+  });
+
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const currentModel = models[attempt % models.length];
     try {
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('REQUEST_TIMEOUT')), 30000);
+        setTimeout(() => reject(new Error('REQUEST_TIMEOUT')), 35000);
       });
 
       const apiPromise = ai.models.generateContent({
-        model: GEMINI_MODEL,
+        model: currentModel,
         contents,
         config: {
           temperature: GEMINI_TEMPERATURE,
@@ -309,16 +339,23 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 1000) {
 
       return replyText;
     } catch (err) {
-      const is503 =
+      const isRetriable =
         err?.status === 503 ||
+        err?.status === 429 ||
+        err?.status === 404 ||
         err?.message?.includes('503') ||
+        err?.message?.includes('429') ||
+        err?.message?.includes('404') ||
         err?.message?.includes('Service Unavailable') ||
-        err?.message?.includes('overloaded');
+        err?.message?.includes('high demand') ||
+        err?.message?.includes('overloaded') ||
+        err?.message?.includes('RESOURCE_EXHAUSTED') ||
+        err?.message?.includes('quota');
 
-      if (is503 && attempt < retries) {
-        console.warn(`[SobatSteam] Gemini 503 sibuk. Mencoba ulang dalam ${delayMs}ms (Percobaan ${attempt + 1}/${retries})...`);
+      if (isRetriable && attempt < retries) {
+        const nextModel = models[(attempt + 1) % models.length];
+        console.warn(`[SobatSteam] Model '${currentModel}' kendala (${err.status || err.message}). Beralih ke model cadangan '${nextModel}' (Percobaan ${attempt + 1}/${retries})...`);
         await new Promise((res) => setTimeout(res, delayMs));
-        delayMs *= 2;
         continue;
       }
       throw err;
@@ -360,7 +397,7 @@ app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req,
 
     let data;
     try {
-      data = JSON.parse(result);
+      data = JSON.parse(cleanJsonResponse(result));
     } catch {
       data = { intro: result, games: [], followUp: '' };
     }
@@ -441,16 +478,48 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders?.();
 
-    const stream = await ai.models.generateContentStream({
-      model: GEMINI_MODEL,
-      contents,
-      config: {
-        temperature: GEMINI_TEMPERATURE,
-        systemInstruction: SYSTEM_INSTRUCTION,
-        responseMimeType: 'application/json',
-        responseSchema: STEAM_RECOMMENDER_SCHEMA,
-      },
+    const modelsToTry = [GEMINI_MODEL];
+    if (GEMINI_FALLBACK_MODEL && !modelsToTry.includes(GEMINI_FALLBACK_MODEL)) {
+      modelsToTry.push(GEMINI_FALLBACK_MODEL);
+    }
+    ['gemini-3.5-flash-lite', 'gemini-3-flash-preview'].forEach((m) => {
+      if (!modelsToTry.includes(m)) modelsToTry.push(m);
     });
+
+    let stream = null;
+    for (const modelToAttempt of modelsToTry) {
+      try {
+        stream = await ai.models.generateContentStream({
+          model: modelToAttempt,
+          contents,
+          config: {
+            temperature: GEMINI_TEMPERATURE,
+            systemInstruction: SYSTEM_INSTRUCTION,
+            responseMimeType: 'application/json',
+            responseSchema: STEAM_RECOMMENDER_SCHEMA,
+          },
+        });
+        break;
+      } catch (streamErr) {
+        const isRetriable =
+          streamErr?.status === 503 ||
+          streamErr?.status === 429 ||
+          streamErr?.status === 404 ||
+          streamErr?.message?.includes('503') ||
+          streamErr?.message?.includes('429') ||
+          streamErr?.message?.includes('404') ||
+          streamErr?.message?.includes('Service Unavailable') ||
+          streamErr?.message?.includes('high demand') ||
+          streamErr?.message?.includes('overloaded') ||
+          streamErr?.message?.includes('RESOURCE_EXHAUSTED') ||
+          streamErr?.message?.includes('quota');
+        if (isRetriable && modelToAttempt !== modelsToTry[modelsToTry.length - 1]) {
+          console.warn(`[SobatSteam Stream] Model '${modelToAttempt}' kendala (${streamErr.status || streamErr.message}). Beralih otomatis ke model cadangan...`);
+          continue;
+        }
+        throw streamErr;
+      }
+    }
 
     let fullText = '';
     for await (const chunk of stream) {
@@ -463,7 +532,7 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
 
     let data;
     try {
-      data = JSON.parse(fullText);
+      data = JSON.parse(cleanJsonResponse(fullText));
     } catch {
       data = { intro: fullText, games: [], followUp: '' };
     }

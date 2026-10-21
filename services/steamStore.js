@@ -490,7 +490,7 @@ export async function getSteamGameDetails(
 
       const result = {
         appId: candidate.id,
-        headerImage: `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${candidate.id}/header.jpg`,
+        headerImage: `https://cdn.akamai.steamstatic.com/steam/apps/${candidate.id}/header.jpg`,
         storeUrl: `https://store.steampowered.com/app/${candidate.id}/`,
         pricing,
         verified: true,
