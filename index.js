@@ -301,9 +301,10 @@ export function cleanJsonResponse(raw) {
  * @param {Array} contents
  * @param {number} retries
  * @param {number} delayMs
+ * @param {AbortSignal|null} clientSignal
  * @returns {Promise<string>}
  */
-async function callGeminiWithRetry(contents, retries = 2, delayMs = 600) {
+async function callGeminiWithRetry(contents, retries = 2, delayMs = 600, clientSignal = null) {
   const models = [GEMINI_MODEL];
   if (GEMINI_FALLBACK_MODEL && !models.includes(GEMINI_FALLBACK_MODEL)) {
     models.push(GEMINI_FALLBACK_MODEL);
@@ -313,13 +314,30 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 600) {
   });
 
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const currentModel = models[attempt % models.length];
-    try {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('REQUEST_TIMEOUT')), 35000);
-      });
+    if (clientSignal?.aborted) {
+      const abortErr = new Error('CLIENT_CLOSED');
+      abortErr.name = 'AbortError';
+      throw abortErr;
+    }
 
-      const apiPromise = ai.models.generateContent({
+    const currentModel = models[attempt % models.length];
+    const attemptController = new AbortController();
+
+    const onClientAbort = () => {
+      attemptController.abort(clientSignal?.reason || new Error('CLIENT_CLOSED'));
+    };
+
+    if (clientSignal) {
+      clientSignal.addEventListener('abort', onClientAbort, { once: true });
+    }
+
+    // Batas waktu timeout 15 detik per percobaan untuk mencegah penahanan event loop
+    const timeoutId = setTimeout(() => {
+      attemptController.abort(new Error('REQUEST_TIMEOUT'));
+    }, 15000);
+
+    try {
+      const response = await ai.models.generateContent({
         model: currentModel,
         contents,
         config: {
@@ -327,10 +345,10 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 600) {
           systemInstruction: SYSTEM_INSTRUCTION,
           responseMimeType: 'application/json',
           responseSchema: STEAM_RECOMMENDER_SCHEMA,
+          abortSignal: attemptController.signal,
         },
       });
 
-      const response = await Promise.race([apiPromise, timeoutPromise]);
       const replyText = response?.text;
 
       if (!replyText || replyText.trim().length === 0) {
@@ -339,7 +357,23 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 600) {
 
       return replyText;
     } catch (err) {
+      const isClientClosed =
+        clientSignal?.aborted ||
+        err?.message === 'CLIENT_CLOSED' ||
+        attemptController.signal.reason?.message === 'CLIENT_CLOSED';
+
+      if (isClientClosed) {
+        const clientErr = new Error('CLIENT_CLOSED');
+        clientErr.name = 'AbortError';
+        throw clientErr;
+      }
+
+      const isTimeout =
+        err?.message === 'REQUEST_TIMEOUT' ||
+        attemptController.signal.reason?.message === 'REQUEST_TIMEOUT';
+
       const isRetriable =
+        isTimeout ||
         err?.status === 503 ||
         err?.status === 429 ||
         err?.status === 404 ||
@@ -354,11 +388,34 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 600) {
 
       if (isRetriable && attempt < retries) {
         const nextModel = models[(attempt + 1) % models.length];
-        console.warn(`[SobatSteam] Model '${currentModel}' kendala (${err.status || err.message}). Beralih ke model cadangan '${nextModel}' (Percobaan ${attempt + 1}/${retries})...`);
-        await new Promise((res) => setTimeout(res, delayMs));
+        const reasonStr = isTimeout ? 'timeout 15 detik' : (err.status || err.message);
+        console.warn(`[SobatSteam] Model '${currentModel}' kendala (${reasonStr}). Beralih ke model cadangan '${nextModel}' (Percobaan ${attempt + 1}/${retries})...`);
+        
+        // Jeda backoff dengan proteksi pembatalan klien
+        await new Promise((res) => {
+          const timer = setTimeout(res, delayMs);
+          if (clientSignal) {
+            clientSignal.addEventListener('abort', () => {
+              clearTimeout(timer);
+              res();
+            }, { once: true });
+          }
+        });
         continue;
       }
+
+      if (isTimeout) {
+        const finalTimeoutErr = new Error('REQUEST_TIMEOUT');
+        finalTimeoutErr.name = 'TimeoutError';
+        throw finalTimeoutErr;
+      }
+
       throw err;
+    } finally {
+      clearTimeout(timeoutId);
+      if (clientSignal) {
+        clientSignal.removeEventListener('abort', onClientAbort);
+      }
     }
   }
 }
@@ -374,6 +431,15 @@ app.get('/api/health', (req, res) => {
 
 // Endpoint chat utama
 app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req, res) => {
+  const reqController = new AbortController();
+
+  const handleClientClose = () => {
+    if (!res.writableEnded) {
+      reqController.abort(new Error('CLIENT_CLOSED'));
+    }
+  };
+  req.on('close', handleClientClose);
+
   try {
     const { conversation, preferences } = req.body || {};
 
@@ -392,8 +458,12 @@ app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req,
       };
     }
 
-    // Dapatkan balasan AI dari Gemini
-    const result = await callGeminiWithRetry(contents);
+    // Dapatkan balasan AI dari Gemini dengan sinyal abort dari request
+    const result = await callGeminiWithRetry(contents, 2, 600, reqController.signal);
+
+    if (reqController.signal.aborted || res.writableEnded) {
+      return;
+    }
 
     let data;
     try {
@@ -407,8 +477,16 @@ app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req,
       data.games = await enrichGamesWithSteam(data.games, { totalTimeoutMs: 6000 });
     }
 
+    if (reqController.signal.aborted || res.writableEnded) {
+      return;
+    }
+
     res.status(200).json({ result, data });
   } catch (err) {
+    if (reqController.signal.aborted || err?.message === 'CLIENT_CLOSED' || res.writableEnded) {
+      return;
+    }
+
     // 1. Error validasi input dari toContents
     if (err?.status === 400) {
       return res.status(400).json({ error: err.message });
@@ -452,11 +530,22 @@ app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req,
     res.status(500).json({
       error: 'Terjadi kesalahan pada server saat memproses rekomendasi. Silakan coba lagi nanti.',
     });
+  } finally {
+    req.removeListener('close', handleClientClose);
   }
 });
 
 // Endpoint chat streaming via Server-Sent Events (SSE) (Fase 3 Opsi C)
 app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), async (req, res) => {
+  const reqController = new AbortController();
+
+  const handleClientClose = () => {
+    if (!res.writableEnded) {
+      reqController.abort(new Error('CLIENT_CLOSED'));
+    }
+  };
+  req.on('close', handleClientClose);
+
   try {
     const { conversation, preferences } = req.body || {};
 
@@ -488,6 +577,18 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
 
     let stream = null;
     for (const modelToAttempt of modelsToTry) {
+      if (reqController.signal.aborted) break;
+
+      const attemptController = new AbortController();
+      const onClientAbort = () => {
+        attemptController.abort(reqController.signal.reason || new Error('CLIENT_CLOSED'));
+      };
+      reqController.signal.addEventListener('abort', onClientAbort, { once: true });
+
+      const timeoutId = setTimeout(() => {
+        attemptController.abort(new Error('REQUEST_TIMEOUT'));
+      }, 15000);
+
       try {
         stream = await ai.models.generateContentStream({
           model: modelToAttempt,
@@ -497,11 +598,21 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
             systemInstruction: SYSTEM_INSTRUCTION,
             responseMimeType: 'application/json',
             responseSchema: STEAM_RECOMMENDER_SCHEMA,
+            abortSignal: attemptController.signal,
           },
         });
         break;
       } catch (streamErr) {
+        if (reqController.signal.aborted || attemptController.signal.reason?.message === 'CLIENT_CLOSED') {
+          break;
+        }
+
+        const isTimeout =
+          streamErr?.message === 'REQUEST_TIMEOUT' ||
+          attemptController.signal.reason?.message === 'REQUEST_TIMEOUT';
+
         const isRetriable =
+          isTimeout ||
           streamErr?.status === 503 ||
           streamErr?.status === 429 ||
           streamErr?.status === 404 ||
@@ -513,21 +624,39 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
           streamErr?.message?.includes('overloaded') ||
           streamErr?.message?.includes('RESOURCE_EXHAUSTED') ||
           streamErr?.message?.includes('quota');
+
         if (isRetriable && modelToAttempt !== modelsToTry[modelsToTry.length - 1]) {
-          console.warn(`[SobatSteam Stream] Model '${modelToAttempt}' kendala (${streamErr.status || streamErr.message}). Beralih otomatis ke model cadangan...`);
+          const reasonStr = isTimeout ? 'timeout 15 detik' : (streamErr.status || streamErr.message);
+          console.warn(`[SobatSteam Stream] Model '${modelToAttempt}' kendala (${reasonStr}). Beralih otomatis ke model cadangan...`);
           continue;
         }
         throw streamErr;
+      } finally {
+        clearTimeout(timeoutId);
+        reqController.signal.removeEventListener('abort', onClientAbort);
       }
+    }
+
+    if (reqController.signal.aborted || !stream) {
+      if (!res.writableEnded) res.end();
+      return;
     }
 
     let fullText = '';
     for await (const chunk of stream) {
+      if (reqController.signal.aborted || res.writableEnded) {
+        break;
+      }
       const textChunk = chunk.text;
       if (textChunk) {
         fullText += textChunk;
         res.write(`data: ${JSON.stringify({ chunk: textChunk })}\n\n`);
       }
+    }
+
+    if (reqController.signal.aborted || res.writableEnded) {
+      if (!res.writableEnded) res.end();
+      return;
     }
 
     let data;
@@ -541,9 +670,17 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
       data.games = await enrichGamesWithSteam(data.games, { totalTimeoutMs: 6000 });
     }
 
+    if (reqController.signal.aborted || res.writableEnded) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+
     res.write(`data: ${JSON.stringify({ done: true, data, result: fullText })}\n\n`);
     res.end();
   } catch (err) {
+    if (reqController.signal.aborted || err?.message === 'CLIENT_CLOSED' || res.writableEnded) {
+      return;
+    }
     if (err?.status === 400) {
       res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
       return res.end();
@@ -551,6 +688,8 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
     console.error('[SobatSteam Stream Error]', err?.name || 'Error', err?.message || err);
     res.write(`data: ${JSON.stringify({ error: 'Terjadi kesalahan saat memproses streaming rekomendasi.' })}\n\n`);
     res.end();
+  } finally {
+    req.removeListener('close', handleClientClose);
   }
 });
 
@@ -580,4 +719,5 @@ if (!isTestMode && !isServerless) {
   process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 }
 
+export { app, callGeminiWithRetry };
 export default app;
