@@ -196,7 +196,17 @@ export class DailyCapLimiter {
       try {
         const result = await this.consume(clientIp);
         if (!result.allowed) {
-          return res.status(429).json({ error: result.message });
+          return res.status(429).json({
+            success: false,
+            error: {
+              code: 'DAILY_QUOTA_EXCEEDED',
+              message: result.message,
+              details: null,
+            },
+            meta: {
+              timestamp: new Date().toISOString(),
+            },
+          });
         }
         next();
       } catch (err) {
