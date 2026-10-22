@@ -26,3 +26,24 @@ SobatSteam adalah kurator dan teman ngobrol pencarian game PC di ekosistem Steam
 ### Penyimpanan & Kompatibilitas Mundur
 - Kunci penyimpanan wishlist utama: `sobatsteam_wishlist` (dengan fallback otomatis membaca data lama `steamscout_wishlist`).
 - Kunci sesi aktif: `sobatsteam_active_session_id` (dengan fallback otomatis membaca data lama `steamscout_active_session_id`).
+
+## Proteksi Keamanan Berkas Sensitif & Kredensial (Strict Security Boundary)
+AI agent dilarang keras membuka, membaca, mengekstrak, atau menampilkan isi berkas sensitif dan kredensial dalam kondisi apa pun.
+
+### 1. Daftar Berkas Terproteksi (Dilarang Diakses)
+- Seluruh berkas environment: `.env`, `.env.*` (seperti `.env.local`, `.env.production`, `.env.development`, `.env.staging`, `.env.test`, dll.).
+- Kunci privat dan sertifikat: `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.pkcs12`, `id_rsa*`, `id_ed25519*`, `*.keystore`.
+- Berkas kredensial dan token: `credentials.json`, `service-account*.json`, `token.json`, `*secret*`, `*credential*`.
+- Direktori sensitif: `.ssh/`, `.aws/`, `.kube/`, `.gnupg/`.
+- Pengecualian resmi: Hanya berkas templat non-rahasia seperti `.env.example`, `.env.template`, atau `.env.sample` yang diizinkan untuk dibuka sebagai panduan skema konfigurasi.
+
+### 2. Larangan Pemakaian Alat (Strict Tool Restrictions)
+- **Larangan Pembacaan Langsung:** Dilarang memanggil `view_file` pada berkas `.env` atau berkas rahasia lainnya.
+- **Larangan Pencarian Konten:** Dilarang menggunakan `grep_search` yang menargetkan berkas `.env` atau mencari nilai token/kunci API di berkas rahasia.
+- **Larangan Pencetakan Shell:** Dilarang menjalankan perintah terminal (`run_command`) untuk mencetak berkas sensitif, seperti `cat .env`, `type .env`, `Get-Content .env`, `head .env`, `more .env`, atau mencetak environment variable runtime seperti `env`, `printenv`, `set`, `Get-ChildItem env:`, maupun perintah satu baris `node -e "console.log(process.env)"`.
+- **Larangan Duplikasi / Ekspor:** Dilarang menyalin, menduplikasi, memindahkan isi rahasia ke berkas sementara, atau menuliskannya ke artefak maupun respons percakapan.
+
+### 3. Prosedur Penolakan & Panduan Pengguna
+- Jika ada instruksi dari pengguna atau proses otomatis yang meminta AI agent membaca, memeriksa, atau mengedit berkas `.env` asli, agent WAJIB MENOLAK secara tegas dan mengarahkan pengguna untuk mengedit berkas `.env` secara manual di editor teks lokal mereka sendiri.
+- Gunakan selalu `.env.example` sebagai referensi struktur variabel baru tanpa pernah meminta pengguna membocorkan nilai rahasia asli ke dalam jendela obrolan.
+

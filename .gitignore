@@ -31,6 +31,8 @@ anti-slop
 *.sln
 *.sw?
 .agents
+AGENTS.md
+
 
 # Evaluation output results
 eval/results/*
@@ -38,4 +40,4 @@ eval/results/*
 
 # Temporary testing scripts and screenshot artifacts
 scratch/
-scripts/screenshots/
+scripts/screenshots/

@@ -1,13 +1,15 @@
+import './instrument.js';
 import 'dotenv/config';
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { GoogleGenAI } from '@google/genai';
 import { SYSTEM_INSTRUCTION } from './prompts/systemPrompt.js';
 import { getSteamGameDetails, enrichGamesWithSteam } from './services/steamStore.js';
 import { defaultDailyCap } from './services/dailyCap.js';
+import { defaultGeminiKeyPool, GeminiKeyPool } from './services/geminiKeyPool.js';
 
 // Deteksi mode pengujian unit agar tidak memblokir CI saat tanpa API key
 const isTestMode =
@@ -15,10 +17,10 @@ const isTestMode =
   process.execArgv.includes('--test') ||
   process.argv.some((arg) => arg.includes('test'));
 
-// Verifikasi ketersediaan GEMINI_API_KEY saat startup (dilewati saat unit testing)
-if (!isTestMode && !process.env.GEMINI_API_KEY) {
-  console.warn('PERINGATAN: Variabel lingkungan GEMINI_API_KEY belum disetel.');
-  console.warn('Pastikan menyetel GEMINI_API_KEY di .env (lokal) atau di Dashboard Environment Variables (Vercel).');
+// Verifikasi ketersediaan kunci API Gemini saat startup (dilewati saat unit testing)
+if (!isTestMode && !process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEYS) {
+  console.warn('PERINGATAN: Variabel lingkungan GEMINI_API_KEY atau GEMINI_API_KEYS belum disetel.');
+  console.warn('Pastikan menyetel GEMINI_API_KEYS / GEMINI_API_KEY di .env (lokal) atau di Dashboard Environment Variables (Vercel).');
 }
 
 // Setup __dirname untuk ES Modules
@@ -26,6 +28,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// Pasang request handler Sentry di awal pipeline bila tersedia
+if (process.env.SENTRY_DSN && typeof Sentry.Handlers?.requestHandler === 'function') {
+  app.use(Sentry.Handlers.requestHandler());
+}
 
 // Percayakan reverse proxy (Render, Railway, Heroku, Nginx) agar rate limiter membaca IP asli
 app.set('trust proxy', 1);
@@ -36,10 +43,28 @@ const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3-fla
 const GEMINI_TEMPERATURE = Number(process.env.GEMINI_TEMPERATURE) || 0.75;
 const PORT = process.env.PORT || 3000;
 
-// Inisialisasi client Google GenAI
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || 'TEST_DUMMY_KEY',
-});
+/**
+ * Mengirim respons error API terstandarisasi.
+ *
+ * @param {import('express').Response} res
+ * @param {number} status
+ * @param {string} code
+ * @param {string} message
+ * @param {*} [details=null]
+ */
+export function sendApiError(res, status, code, message, details = null) {
+  return res.status(status).json({
+    success: false,
+    error: {
+      code,
+      message,
+      details,
+    },
+    meta: {
+      timestamp: new Date().toISOString(),
+    },
+  });
+}
 
 // Keamanan header via Helmet (mengizinkan Google Fonts untuk tema SobatSteam)
 app.use(
@@ -47,10 +72,10 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
+        connectSrc: ["'self'", 'https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
         scriptSrc: ["'self'"],
-        connectSrc: ["'self'"],
         imgSrc: [
           "'self'",
           'data:',
@@ -74,9 +99,12 @@ app.use(express.json({ limit: '100kb' }));
 // Penanganan error payload terlalu besar (HTTP 413) secara ramah
 app.use((err, req, res, next) => {
   if (err?.type === 'entity.too.large' || err?.status === 413) {
-    return res.status(413).json({
-      error: 'Ukuran data percakapan melebihi batas maksimal server (100kb). Silakan mulai percakapan baru.',
-    });
+    return sendApiError(
+      res,
+      413,
+      'PAYLOAD_TOO_LARGE',
+      'Ukuran data percakapan melebihi batas maksimal server (100kb). Silakan mulai percakapan baru.'
+    );
   }
   next(err);
 });
@@ -86,7 +114,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Normalisasi rute untuk lingkungan serverless (Vercel) jika prefix /api terpotong
 app.use((req, res, next) => {
-  if (!req.url.startsWith('/api') && (req.url.startsWith('/chat') || req.url.startsWith('/health'))) {
+  if (
+    !req.url.startsWith('/api') &&
+    (req.url.startsWith('/chat') || req.url.startsWith('/health') || req.url.startsWith('/debug-sentry'))
+  ) {
     req.url = '/api' + req.url;
   }
   next();
@@ -98,8 +129,13 @@ const chatRateLimiter = rateLimit({
   max: Number(process.env.RATE_LIMIT_MAX) || 20,
   standardHeaders: true,
   legacyHeaders: false,
-  message: {
-    error: 'Terlalu banyak permintaan dalam waktu singkat. Mohon tunggu sebentar sebelum mengirim pesan lagi.',
+  handler: (req, res) => {
+    sendApiError(
+      res,
+      429,
+      'RATE_LIMIT_EXCEEDED',
+      'Terlalu banyak permintaan dalam waktu singkat. Mohon tunggu sebentar sebelum mengirim pesan lagi.'
+    );
   },
 });
 
@@ -161,6 +197,35 @@ export function validatePreferences(preferences) {
   }
 
   return validated;
+}
+
+/**
+ * Membersihkan tag XML user_query dari input pengguna
+ * untuk menutup celah keamanan prompt injection.
+ *
+ * @param {string} userText
+ * @returns {string}
+ */
+export function sanitizeUserQuery(userText) {
+  if (typeof userText !== 'string') return '';
+  return userText.replace(/<\/?user_query>/g, '').trim();
+}
+
+/**
+ * Memformat giliran pengguna terakhir ke dalam format XML terstruktur
+ * dengan tag <user_query> tersanitasi dan <system_context_filters>.
+ *
+ * @param {string} userText
+ * @param {{ spec?: string, budget?: string, mode?: string }} [validatedPrefs={}]
+ * @returns {string}
+ */
+export function formatSecuredUserTurn(userText, validatedPrefs = {}) {
+  const safeUserText = sanitizeUserQuery(userText);
+  const spec = validatedPrefs?.spec || 'any';
+  const budget = validatedPrefs?.budget || 'any';
+  const mode = validatedPrefs?.mode || 'any';
+
+  return `<user_query>\n${safeUserText}\n</user_query>\n\n<system_context_filters spec="${spec}" budget="${budget}" mode="${mode}" />`;
 }
 
 /**
@@ -296,14 +361,22 @@ export function cleanJsonResponse(raw) {
 }
 
 /**
- * Memanggil Gemini API dengan batas timeout 30 detik dan retry 2x untuk status 503.
+ * Memanggil Gemini API dengan batas timeout 30 detik, rotasi pool API key, dan retry.
  *
  * @param {Array} contents
  * @param {number} retries
  * @param {number} delayMs
+ * @param {AbortSignal|null} clientSignal
+ * @param {GeminiKeyPool} [keyPool=defaultGeminiKeyPool]
  * @returns {Promise<string>}
  */
-async function callGeminiWithRetry(contents, retries = 2, delayMs = 600) {
+async function callGeminiWithRetry(
+  contents,
+  retries = 2,
+  delayMs = 600,
+  clientSignal = null,
+  keyPool = defaultGeminiKeyPool
+) {
   const models = [GEMINI_MODEL];
   if (GEMINI_FALLBACK_MODEL && !models.includes(GEMINI_FALLBACK_MODEL)) {
     models.push(GEMINI_FALLBACK_MODEL);
@@ -312,14 +385,34 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 600) {
     if (!models.includes(m)) models.push(m);
   });
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const currentModel = models[attempt % models.length];
-    try {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('REQUEST_TIMEOUT')), 35000);
-      });
+  const maxAttempts = Math.max(retries, (keyPool?.size || 1) - 1);
 
-      const apiPromise = ai.models.generateContent({
+  for (let attempt = 0; attempt <= maxAttempts; attempt++) {
+    if (clientSignal?.aborted) {
+      const abortErr = new Error('CLIENT_CLOSED');
+      abortErr.name = 'AbortError';
+      throw abortErr;
+    }
+
+    const currentModel = models[attempt % models.length];
+    const { client: currentAi, key: currentKey } = keyPool.getClient();
+    const attemptController = new AbortController();
+
+    const onClientAbort = () => {
+      attemptController.abort(clientSignal?.reason || new Error('CLIENT_CLOSED'));
+    };
+
+    if (clientSignal) {
+      clientSignal.addEventListener('abort', onClientAbort, { once: true });
+    }
+
+    // Batas waktu timeout 15 detik per percobaan untuk mencegah penahanan event loop
+    const timeoutId = setTimeout(() => {
+      attemptController.abort(new Error('REQUEST_TIMEOUT'));
+    }, 15000);
+
+    try {
+      const response = await currentAi.models.generateContent({
         model: currentModel,
         contents,
         config: {
@@ -327,10 +420,10 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 600) {
           systemInstruction: SYSTEM_INSTRUCTION,
           responseMimeType: 'application/json',
           responseSchema: STEAM_RECOMMENDER_SCHEMA,
+          abortSignal: attemptController.signal,
         },
       });
 
-      const response = await Promise.race([apiPromise, timeoutPromise]);
       const replyText = response?.text;
 
       if (!replyText || replyText.trim().length === 0) {
@@ -339,26 +432,77 @@ async function callGeminiWithRetry(contents, retries = 2, delayMs = 600) {
 
       return replyText;
     } catch (err) {
-      const isRetriable =
-        err?.status === 503 ||
+      const isClientClosed =
+        clientSignal?.aborted ||
+        err?.message === 'CLIENT_CLOSED' ||
+        attemptController.signal.reason?.message === 'CLIENT_CLOSED';
+
+      if (isClientClosed) {
+        const clientErr = new Error('CLIENT_CLOSED');
+        clientErr.name = 'AbortError';
+        throw clientErr;
+      }
+
+      const isTimeout =
+        err?.message === 'REQUEST_TIMEOUT' ||
+        attemptController.signal.reason?.message === 'REQUEST_TIMEOUT';
+
+      const isQuotaExceeded =
         err?.status === 429 ||
-        err?.status === 404 ||
-        err?.message?.includes('503') ||
         err?.message?.includes('429') ||
-        err?.message?.includes('404') ||
-        err?.message?.includes('Service Unavailable') ||
-        err?.message?.includes('high demand') ||
-        err?.message?.includes('overloaded') ||
         err?.message?.includes('RESOURCE_EXHAUSTED') ||
         err?.message?.includes('quota');
 
-      if (isRetriable && attempt < retries) {
+      if (isQuotaExceeded) {
+        keyPool.markCooldown(currentKey, 60000);
+        console.warn(`[SobatSteam KeyPool] Kunci Gemini API terkena batas kuota (429). Masuk cooldown 60 detik.`);
+        if (keyPool.getActiveKeyCount() > 0 && attempt < maxAttempts) {
+          console.warn(`[SobatSteam KeyPool] Failover langsung ke kunci API berikutnya...`);
+          continue;
+        }
+      }
+
+      const isRetriable =
+        isTimeout ||
+        isQuotaExceeded ||
+        err?.status === 503 ||
+        err?.status === 404 ||
+        err?.message?.includes('503') ||
+        err?.message?.includes('404') ||
+        err?.message?.includes('Service Unavailable') ||
+        err?.message?.includes('high demand') ||
+        err?.message?.includes('overloaded');
+
+      if (isRetriable && attempt < maxAttempts) {
         const nextModel = models[(attempt + 1) % models.length];
-        console.warn(`[SobatSteam] Model '${currentModel}' kendala (${err.status || err.message}). Beralih ke model cadangan '${nextModel}' (Percobaan ${attempt + 1}/${retries})...`);
-        await new Promise((res) => setTimeout(res, delayMs));
+        const reasonStr = isTimeout ? 'timeout 15 detik' : (err.status || err.message);
+        console.warn(`[SobatSteam] Model '${currentModel}' kendala (${reasonStr}). Beralih ke model '${nextModel}' (Percobaan ${attempt + 1}/${maxAttempts})...`);
+        
+        // Jeda backoff dengan proteksi pembatalan klien
+        await new Promise((res) => {
+          const timer = setTimeout(res, delayMs);
+          if (clientSignal) {
+            clientSignal.addEventListener('abort', () => {
+              clearTimeout(timer);
+              res();
+            }, { once: true });
+          }
+        });
         continue;
       }
+
+      if (isTimeout) {
+        const finalTimeoutErr = new Error('REQUEST_TIMEOUT');
+        finalTimeoutErr.name = 'TimeoutError';
+        throw finalTimeoutErr;
+      }
+
       throw err;
+    } finally {
+      clearTimeout(timeoutId);
+      if (clientSignal) {
+        clientSignal.removeEventListener('abort', onClientAbort);
+      }
     }
   }
 }
@@ -372,8 +516,22 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Endpoint verifikasi Sentry untuk pengujian integrasi error
+app.get(['/debug-sentry', '/api/debug-sentry'], function debugSentryHandler(req, res) {
+  throw new Error('My first Sentry error!');
+});
+
 // Endpoint chat utama
 app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req, res) => {
+  const reqController = new AbortController();
+
+  const handleClientClose = () => {
+    if (!res.writableEnded) {
+      reqController.abort(new Error('CLIENT_CLOSED'));
+    }
+  };
+  req.on('close', handleClientClose);
+
   try {
     const { conversation, preferences } = req.body || {};
 
@@ -381,19 +539,22 @@ app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req,
     const validatedPrefs = validatePreferences(preferences);
     const contents = toContents(conversation);
 
-    // Tambahkan catatan preferensi filter ke giliran pengguna terakhir tanpa memutasi conversation asli
-    const filterNote = buildPreferencesPromptNote(validatedPrefs);
-    if (filterNote && contents.length > 0) {
+    // Bungkus giliran pengguna terakhir dengan tag XML terstruktur dan preferensi filter sistem
+    if (contents.length > 0) {
       const lastIndex = contents.length - 1;
       const lastUserText = contents[lastIndex].parts[0].text;
       contents[lastIndex] = {
         role: 'user',
-        parts: [{ text: `${lastUserText}\n\n${filterNote}` }],
+        parts: [{ text: formatSecuredUserTurn(lastUserText, validatedPrefs) }],
       };
     }
 
-    // Dapatkan balasan AI dari Gemini
-    const result = await callGeminiWithRetry(contents);
+    // Dapatkan balasan AI dari Gemini dengan sinyal abort dari request
+    const result = await callGeminiWithRetry(contents, 2, 600, reqController.signal);
+
+    if (reqController.signal.aborted || res.writableEnded) {
+      return;
+    }
 
     let data;
     try {
@@ -407,69 +568,116 @@ app.post('/api/chat', chatRateLimiter, defaultDailyCap.middleware(), async (req,
       data.games = await enrichGamesWithSteam(data.games, { totalTimeoutMs: 6000 });
     }
 
+    if (reqController.signal.aborted || res.writableEnded) {
+      return;
+    }
+
     res.status(200).json({ result, data });
   } catch (err) {
+    if (reqController.signal.aborted || err?.message === 'CLIENT_CLOSED' || res.writableEnded) {
+      return;
+    }
+
+    // Catat error kritis di Sentry (kecuali error bisnis HTTP 400 dan HTTP 429)
+    if (process.env.SENTRY_DSN) {
+      const isBusinessError = err?.status === 400 || err?.status === 429;
+      if (!isBusinessError) {
+        Sentry.captureException(err, {
+          tags: { endpoint: '/api/chat', model: GEMINI_MODEL },
+        });
+      }
+    }
+
     // 1. Error validasi input dari toContents
     if (err?.status === 400) {
-      return res.status(400).json({ error: err.message });
+      return sendApiError(res, 400, 'BAD_REQUEST', err.message);
     }
 
     // Catat error di server tanpa membocorkan API key atau data user
     console.error('[SobatSteam Error]', err?.name || 'Error', err?.message || err);
 
     if (err?.message === 'REQUEST_TIMEOUT') {
-      return res.status(504).json({
-        error: 'Permintaan memakan waktu terlalu lama (timeout). Mohon periksa koneksi dan coba lagi.',
-      });
+      return sendApiError(
+        res,
+        504,
+        'GATEWAY_TIMEOUT',
+        'Permintaan memakan waktu terlalu lama (timeout). Mohon periksa koneksi dan coba lagi.'
+      );
     }
 
     if (err?.status === 404 || err?.message?.includes('404') || err?.message?.includes('NOT_FOUND')) {
       console.error(`[SobatSteam Model Error] Model '${GEMINI_MODEL}' tidak ditemukan (HTTP 404 NOT_FOUND). Model mungkin telah dihentikan (deprecated) atau nama model salah. Gunakan model aktif seperti 'gemini-3.1-flash-lite' di .env.`);
-      return res.status(502).json({
-        error: `Model AI '${GEMINI_MODEL}' tidak ditemukan atau telah dihentikan. Silakan periksa konfigurasi GEMINI_MODEL di server.`,
-      });
+      return sendApiError(
+        res,
+        502,
+        'MODEL_NOT_FOUND',
+        `Model AI '${GEMINI_MODEL}' tidak ditemukan atau telah dihentikan. Silakan periksa konfigurasi GEMINI_MODEL di server.`
+      );
     }
 
     if (err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('quota')) {
-      return res.status(429).json({
-        error: 'Batas kuota harian API tercapai atau server sedang padat. Silakan coba beberapa saat lagi.',
-      });
+      return sendApiError(
+        res,
+        429,
+        'DAILY_QUOTA_EXCEEDED',
+        'Batas kuota harian API tercapai atau server sedang padat. Silakan coba beberapa saat lagi.'
+      );
     }
 
     if (err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('Service Unavailable')) {
-      return res.status(503).json({
-        error: 'Layanan AI Gemini sedang sibuk. Mohon tunggu sebentar lalu coba lagi.',
-      });
+      return sendApiError(
+        res,
+        503,
+        'SERVICE_UNAVAILABLE',
+        'Layanan AI Gemini sedang sibuk. Mohon tunggu sebentar lalu coba lagi.'
+      );
     }
 
     if (err?.message === 'EMPTY_RESPONSE') {
-      return res.status(502).json({
-        error: 'Respon tidak dapat ditampilkan karena pembatasan konten. Silakan ajukan pertanyaan game lain.',
-      });
+      return sendApiError(
+        res,
+        502,
+        'CONTENT_FILTERED',
+        'Respon tidak dapat ditampilkan karena pembatasan konten. Silakan ajukan pertanyaan game lain.'
+      );
     }
 
     // Error umum
-    res.status(500).json({
-      error: 'Terjadi kesalahan pada server saat memproses rekomendasi. Silakan coba lagi nanti.',
-    });
+    sendApiError(
+      res,
+      500,
+      'INTERNAL_SERVER_ERROR',
+      'Terjadi kesalahan pada server saat memproses rekomendasi. Silakan coba lagi nanti.'
+    );
+  } finally {
+    req.removeListener('close', handleClientClose);
   }
 });
 
 // Endpoint chat streaming via Server-Sent Events (SSE) (Fase 3 Opsi C)
 app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), async (req, res) => {
+  const reqController = new AbortController();
+
+  const handleClientClose = () => {
+    if (!res.writableEnded) {
+      reqController.abort(new Error('CLIENT_CLOSED'));
+    }
+  };
+  req.on('close', handleClientClose);
+
   try {
     const { conversation, preferences } = req.body || {};
 
     const validatedPrefs = validatePreferences(preferences);
     const contents = toContents(conversation);
 
-    const filterNote = buildPreferencesPromptNote(validatedPrefs);
-    if (filterNote && contents.length > 0) {
+    // Bungkus giliran pengguna terakhir dengan tag XML terstruktur dan preferensi filter sistem
+    if (contents.length > 0) {
       const lastIndex = contents.length - 1;
       const lastUserText = contents[lastIndex].parts[0].text;
       contents[lastIndex] = {
         role: 'user',
-        parts: [{ text: `${lastUserText}\n\n${filterNote}` }],
+        parts: [{ text: formatSecuredUserTurn(lastUserText, validatedPrefs) }],
       };
     }
 
@@ -487,9 +695,24 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
     });
 
     let stream = null;
-    for (const modelToAttempt of modelsToTry) {
+    const maxStreamAttempts = Math.max(modelsToTry.length, defaultGeminiKeyPool.size);
+    for (let attempt = 0; attempt < maxStreamAttempts; attempt++) {
+      if (reqController.signal.aborted) break;
+
+      const modelToAttempt = modelsToTry[attempt % modelsToTry.length];
+      const { client: currentAi, key: currentKey } = defaultGeminiKeyPool.getClient();
+      const attemptController = new AbortController();
+      const onClientAbort = () => {
+        attemptController.abort(reqController.signal.reason || new Error('CLIENT_CLOSED'));
+      };
+      reqController.signal.addEventListener('abort', onClientAbort, { once: true });
+
+      const timeoutId = setTimeout(() => {
+        attemptController.abort(new Error('REQUEST_TIMEOUT'));
+      }, 15000);
+
       try {
-        stream = await ai.models.generateContentStream({
+        stream = await currentAi.models.generateContentStream({
           model: modelToAttempt,
           contents,
           config: {
@@ -497,37 +720,77 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
             systemInstruction: SYSTEM_INSTRUCTION,
             responseMimeType: 'application/json',
             responseSchema: STEAM_RECOMMENDER_SCHEMA,
+            abortSignal: attemptController.signal,
           },
         });
         break;
       } catch (streamErr) {
-        const isRetriable =
-          streamErr?.status === 503 ||
+        if (reqController.signal.aborted || attemptController.signal.reason?.message === 'CLIENT_CLOSED') {
+          break;
+        }
+
+        const isTimeout =
+          streamErr?.message === 'REQUEST_TIMEOUT' ||
+          attemptController.signal.reason?.message === 'REQUEST_TIMEOUT';
+
+        const isQuotaExceeded =
           streamErr?.status === 429 ||
+          streamErr?.message?.includes('429') ||
+          streamErr?.message?.includes('RESOURCE_EXHAUSTED') ||
+          streamErr?.message?.includes('quota');
+
+        if (isQuotaExceeded) {
+          defaultGeminiKeyPool.markCooldown(currentKey, 60000);
+          console.warn(`[SobatSteam Stream] Kunci Gemini API terkena batas kuota (429). Masuk cooldown 60 detik.`);
+          if (defaultGeminiKeyPool.getActiveKeyCount() > 0 && attempt < maxStreamAttempts - 1) {
+            console.warn(`[SobatSteam Stream] Failover streaming ke kunci API berikutnya...`);
+            continue;
+          }
+        }
+
+        const isRetriable =
+          isTimeout ||
+          isQuotaExceeded ||
+          streamErr?.status === 503 ||
           streamErr?.status === 404 ||
           streamErr?.message?.includes('503') ||
-          streamErr?.message?.includes('429') ||
           streamErr?.message?.includes('404') ||
           streamErr?.message?.includes('Service Unavailable') ||
           streamErr?.message?.includes('high demand') ||
-          streamErr?.message?.includes('overloaded') ||
-          streamErr?.message?.includes('RESOURCE_EXHAUSTED') ||
-          streamErr?.message?.includes('quota');
-        if (isRetriable && modelToAttempt !== modelsToTry[modelsToTry.length - 1]) {
-          console.warn(`[SobatSteam Stream] Model '${modelToAttempt}' kendala (${streamErr.status || streamErr.message}). Beralih otomatis ke model cadangan...`);
+          streamErr?.message?.includes('overloaded');
+
+        if (isRetriable && attempt < maxStreamAttempts - 1) {
+          const reasonStr = isTimeout ? 'timeout 15 detik' : (streamErr.status || streamErr.message);
+          console.warn(`[SobatSteam Stream] Model '${modelToAttempt}' kendala (${reasonStr}). Beralih otomatis ke model cadangan...`);
           continue;
         }
         throw streamErr;
+      } finally {
+        clearTimeout(timeoutId);
+        reqController.signal.removeEventListener('abort', onClientAbort);
       }
+    }
+
+    if (reqController.signal.aborted || !stream) {
+      if (!res.writableEnded) res.end();
+      return;
     }
 
     let fullText = '';
     for await (const chunk of stream) {
+      if (reqController.signal.aborted || res.writableEnded) {
+        break;
+      }
       const textChunk = chunk.text;
       if (textChunk) {
         fullText += textChunk;
         res.write(`data: ${JSON.stringify({ chunk: textChunk })}\n\n`);
       }
+    }
+
+    if (reqController.signal.aborted || res.writableEnded) {
+      if (!res.writableEnded) res.end();
+      return;
     }
 
     let data;
@@ -541,17 +804,91 @@ app.post('/api/chat/stream', chatRateLimiter, defaultDailyCap.middleware(), asyn
       data.games = await enrichGamesWithSteam(data.games, { totalTimeoutMs: 6000 });
     }
 
+    if (reqController.signal.aborted || res.writableEnded) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+
     res.write(`data: ${JSON.stringify({ done: true, data, result: fullText })}\n\n`);
     res.end();
   } catch (err) {
+    if (reqController.signal.aborted || err?.message === 'CLIENT_CLOSED' || res.writableEnded) {
+      return;
+    }
+
+    // Catat error kritis streaming di Sentry
+    if (process.env.SENTRY_DSN) {
+      const isBusinessError = err?.status === 400 || err?.status === 429;
+      if (!isBusinessError) {
+        Sentry.captureException(err, {
+          tags: { endpoint: '/api/chat/stream', model: GEMINI_MODEL },
+        });
+      }
+    }
+
+    if (!res.headersSent) {
+      if (err?.status === 400) {
+        return sendApiError(res, 400, 'BAD_REQUEST', err.message);
+      }
+      return sendApiError(
+        res,
+        500,
+        'INTERNAL_SERVER_ERROR',
+        'Terjadi kesalahan saat memproses streaming rekomendasi.'
+      );
+    }
     if (err?.status === 400) {
-      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        success: false,
+        error: {
+          code: 'BAD_REQUEST',
+          message: err.message,
+          details: null,
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+        },
+      })}\n\n`);
       return res.end();
     }
     console.error('[SobatSteam Stream Error]', err?.name || 'Error', err?.message || err);
-    res.write(`data: ${JSON.stringify({ error: 'Terjadi kesalahan saat memproses streaming rekomendasi.' })}\n\n`);
+    res.write(`data: ${JSON.stringify({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Terjadi kesalahan saat memproses streaming rekomendasi.',
+        details: null,
+      },
+      meta: {
+        timestamp: new Date().toISOString(),
+      },
+    })}\n\n`);
     res.end();
+  } finally {
+    req.removeListener('close', handleClientClose);
   }
+});
+
+// Error handler Sentry terpasang setelah seluruh rute/controller (Sentry v8+)
+if (typeof Sentry.setupExpressErrorHandler === 'function') {
+  Sentry.setupExpressErrorHandler(app);
+} else if (typeof Sentry.Handlers?.errorHandler === 'function') {
+  app.use(Sentry.Handlers.errorHandler());
+}
+
+// Fallback error handler terstandarisasi untuk Express
+app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+  console.error('[SobatSteam Express Error]', err?.name || 'Error', err?.message || err);
+  sendApiError(
+    res,
+    err.status || err.statusCode || 500,
+    err.code || 'INTERNAL_SERVER_ERROR',
+    err.message || 'Terjadi kesalahan internal pada server.',
+    process.env.NODE_ENV === 'development' ? { stack: err.stack } : null
+  );
 });
 
 // Jalankan server HTTP hanya jika dijalankan langsung di lokal/VPS (bukan di lingkungan serverless Vercel atau unit test)
@@ -580,4 +917,10 @@ if (!isTestMode && !isServerless) {
   process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 }
 
+export {
+  app,
+  callGeminiWithRetry,
+  defaultGeminiKeyPool,
+  GeminiKeyPool,
+};
 export default app;

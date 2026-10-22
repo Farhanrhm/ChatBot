@@ -580,6 +580,15 @@ button, textarea { font: inherit; color: inherit; }
   font-size: 0.88rem;
 }
 
+.game-price-row .discount-badge {
+  position: static;
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 0.76rem;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
 .price-original {
   color: #8f98a0;
   text-decoration: line-through;
@@ -1130,6 +1139,141 @@ body.keyboard-open .meta-hints {
   to { opacity: 1; transform: none; }
 }
 
+/* Skeleton Loader untuk Bot Balasan */
+.bubble-skeleton {
+  min-width: min(100%, 360px);
+}
+
+.skeleton-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.skeleton-status-text {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.skeleton-card {
+  background: rgba(14, 26, 36, 0.7);
+  border: 1px solid rgba(102, 192, 244, 0.18);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-line,
+.skeleton-tag,
+.skeleton-btn {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(102, 192, 244, 0.14) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s infinite ease-in-out;
+  border-radius: 4px;
+}
+
+.skeleton-title {
+  width: 45%;
+  height: 18px;
+  margin-bottom: 2px;
+}
+
+.skeleton-tags {
+  display: flex;
+  gap: 6px;
+}
+
+.skeleton-tag {
+  width: 58px;
+  height: 16px;
+}
+
+.skeleton-desc {
+  width: 90%;
+  height: 13px;
+}
+
+.skeleton-desc.short {
+  width: 65%;
+}
+
+.skeleton-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.skeleton-btn {
+  width: 110px;
+  height: 26px;
+}
+
+.skeleton-btn.small {
+  width: 65px;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line,
+  .skeleton-tag,
+  .skeleton-btn {
+    animation: none;
+    background: rgba(102, 192, 244, 0.08);
+  }
+}
+
+/* Tombol Salin Pesan Bot */
+.msg-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(102, 192, 244, 0.1);
+}
+
+.btn-copy-msg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-copy-msg:hover,
+.btn-copy-msg:focus-visible {
+  color: var(--text-strong);
+  background: rgba(102, 192, 244, 0.12);
+  border-color: rgba(102, 192, 244, 0.25);
+}
+
+.btn-copy-msg.is-copied {
+  color: #a4d007;
+  background: rgba(164, 208, 7, 0.12);
+  border-color: rgba(164, 208, 7, 0.35);
+}
+
 /* Error */
 .msg.error .bubble {
   background: rgba(229, 115, 115, 0.1);
@@ -1621,55 +1765,6 @@ body.keyboard-open .meta-hints {
   outline-offset: 2px;
 }
 
-/* Footer Wishlist: Ekspor, Salin Teks, dan Impor */
-.wishlist-footer {
-  padding: 12px 18px;
-  background: var(--bg-0);
-  border-top: 1px solid var(--line);
-  flex-shrink: 0;
-}
-
-.wishlist-actions-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.btn-wishlist-action {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 9px 8px;
-  background: rgba(42, 71, 94, 0.4);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 0.78rem;
-  font-family: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
-  white-space: nowrap;
-}
-
-.btn-wishlist-action:hover {
-  background: rgba(102, 192, 244, 0.15);
-  border-color: var(--accent);
-  color: var(--text-strong);
-}
-
-.btn-wishlist-action:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.btn-wishlist-action svg {
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
 .wishlist-toast {
   position: fixed;
   bottom: 24px;
@@ -1884,6 +1979,14 @@ body.keyboard-open .meta-hints {
   cursor: pointer;
 }
 
+.session-item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.btn-session-action,
 .btn-session-delete {
   display: inline-flex;
   align-items: center;
@@ -1900,9 +2003,16 @@ body.keyboard-open .meta-hints {
   flex-shrink: 0;
 }
 
+.session-item:hover .btn-session-action,
+.session-item:focus-within .btn-session-action,
 .session-item:hover .btn-session-delete,
 .session-item:focus-within .btn-session-delete {
   opacity: 1;
+}
+
+.btn-session-rename:hover {
+  color: var(--accent);
+  background: rgba(102, 192, 244, 0.15);
 }
 
 .btn-session-delete:hover {

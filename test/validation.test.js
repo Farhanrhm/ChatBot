@@ -1833,6 +1833,8 @@ test('PWA (Modul P3): berkas sw.js menerapkan caching UI dan Network-Only untuk 
   assert.ok(content.includes('sobatsteam-shell-v1'), 'Harus mendefinisikan CACHE_NAME');
   assert.ok(content.includes('url.pathname.startsWith("/api/")'), 'Harus strict Network-Only untuk endpoint API');
   assert.ok(content.includes('caches.match'), 'Harus menerapkan Cache matching');
+  assert.ok(content.includes('!event.request.url.startsWith("http://")'), 'Harus mengabaikan skema non-HTTP seperti chrome-extension');
+  assert.ok(content.includes('new Response'), 'Harus memiliki fallback Response terdefinisi');
 });
 
 test('chatHistoryCore (Modul P4): sanitizeSessionTitle merapikan spasi dan memotong panjang string dengan aman', async () => {
@@ -1937,6 +1939,47 @@ test('chatHistoryCore (Modul P4): migrateFromLegacyStorage memigrasikan riwayat 
   const all = await getAllSessions();
   assert.equal(all.length, 1);
 });
+
+test('chatHistoryCore (Modul P4): cleanupEmptySessions membersihkan sesi kosong tanpa pesan dari basis data', async () => {
+  const { createSession, getAllSessions, clearAllSessions, cleanupEmptySessions } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  await createSession({ title: 'Obrolan Baru', messages: [] });
+  await createSession({ title: 'Obrolan Kedua', messages: [] });
+  await createSession({
+    title: 'Sesi Valid',
+    messages: [{ role: 'user', text: 'Halo' }],
+  });
+
+  const before = await getAllSessions();
+  assert.equal(before.length, 3);
+
+  const cleaned = await cleanupEmptySessions();
+  assert.equal(cleaned, 2);
+
+  const after = await getAllSessions();
+  assert.equal(after.length, 1);
+  assert.equal(after[0].title, 'Sesi Valid');
+});
+
+test('chatHistoryCore (Modul P4): saveSession mendukung pengubahan nama (rename) sesi dengan sanitasi judul', async () => {
+  const { createSession, getSession, saveSession, clearAllSessions, sanitizeSessionTitle } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  const sess = await createSession({
+    title: 'Obrolan Awal',
+    messages: [{ role: 'user', text: 'Halo' }],
+  });
+
+  const newTitle = sanitizeSessionTitle('Koleksi Game RPG Petualangan');
+  sess.title = newTitle;
+  await saveSession(sess);
+
+  const updated = await getSession(sess.id);
+  assert.ok(updated);
+  assert.equal(updated.title, 'Koleksi Game RPG Petualangan');
+});
+
 
 
 

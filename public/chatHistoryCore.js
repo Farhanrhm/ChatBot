@@ -306,3 +306,27 @@ export async function migrateFromLegacyStorage(storage, storageKey = "sobatsteam
     return null;
   }
 }
+
+/**
+ * Membersihkan sesi kosong yang tidak memiliki pesan dari basis data.
+ * @returns {Promise<number>} Jumlah sesi kosong yang dibersihkan
+ */
+export async function cleanupEmptySessions() {
+  try {
+    const all = await getAllSessions();
+    let cleanedCount = 0;
+
+    for (const sess of all) {
+      if (!sess || !Array.isArray(sess.messages) || sess.messages.length === 0) {
+        await deleteSession(sess.id);
+        cleanedCount++;
+      }
+    }
+
+    return cleanedCount;
+  } catch (err) {
+    console.warn("Gagal membersihkan sesi kosong:", err);
+    return 0;
+  }
+}
+

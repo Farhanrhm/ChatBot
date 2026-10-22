@@ -367,10 +367,7 @@ try {
   const focusEmptyStart = await pageFocus.evaluate(() => document.activeElement.id);
   await pageFocus.keyboard.press('Tab');
   const focusEmptyTab = await pageFocus.evaluate(() => document.activeElement.id);
-  // Navigasi Tab berlanjut melewati tombol aksi hingga berputar kembali ke tombol tutup
-  await pageFocus.keyboard.press('Tab'); // ke wishlist-copy-btn
-  await pageFocus.keyboard.press('Tab'); // ke wishlist-import-btn
-  await pageFocus.keyboard.press('Tab'); // wrap kembali ke wishlist-close-btn
+  await pageFocus.keyboard.press('Tab');
   const focusWrapped = await pageFocus.evaluate(() => document.activeElement.id);
   await pageFocus.keyboard.press('Escape');
 
@@ -384,7 +381,7 @@ try {
   const drawerHiddenEmpty = await pageFocus.$eval('#wishlist-panel', (el) => el.hidden);
 
   const passFocusEmpty = focusEmptyStart === 'wishlist-close-btn' &&
-                         focusEmptyTab === 'wishlist-export-btn' &&
+                         focusEmptyTab === 'wishlist-close-btn' &&
                          focusWrapped === 'wishlist-close-btn' &&
                          drawerHiddenEmpty &&
                          focusAfterEsc === 'wishlist-btn';
@@ -1283,46 +1280,26 @@ try {
     return panel && !panel.hidden;
   }, { timeout: 3000 });
 
-  // Test 9 (Test 27): Tombol salin markdown dan ekspor JSON wishlist memicu toast sukses
-  const exportCopyState = await pageExport.evaluate(async () => {
-    const copyBtn = document.getElementById('wishlist-copy-btn');
-    if (copyBtn) copyBtn.click();
-    await new Promise((r) => setTimeout(r, 80));
-    const toast1 = document.querySelector('.wishlist-toast')?.textContent;
-
-    const exportBtn = document.getElementById('wishlist-export-btn');
-    if (exportBtn) exportBtn.click();
-    await new Promise((r) => setTimeout(r, 80));
-    const toast2 = document.querySelector('.wishlist-toast')?.textContent;
-
+  // Test 9 (Test 26): Tombol ekspor JSON, salin teks, dan impor JSON telah dikurangi dari antarmuka drawer wishlist
+  const exportBtnPresent = await pageExport.evaluate(() => {
     return {
-      copyToast: toast1,
-      exportToast: toast2,
+      hasExport: Boolean(document.getElementById('wishlist-export-btn')),
+      hasCopy: Boolean(document.getElementById('wishlist-copy-btn')),
+      hasImport: Boolean(document.getElementById('wishlist-import-btn')),
+      hasFooter: Boolean(document.querySelector('.wishlist-footer')),
     };
   });
+  const passButtonsRemoved = !exportBtnPresent.hasExport && !exportBtnPresent.hasCopy && !exportBtnPresent.hasImport && !exportBtnPresent.hasFooter;
+  await recordResult('Tombol ekspor JSON, salin teks, dan impor JSON telah dikurangi dari antarmuka drawer wishlist', passButtonsRemoved, `Export: ${exportBtnPresent.hasExport}, Copy: ${exportBtnPresent.hasCopy}, Import: ${exportBtnPresent.hasImport}, Footer: ${exportBtnPresent.hasFooter}`, pageExport);
 
-  const passExportCopy = (exportCopyState.copyToast && exportCopyState.copyToast.includes('Daftar game berhasil disalin')) ||
-    (exportCopyState.exportToast && exportCopyState.exportToast.includes('Berhasil mengekspor 2 game'));
-  await recordResult('Tombol salin markdown dan ekspor JSON wishlist memicu notifikasi toast sukses', Boolean(passExportCopy), `Toast salin: "${exportCopyState.copyToast}", Toast ekspor: "${exportCopyState.exportToast}"`, pageExport);
-
-  // Test 10 (Test 28): Impor JSON wishlist memperbarui daftar game secara cerdas tanpa duplikasi
+  // Test 10 (Test 27): Drawer wishlist memperbarui item secara dinamis dan mempertahankan filter genre
   await pageExport.evaluate(() => {
-    const importPayload = JSON.stringify({
-      version: '1.0',
-      source: 'SteamScout',
-      itemCount: 2,
-      items: [
-        { appId: 413150, title: 'Stardew Valley', addedAt: '2026-10-19T11:00:00.000Z', genres: ['Farming Sim', 'RPG'] },
-        { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z', genres: ['Action', 'Roguelite'] },
-      ],
-    });
-
-    const input = document.getElementById('wishlist-import-input');
-    const file = new File([importPayload], 'steamscout_backup.json', { type: 'application/json' });
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
-    input.files = dataTransfer.files;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
+    const list = JSON.parse(localStorage.getItem('sobatsteam_wishlist') || '[]');
+    list.push({ appId: 413150, title: 'Stardew Valley', addedAt: '2026-10-19T11:00:00.000Z', genres: ['Farming Sim', 'RPG'] });
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(list));
+    if (typeof window.updateWishlistUI === 'function') {
+      window.updateWishlistUI();
+    }
   });
 
   await pageExport.waitForFunction(() => {
@@ -1345,7 +1322,7 @@ try {
     finalImportState.items.length === 3 &&
     finalImportState.countText === '(3/50)' &&
     finalImportState.badgeText === '3';
-  await recordResult('Impor berkas JSON wishlist memperbarui daftar game secara cerdas tanpa duplikasi', passImport, `Total game: ${finalImportState.items.length}, Badge: ${finalImportState.badgeText}, Judul: ${JSON.stringify(finalImportState.items)}`, pageExport);
+  await recordResult('Drawer wishlist menampilkan pembaruan game tersimpan secara dinamis dan rapi', passImport, `Total game: ${finalImportState.items.length}, Badge: ${finalImportState.badgeText}, Judul: ${JSON.stringify(finalImportState.items)}`, pageExport);
 
   // Test 11 (Test 29): Quick filter chips genre di drawer wishlist menyaring game sesuai genre aktif (Modul P2)
   const genreChipState = await pageExport.evaluate(async () => {
@@ -1491,8 +1468,7 @@ try {
 
   // Tunggu IndexedDB dan UI sesi siap
   await pageHistory.waitForFunction(() => {
-    const list = document.getElementById('sessions-list');
-    return list && list.children.length >= 1;
+    return Boolean(document.getElementById('sessions-list') && document.getElementById('user-input'));
   }, { timeout: 5000 });
 
   const historyTestResult = await pageHistory.evaluate(async () => {
@@ -1502,10 +1478,8 @@ try {
     const form = document.getElementById('chat-form');
     const messages = document.getElementById('messages');
 
-    // 1. Periksa sesi awal yang otomatis dibuat
+    // 1. Periksa bahwa sesi awal yang masih kosong TIDAK dimasukkan ke riwayat sesi
     const initialSessionCount = sessionsList.children.length;
-    const initialItem = sessionsList.querySelector('.session-item.is-active');
-    const initialTitle = initialItem ? initialItem.querySelector('.session-item-title').textContent : '';
 
     // 2. Kirim pesan ke sesi aktif dan pastikan judul terupdate
     input.value = 'Rekomendasi game roguelite aksi';
@@ -1514,10 +1488,11 @@ try {
     // Tunggu pesan muncul di container messages
     await new Promise((r) => setTimeout(r, 600));
 
+    const sessionCountAfterMsg1 = sessionsList.children.length;
     const updatedItem = sessionsList.querySelector('.session-item.is-active');
     const updatedTitle = updatedItem ? updatedItem.querySelector('.session-item-title').textContent : '';
 
-    // 3. Tekan tombol "+ Baru" untuk membuat sesi kedua
+    // 3. Tekan tombol "+ Baru" untuk menyiapkan sesi kedua (masih kosong, tidak masuk riwayat)
     newSessionBtn.click();
     await new Promise((r) => setTimeout(r, 500));
 
@@ -1530,6 +1505,7 @@ try {
     form.dispatchEvent(new Event('submit', { cancelable: true }));
     await new Promise((r) => setTimeout(r, 600));
 
+    const sessionCountAfterMsg2 = sessionsList.children.length;
     const session2Item = sessionsList.querySelector('.session-item.is-active');
     const session2Title = session2Item ? session2Item.querySelector('.session-item-title').textContent : '';
 
@@ -1546,22 +1522,25 @@ try {
 
     return {
       initialSessionCount,
-      initialTitle,
+      sessionCountAfterMsg1,
       updatedTitle,
       sessionCountAfterNew,
       messagesAfterNew,
       welcomeVisibleAfterNew,
+      sessionCountAfterMsg2,
       session2Title,
       messagesRestored,
       hasRogueliteMsg: restoredText.includes('roguelite'),
     };
   });
 
-  const passMultiSession = historyTestResult.initialSessionCount >= 1 &&
+  const passMultiSession = historyTestResult.initialSessionCount === 0 &&
+    historyTestResult.sessionCountAfterMsg1 === 1 &&
     historyTestResult.updatedTitle.includes('roguelite') &&
-    historyTestResult.sessionCountAfterNew >= 2 &&
+    historyTestResult.sessionCountAfterNew === 1 &&
     historyTestResult.messagesAfterNew === 0 &&
     historyTestResult.welcomeVisibleAfterNew === true &&
+    historyTestResult.sessionCountAfterMsg2 === 2 &&
     historyTestResult.session2Title.includes('simulator') &&
     historyTestResult.messagesRestored === true &&
     historyTestResult.hasRogueliteMsg === true;
@@ -1569,7 +1548,92 @@ try {
   await recordResult(
     'Riwayat obrolan multi-sesi IndexedDB mendukung pembuatan, perpindahan, dan pemulihan konteks pesan (Modul P4)',
     Boolean(passMultiSession),
-    `Awal: ${historyTestResult.initialSessionCount} sesi ("${historyTestResult.initialTitle}"), Update: "${historyTestResult.updatedTitle}", Sesi baru: ${historyTestResult.sessionCountAfterNew} sesi, Sesi 2: "${historyTestResult.session2Title}", Pulih: ${historyTestResult.messagesRestored} (${historyTestResult.hasRogueliteMsg})`,
+    `Awal kosong: ${historyTestResult.initialSessionCount} sesi, Msg 1: ${historyTestResult.sessionCountAfterMsg1} sesi ("${historyTestResult.updatedTitle}"), Sesi baru kosong: ${historyTestResult.sessionCountAfterNew} sesi, Msg 2: ${historyTestResult.sessionCountAfterMsg2} sesi ("${historyTestResult.session2Title}"), Pulih: ${historyTestResult.messagesRestored} (${historyTestResult.hasRogueliteMsg})`,
+    pageHistory
+  );
+
+  // 9. Uji Fitur Ubah Nama Sesi, Tombol Salin Pesan, dan Skeleton Loader
+  log('\n--- Menguji Fitur Ubah Nama Sesi, Tombol Salin Pesan, dan Skeleton Loader ---');
+  const featureTestResult = await pageHistory.evaluate(async () => {
+    // 1. Ubah Nama Sesi
+    const targetItem = document.querySelector('.session-item.is-active') || document.querySelector('.session-item');
+    const renameBtn = targetItem ? targetItem.querySelector('.btn-session-rename') : document.querySelector('.btn-session-rename');
+    const hasRenameBtn = Boolean(renameBtn);
+
+    let renameSuccess = false;
+    if (renameBtn && targetItem) {
+      const originalPrompt = window.prompt;
+      window.prompt = () => 'Koleksi Roguelite Seru';
+      renameBtn.click();
+      await new Promise((r) => setTimeout(r, 600));
+      window.prompt = originalPrompt;
+
+      const freshActiveItem = document.querySelector('.session-item.is-active') || document.querySelector('.session-item');
+      const titleEl = freshActiveItem?.querySelector('.session-item-title');
+      renameSuccess = Boolean(titleEl && titleEl.textContent.includes('Roguelite Seru'));
+    }
+
+    // 2. Tombol Salin Pesan Bot
+    if (!document.querySelector('.msg.bot .btn-copy-msg') && typeof window.addMessage === 'function') {
+      window.addMessage('bot', {
+        intro: 'Berikut rekomendasi game pilihan:',
+        games: [
+          {
+            title: 'Hades',
+            year: '2020',
+            developer: 'Supergiant Games',
+            whyFit: 'Gameplay roguelite aksi cepat dan adiktif.',
+            specsAndBudget: 'Ringan, harga terjangkau.',
+          },
+        ],
+        followUp: 'Mau rekomendasi game lain?',
+      });
+    }
+
+    const copyBtn = document.querySelector('.btn-copy-msg');
+    const hasCopyBtn = Boolean(copyBtn);
+    let copyTriggered = false;
+    if (copyBtn) {
+      if (!navigator.clipboard) {
+        navigator.clipboard = {};
+      }
+      const origWriteText = navigator.clipboard.writeText;
+      let copiedText = '';
+      navigator.clipboard.writeText = async (text) => {
+        copiedText = text;
+        return true;
+      };
+
+      copyBtn.click();
+      await new Promise((r) => setTimeout(r, 350));
+      const isMarkedCopied = copyBtn.classList.contains('is-copied') || copyBtn.querySelector('.copy-label')?.textContent === 'Tersalin!';
+      copyTriggered = isMarkedCopied && copiedText.includes('Hades');
+      navigator.clipboard.writeText = origWriteText;
+    }
+
+    // 3. Skeleton Loader Kerangka Muat
+    const dummyTyping = typeof window.createTypingIndicator === 'function' ? window.createTypingIndicator() : null;
+    const hasSkeletonCard = Boolean(dummyTyping?.querySelector('.skeleton-card'));
+
+    return {
+      hasRenameBtn,
+      renameSuccess,
+      hasCopyBtn,
+      copyTriggered,
+      hasSkeletonCard,
+    };
+  });
+
+  const passNewFeatures = featureTestResult.hasRenameBtn &&
+    featureTestResult.renameSuccess &&
+    featureTestResult.hasCopyBtn &&
+    featureTestResult.copyTriggered &&
+    featureTestResult.hasSkeletonCard;
+
+  await recordResult(
+    'Fitur Ubah Nama Sesi, Tombol Salin Pesan, dan Skeleton Loader berfungsi sesuai spesifikasi',
+    Boolean(passNewFeatures),
+    `Rename btn: ${featureTestResult.hasRenameBtn}, Rename success: ${featureTestResult.renameSuccess}, Copy btn: ${featureTestResult.hasCopyBtn}, Copy triggered: ${featureTestResult.copyTriggered}, Skeleton: ${featureTestResult.hasSkeletonCard}`,
     pageHistory
   );
 
@@ -1603,7 +1667,7 @@ try {
   fs.appendFileSync(logFile, JSON.stringify(results, null, 2) + '\n');
 } catch {}
 
-const allPassed = results.length >= 31 && results.every((r) => r.passed);
+const allPassed = results.length >= 32 && results.every((r) => r.passed);
 if (allPassed) {
   log('\nSEMUA UJI PERILAKU DOM LULUS 100%! Sistem stabil dan terbukti tangguh.\n');
   process.exit(0);
