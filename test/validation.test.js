@@ -1962,6 +1962,24 @@ test('chatHistoryCore (Modul P4): cleanupEmptySessions membersihkan sesi kosong 
   assert.equal(after[0].title, 'Sesi Valid');
 });
 
+test('chatHistoryCore (Modul P4): saveSession mendukung pengubahan nama (rename) sesi dengan sanitasi judul', async () => {
+  const { createSession, getSession, saveSession, clearAllSessions, sanitizeSessionTitle } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  const sess = await createSession({
+    title: 'Obrolan Awal',
+    messages: [{ role: 'user', text: 'Halo' }],
+  });
+
+  const newTitle = sanitizeSessionTitle('Koleksi Game RPG Petualangan');
+  sess.title = newTitle;
+  await saveSession(sess);
+
+  const updated = await getSession(sess.id);
+  assert.ok(updated);
+  assert.equal(updated.title, 'Koleksi Game RPG Petualangan');
+});
+
 
 
 

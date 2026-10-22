@@ -1575,6 +1575,91 @@ try {
     pageHistory
   );
 
+  // 9. Uji Fitur Ubah Nama Sesi, Tombol Salin Pesan, dan Skeleton Loader
+  log('\n--- Menguji Fitur Ubah Nama Sesi, Tombol Salin Pesan, dan Skeleton Loader ---');
+  const featureTestResult = await pageHistory.evaluate(async () => {
+    // 1. Ubah Nama Sesi
+    const targetItem = document.querySelector('.session-item.is-active') || document.querySelector('.session-item');
+    const renameBtn = targetItem ? targetItem.querySelector('.btn-session-rename') : document.querySelector('.btn-session-rename');
+    const hasRenameBtn = Boolean(renameBtn);
+
+    let renameSuccess = false;
+    if (renameBtn && targetItem) {
+      const originalPrompt = window.prompt;
+      window.prompt = () => 'Koleksi Roguelite Seru';
+      renameBtn.click();
+      await new Promise((r) => setTimeout(r, 600));
+      window.prompt = originalPrompt;
+
+      const freshActiveItem = document.querySelector('.session-item.is-active') || document.querySelector('.session-item');
+      const titleEl = freshActiveItem?.querySelector('.session-item-title');
+      renameSuccess = Boolean(titleEl && titleEl.textContent.includes('Roguelite Seru'));
+    }
+
+    // 2. Tombol Salin Pesan Bot
+    if (!document.querySelector('.msg.bot .btn-copy-msg') && typeof window.addMessage === 'function') {
+      window.addMessage('bot', {
+        intro: 'Berikut rekomendasi game pilihan:',
+        games: [
+          {
+            title: 'Hades',
+            year: '2020',
+            developer: 'Supergiant Games',
+            whyFit: 'Gameplay roguelite aksi cepat dan adiktif.',
+            specsAndBudget: 'Ringan, harga terjangkau.',
+          },
+        ],
+        followUp: 'Mau rekomendasi game lain?',
+      });
+    }
+
+    const copyBtn = document.querySelector('.btn-copy-msg');
+    const hasCopyBtn = Boolean(copyBtn);
+    let copyTriggered = false;
+    if (copyBtn) {
+      if (!navigator.clipboard) {
+        navigator.clipboard = {};
+      }
+      const origWriteText = navigator.clipboard.writeText;
+      let copiedText = '';
+      navigator.clipboard.writeText = async (text) => {
+        copiedText = text;
+        return true;
+      };
+
+      copyBtn.click();
+      await new Promise((r) => setTimeout(r, 350));
+      const isMarkedCopied = copyBtn.classList.contains('is-copied') || copyBtn.querySelector('.copy-label')?.textContent === 'Tersalin!';
+      copyTriggered = isMarkedCopied && copiedText.includes('Hades');
+      navigator.clipboard.writeText = origWriteText;
+    }
+
+    // 3. Skeleton Loader Kerangka Muat
+    const dummyTyping = typeof window.createTypingIndicator === 'function' ? window.createTypingIndicator() : null;
+    const hasSkeletonCard = Boolean(dummyTyping?.querySelector('.skeleton-card'));
+
+    return {
+      hasRenameBtn,
+      renameSuccess,
+      hasCopyBtn,
+      copyTriggered,
+      hasSkeletonCard,
+    };
+  });
+
+  const passNewFeatures = featureTestResult.hasRenameBtn &&
+    featureTestResult.renameSuccess &&
+    featureTestResult.hasCopyBtn &&
+    featureTestResult.copyTriggered &&
+    featureTestResult.hasSkeletonCard;
+
+  await recordResult(
+    'Fitur Ubah Nama Sesi, Tombol Salin Pesan, dan Skeleton Loader berfungsi sesuai spesifikasi',
+    Boolean(passNewFeatures),
+    `Rename btn: ${featureTestResult.hasRenameBtn}, Rename success: ${featureTestResult.renameSuccess}, Copy btn: ${featureTestResult.hasCopyBtn}, Copy triggered: ${featureTestResult.copyTriggered}, Skeleton: ${featureTestResult.hasSkeletonCard}`,
+    pageHistory
+  );
+
   await pageHistory.close();
   activePage = null;
 
@@ -1605,7 +1690,7 @@ try {
   fs.appendFileSync(logFile, JSON.stringify(results, null, 2) + '\n');
 } catch {}
 
-const allPassed = results.length >= 31 && results.every((r) => r.passed);
+const allPassed = results.length >= 32 && results.every((r) => r.passed);
 if (allPassed) {
   log('\nSEMUA UJI PERILAKU DOM LULUS 100%! Sistem stabil dan terbukti tangguh.\n');
   process.exit(0);

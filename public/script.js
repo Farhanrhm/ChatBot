@@ -515,9 +515,28 @@ async function renderSessionsList() {
         titleBtn.setAttribute("aria-label", `Buka sesi: ${sess.title || "Obrolan Baru"}`);
         titleBtn.addEventListener("click", () => switchSession(sess.id));
 
+        const actionsWrap = document.createElement("div");
+        actionsWrap.className = "session-item-actions";
+
+        const renameBtn = document.createElement("button");
+        renameBtn.type = "button";
+        renameBtn.className = "btn-session-action btn-session-rename";
+        renameBtn.setAttribute("aria-label", `Ubah nama sesi ${sess.title || "Obrolan Baru"}`);
+        renameBtn.title = "Ubah nama sesi";
+        renameBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+          </svg>
+        `;
+        renameBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          renameSessionPrompt(sess.id, sess.title || "Obrolan Baru");
+        });
+
         const delBtn = document.createElement("button");
         delBtn.type = "button";
-        delBtn.className = "btn-session-delete";
+        delBtn.className = "btn-session-action btn-session-delete";
         delBtn.setAttribute("aria-label", `Hapus sesi ${sess.title || "Obrolan Baru"}`);
         delBtn.title = "Hapus sesi";
         delBtn.innerHTML = `
@@ -531,8 +550,11 @@ async function renderSessionsList() {
           deleteSessionPrompt(sess.id, sess.title || "Obrolan Baru");
         });
 
+        actionsWrap.appendChild(renameBtn);
+        actionsWrap.appendChild(delBtn);
+
         li.appendChild(titleBtn);
-        li.appendChild(delBtn);
+        li.appendChild(actionsWrap);
         container.appendChild(li);
       });
     });
@@ -651,6 +673,29 @@ async function deleteSessionPrompt(id, title) {
     }
   } catch (err) {
     console.warn("Gagal menghapus sesi:", err);
+  }
+}
+
+async function renameSessionPrompt(id, currentTitle) {
+  const newTitle = prompt("Masukkan nama baru untuk sesi ini:", currentTitle);
+  if (newTitle === null) return;
+  const cleaned = sanitizeSessionTitle(newTitle);
+  if (!cleaned) return;
+
+  try {
+    const sess = await getSession(id);
+    if (!sess) return;
+    sess.title = cleaned;
+    await saveSession(sess);
+    if (id === currentSessionId) {
+      currentSessionTitle = cleaned;
+    }
+    await renderSessionsList();
+    announceMessage(`Nama sesi berhasil diubah menjadi "${cleaned}"`);
+    showToast(`Nama sesi diubah: ${cleaned}`);
+  } catch (err) {
+    console.warn("Gagal mengubah nama sesi:", err);
+    showToast("Gagal mengubah nama sesi");
   }
 }
 
@@ -1118,6 +1163,116 @@ function formatBotContent(raw) {
   return formatMarkdown(typeof raw === "string" ? raw : JSON.stringify(raw));
 }
 
+/* Utilitas Salin Pesan Jawaban Bot */
+async function copyTextToClipboard(text) {
+  if (!text) return false;
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const success = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    return Boolean(success);
+  } catch (err) {
+    console.warn("Gagal menyalin teks ke clipboard:", err);
+    return false;
+  }
+}
+
+function extractCopyableText(bubble, rawContent) {
+  let parsed = null;
+  if (rawContent && typeof rawContent === "object") {
+    parsed = rawContent;
+  } else if (typeof rawContent === "string") {
+    try {
+      parsed = JSON.parse(rawContent);
+    } catch {}
+  }
+
+  if (parsed && typeof parsed === "object") {
+    const lines = [];
+    if (parsed.intro) lines.push(parsed.intro);
+    if (Array.isArray(parsed.games) && parsed.games.length > 0) {
+      parsed.games.forEach((g) => {
+        const meta = [g.year, g.developer].filter(Boolean).join(" - ");
+        lines.push(`\n* ${g.title || "Game Steam"}${meta ? ` (${meta})` : ""}`);
+        if (g.whyFit) lines.push(`  Kenapa cocok: ${g.whyFit}`);
+        if (g.specsAndBudget) lines.push(`  Spek & budget: ${g.specsAndBudget}`);
+      });
+    }
+    if (parsed.followUp) lines.push(`\n${parsed.followUp}`);
+    if (lines.length > 0) {
+      return lines.join("\n").trim();
+    }
+  }
+
+  if (!bubble) return "";
+  const clone = bubble.cloneNode(true);
+  clone.querySelectorAll(".msg-actions, .game-card-actions, .steam-store-card-btn").forEach((el) => el.remove());
+  return (clone.innerText || clone.textContent || "").trim();
+}
+
+function attachMessageActions(bubble, rawContent) {
+  if (!bubble) return;
+  if (bubble.querySelector(".msg-actions")) return;
+
+  const actionsWrap = document.createElement("div");
+  actionsWrap.className = "msg-actions";
+
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "btn-copy-msg";
+  copyBtn.setAttribute("aria-label", "Salin jawaban ke clipboard");
+  copyBtn.title = "Salin jawaban";
+  copyBtn.innerHTML = `
+    <svg class="copy-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>
+    <svg class="check-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+    <span class="copy-label">Salin</span>
+  `;
+
+  copyBtn.addEventListener("click", async () => {
+    const textToCopy = extractCopyableText(bubble, rawContent);
+    const copied = await copyTextToClipboard(textToCopy);
+    if (copied) {
+      const copyIcon = copyBtn.querySelector(".copy-icon");
+      const checkIcon = copyBtn.querySelector(".check-icon");
+      const label = copyBtn.querySelector(".copy-label");
+
+      if (copyIcon) copyIcon.hidden = true;
+      if (checkIcon) checkIcon.hidden = false;
+      if (label) label.textContent = "Tersalin!";
+      copyBtn.classList.add("is-copied");
+
+      showToast("Pesan rekomendasi berhasil disalin!");
+      announceMessage("Pesan jawaban berhasil disalin ke clipboard");
+
+      setTimeout(() => {
+        if (copyIcon) copyIcon.hidden = false;
+        if (checkIcon) checkIcon.hidden = true;
+        if (label) label.textContent = "Salin";
+        copyBtn.classList.remove("is-copied");
+      }, 2000);
+    } else {
+      showToast("Gagal menyalin pesan.");
+    }
+  });
+
+  actionsWrap.appendChild(copyBtn);
+  bubble.appendChild(actionsWrap);
+}
+
 function addMessage(role, content, activeFiltersSummary = "") {
   const row = document.createElement("div");
   row.className = `msg ${role}`;
@@ -1135,6 +1290,7 @@ function addMessage(role, content, activeFiltersSummary = "") {
 
   if (role === "bot") {
     bubble.innerHTML = formatBotContent(content);
+    attachMessageActions(bubble, content);
   } else {
     const textP = document.createElement("p");
     textP.className = "user-msg-text";
@@ -1209,7 +1365,10 @@ function createTypingIndicator() {
   row.appendChild(avatar);
 
   const bubble = document.createElement("div");
-  bubble.className = "bubble";
+  bubble.className = "bubble bubble-skeleton";
+
+  const header = document.createElement("div");
+  header.className = "skeleton-header";
 
   const typing = document.createElement("div");
   typing.className = "typing";
@@ -1217,11 +1376,43 @@ function createTypingIndicator() {
   typing.appendChild(document.createElement("span"));
   typing.appendChild(document.createElement("span"));
   typing.appendChild(document.createElement("span"));
-  bubble.appendChild(typing);
+  header.appendChild(typing);
+
+  const statusText = document.createElement("span");
+  statusText.className = "skeleton-status-text";
+  statusText.textContent = "SobatSteam sedang meracik rekomendasi game...";
+  header.appendChild(statusText);
+
+  bubble.appendChild(header);
+
+  const card = document.createElement("div");
+  card.className = "skeleton-card";
+  card.setAttribute("aria-hidden", "true");
+  card.innerHTML = `
+    <div class="skeleton-line skeleton-title"></div>
+    <div class="skeleton-tags">
+      <div class="skeleton-tag"></div>
+      <div class="skeleton-tag"></div>
+      <div class="skeleton-tag"></div>
+    </div>
+    <div class="skeleton-line skeleton-desc"></div>
+    <div class="skeleton-line skeleton-desc short"></div>
+    <div class="skeleton-actions">
+      <div class="skeleton-btn"></div>
+      <div class="skeleton-btn small"></div>
+    </div>
+  `;
+  bubble.appendChild(card);
 
   row.appendChild(bubble);
   return row;
 }
+try {
+  window.createTypingIndicator = createTypingIndicator;
+  window.addMessage = addMessage;
+  window.renameSessionPrompt = renameSessionPrompt;
+  window.copyTextToClipboard = copyTextToClipboard;
+} catch {}
 
 function setLoading(loading) {
   isLoading = loading;
@@ -1531,6 +1722,7 @@ async function requestReply(isRetry = false) {
 
     if (partialBotRow && partialBotBubble) {
       partialBotBubble.innerHTML = formatBotContent(finalData);
+      attachMessageActions(partialBotBubble, finalData);
       scrollToBottom();
       updateAllWishlistCardButtons();
     } else {
