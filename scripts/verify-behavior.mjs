@@ -367,10 +367,7 @@ try {
   const focusEmptyStart = await pageFocus.evaluate(() => document.activeElement.id);
   await pageFocus.keyboard.press('Tab');
   const focusEmptyTab = await pageFocus.evaluate(() => document.activeElement.id);
-  // Navigasi Tab berlanjut melewati tombol aksi hingga berputar kembali ke tombol tutup
-  await pageFocus.keyboard.press('Tab'); // ke wishlist-copy-btn
-  await pageFocus.keyboard.press('Tab'); // ke wishlist-import-btn
-  await pageFocus.keyboard.press('Tab'); // wrap kembali ke wishlist-close-btn
+  await pageFocus.keyboard.press('Tab');
   const focusWrapped = await pageFocus.evaluate(() => document.activeElement.id);
   await pageFocus.keyboard.press('Escape');
 
@@ -384,7 +381,7 @@ try {
   const drawerHiddenEmpty = await pageFocus.$eval('#wishlist-panel', (el) => el.hidden);
 
   const passFocusEmpty = focusEmptyStart === 'wishlist-close-btn' &&
-                         focusEmptyTab === 'wishlist-export-btn' &&
+                         focusEmptyTab === 'wishlist-close-btn' &&
                          focusWrapped === 'wishlist-close-btn' &&
                          drawerHiddenEmpty &&
                          focusAfterEsc === 'wishlist-btn';
@@ -1283,46 +1280,26 @@ try {
     return panel && !panel.hidden;
   }, { timeout: 3000 });
 
-  // Test 9 (Test 27): Tombol salin markdown dan ekspor JSON wishlist memicu toast sukses
-  const exportCopyState = await pageExport.evaluate(async () => {
-    const copyBtn = document.getElementById('wishlist-copy-btn');
-    if (copyBtn) copyBtn.click();
-    await new Promise((r) => setTimeout(r, 80));
-    const toast1 = document.querySelector('.wishlist-toast')?.textContent;
-
-    const exportBtn = document.getElementById('wishlist-export-btn');
-    if (exportBtn) exportBtn.click();
-    await new Promise((r) => setTimeout(r, 80));
-    const toast2 = document.querySelector('.wishlist-toast')?.textContent;
-
+  // Test 9 (Test 26): Tombol ekspor JSON, salin teks, dan impor JSON telah dikurangi dari antarmuka drawer wishlist
+  const exportBtnPresent = await pageExport.evaluate(() => {
     return {
-      copyToast: toast1,
-      exportToast: toast2,
+      hasExport: Boolean(document.getElementById('wishlist-export-btn')),
+      hasCopy: Boolean(document.getElementById('wishlist-copy-btn')),
+      hasImport: Boolean(document.getElementById('wishlist-import-btn')),
+      hasFooter: Boolean(document.querySelector('.wishlist-footer')),
     };
   });
+  const passButtonsRemoved = !exportBtnPresent.hasExport && !exportBtnPresent.hasCopy && !exportBtnPresent.hasImport && !exportBtnPresent.hasFooter;
+  await recordResult('Tombol ekspor JSON, salin teks, dan impor JSON telah dikurangi dari antarmuka drawer wishlist', passButtonsRemoved, `Export: ${exportBtnPresent.hasExport}, Copy: ${exportBtnPresent.hasCopy}, Import: ${exportBtnPresent.hasImport}, Footer: ${exportBtnPresent.hasFooter}`, pageExport);
 
-  const passExportCopy = (exportCopyState.copyToast && exportCopyState.copyToast.includes('Daftar game berhasil disalin')) ||
-    (exportCopyState.exportToast && exportCopyState.exportToast.includes('Berhasil mengekspor 2 game'));
-  await recordResult('Tombol salin markdown dan ekspor JSON wishlist memicu notifikasi toast sukses', Boolean(passExportCopy), `Toast salin: "${exportCopyState.copyToast}", Toast ekspor: "${exportCopyState.exportToast}"`, pageExport);
-
-  // Test 10 (Test 28): Impor JSON wishlist memperbarui daftar game secara cerdas tanpa duplikasi
+  // Test 10 (Test 27): Drawer wishlist memperbarui item secara dinamis dan mempertahankan filter genre
   await pageExport.evaluate(() => {
-    const importPayload = JSON.stringify({
-      version: '1.0',
-      source: 'SteamScout',
-      itemCount: 2,
-      items: [
-        { appId: 413150, title: 'Stardew Valley', addedAt: '2026-10-19T11:00:00.000Z', genres: ['Farming Sim', 'RPG'] },
-        { appId: 1145360, title: 'Hades', addedAt: '2026-10-19T10:00:00.000Z', genres: ['Action', 'Roguelite'] },
-      ],
-    });
-
-    const input = document.getElementById('wishlist-import-input');
-    const file = new File([importPayload], 'steamscout_backup.json', { type: 'application/json' });
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
-    input.files = dataTransfer.files;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
+    const list = JSON.parse(localStorage.getItem('sobatsteam_wishlist') || '[]');
+    list.push({ appId: 413150, title: 'Stardew Valley', addedAt: '2026-10-19T11:00:00.000Z', genres: ['Farming Sim', 'RPG'] });
+    localStorage.setItem('sobatsteam_wishlist', JSON.stringify(list));
+    if (typeof window.updateWishlistUI === 'function') {
+      window.updateWishlistUI();
+    }
   });
 
   await pageExport.waitForFunction(() => {
@@ -1345,7 +1322,7 @@ try {
     finalImportState.items.length === 3 &&
     finalImportState.countText === '(3/50)' &&
     finalImportState.badgeText === '3';
-  await recordResult('Impor berkas JSON wishlist memperbarui daftar game secara cerdas tanpa duplikasi', passImport, `Total game: ${finalImportState.items.length}, Badge: ${finalImportState.badgeText}, Judul: ${JSON.stringify(finalImportState.items)}`, pageExport);
+  await recordResult('Drawer wishlist menampilkan pembaruan game tersimpan secara dinamis dan rapi', passImport, `Total game: ${finalImportState.items.length}, Badge: ${finalImportState.badgeText}, Judul: ${JSON.stringify(finalImportState.items)}`, pageExport);
 
   // Test 11 (Test 29): Quick filter chips genre di drawer wishlist menyaring game sesuai genre aktif (Modul P2)
   const genreChipState = await pageExport.evaluate(async () => {

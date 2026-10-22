@@ -11,9 +11,6 @@ import {
   LEGACY_WISHLIST_STORAGE_KEY,
   filterAndSortWishlist,
   extractTopGenres,
-  exportWishlistToJSON,
-  exportWishlistToMarkdown,
-  importWishlistFromJSON,
 } from "./wishlistCore.js";
 
 import {
@@ -304,10 +301,6 @@ const els = {
   wishlistContent: $("#wishlist-content"),
   wishlistEmpty: $("#wishlist-empty"),
   wishlistItems: $("#wishlist-items"),
-  wishlistExportBtn: $("#wishlist-export-btn"),
-  wishlistCopyBtn: $("#wishlist-copy-btn"),
-  wishlistImportBtn: $("#wishlist-import-btn"),
-  wishlistImportInput: $("#wishlist-import-input"),
   filterGroups: $("#filter-groups"),
   clearFiltersBtn: $("#clear-filters-btn"),
   liveAnnouncer: $("#live-announcer"),
@@ -1412,6 +1405,7 @@ try {
   window.addMessage = addMessage;
   window.renameSessionPrompt = renameSessionPrompt;
   window.copyTextToClipboard = copyTextToClipboard;
+  window.updateWishlistUI = updateWishlistUI;
 } catch {}
 
 function setLoading(loading) {
@@ -2520,110 +2514,6 @@ if (els.wishlistPanel) {
   });
 }
 
-// Handlers Ekspor, Salin Teks, dan Impor Wishlist (Modul P1)
-function handleWishlistExport() {
-  const current = getWishlist();
-  if (current.length === 0) {
-    showToast("Wishlist masih kosong, tidak ada data untuk diekspor.");
-    return;
-  }
-
-  const jsonStr = exportWishlistToJSON(current);
-  const blob = new Blob([jsonStr], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const dateStr = new Date().toISOString().slice(0, 10);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `sobatsteam-wishlist-${dateStr}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-
-  showToast(`Berhasil mengekspor ${current.length} game ke berkas JSON.`);
-}
-
-async function handleWishlistCopy() {
-  const current = getWishlist();
-  if (current.length === 0) {
-    showToast("Wishlist masih kosong, tidak ada data untuk disalin.");
-    return;
-  }
-
-  const markdownText = exportWishlistToMarkdown(current);
-  try {
-    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-      await navigator.clipboard.writeText(markdownText);
-    } else {
-      const textarea = document.createElement("textarea");
-      textarea.value = markdownText;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-    }
-    showToast("Daftar game berhasil disalin ke clipboard!");
-  } catch (err) {
-    console.error("Gagal menyalin ke clipboard:", err);
-    showToast("Gagal menyalin ke clipboard.");
-  }
-}
-
-function handleWishlistImportClick() {
-  if (els.wishlistImportInput) {
-    els.wishlistImportInput.value = "";
-    els.wishlistImportInput.click();
-  }
-}
-
-function handleWishlistFileSelected(event) {
-  const file = event.target.files && event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const content = e.target?.result;
-    if (typeof content !== "string") {
-      showToast("Gagal membaca berkas impor.");
-      return;
-    }
-
-    const result = importWishlistFromJSON(localStorage, content);
-    if (!result.success) {
-      showToast(result.error || "Gagal mengimpor berkas wishlist.");
-      return;
-    }
-
-    updateWishlistUI();
-    updateComparisonUI();
-    showToast(result.message || "Proses impor selesai.");
-
-    if (els.liveAnnouncer) {
-      els.liveAnnouncer.textContent = result.message;
-    }
-  };
-
-  reader.onerror = () => {
-    showToast("Terjadi kesalahan saat membaca berkas.");
-  };
-
-  reader.readAsText(file);
-}
-
-if (els.wishlistExportBtn) {
-  els.wishlistExportBtn.addEventListener("click", handleWishlistExport);
-}
-if (els.wishlistCopyBtn) {
-  els.wishlistCopyBtn.addEventListener("click", handleWishlistCopy);
-}
-if (els.wishlistImportBtn) {
-  els.wishlistImportBtn.addEventListener("click", handleWishlistImportClick);
-}
-if (els.wishlistImportInput) {
-  els.wishlistImportInput.addEventListener("change", handleWishlistFileSelected);
-}
 
 // Event delegation untuk tombol bookmark dan komparasi pada kartu game di chat
 els.messages.addEventListener("click", (e) => {
