@@ -986,19 +986,13 @@ function formatBotContent(raw) {
             ? `<span class="discount-badge" aria-label="Diskon ${escapeHtml(String(g.pricing.discountPercent))} persen">-${escapeHtml(String(g.pricing.discountPercent))}%</span>`
             : "";
 
-        const bannerHtml = !isUnverified && headerImg
-          ? `<div class="game-card-banner">
-              ${discountBadgeHtml}
-              <img src="${headerImg}" alt="Poster resmi ${title}" loading="lazy" onerror="this.onerror=null;this.src='/icon.svg';">
-            </div>`
-          : "";
-
         let priceHtml = "";
         if (!isUnverified && g.pricing && typeof g.pricing === "object") {
           if (g.pricing.status === "paid") {
             if (g.pricing.onSale && g.pricing.initialFormatted && g.pricing.finalFormatted) {
               priceHtml = `
                 <div class="game-price-row">
+                  ${discountBadgeHtml}
                   <span class="sr-only">Harga game: </span>
                   <del class="price-original"><span class="sr-only">Harga normal: </span>${escapeHtml(g.pricing.initialFormatted)}</del>
                   <span class="price-current"><span class="sr-only">Harga diskon: </span>${escapeHtml(g.pricing.finalFormatted)}</span>
@@ -1057,7 +1051,6 @@ function formatBotContent(raw) {
 
         html += `
           <div class="game-card${isUnverified ? " is-unverified" : ""}">
-            ${bannerHtml}
             <div class="game-card-inner">
               <div class="game-card-head">
                 <div class="game-card-title-group">
