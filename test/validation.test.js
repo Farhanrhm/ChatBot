@@ -1833,6 +1833,8 @@ test('PWA (Modul P3): berkas sw.js menerapkan caching UI dan Network-Only untuk 
   assert.ok(content.includes('sobatsteam-shell-v1'), 'Harus mendefinisikan CACHE_NAME');
   assert.ok(content.includes('url.pathname.startsWith("/api/")'), 'Harus strict Network-Only untuk endpoint API');
   assert.ok(content.includes('caches.match'), 'Harus menerapkan Cache matching');
+  assert.ok(content.includes('!event.request.url.startsWith("http://")'), 'Harus mengabaikan skema non-HTTP seperti chrome-extension');
+  assert.ok(content.includes('new Response'), 'Harus memiliki fallback Response terdefinisi');
 });
 
 test('chatHistoryCore (Modul P4): sanitizeSessionTitle merapikan spasi dan memotong panjang string dengan aman', async () => {

@@ -989,7 +989,7 @@ function formatBotContent(raw) {
         const bannerHtml = !isUnverified && headerImg
           ? `<div class="game-card-banner">
               ${discountBadgeHtml}
-              <img src="${headerImg}" alt="Poster resmi ${title}" loading="lazy">
+              <img src="${headerImg}" alt="Poster resmi ${title}" loading="lazy" onerror="this.onerror=null;this.src='/icon.svg';">
             </div>`
           : "";
 
@@ -1374,7 +1374,10 @@ async function requestReply(isRetry = false) {
             if (!line.startsWith("data: ")) continue;
             try {
               const payload = JSON.parse(line.slice(6));
-              if (payload.error) throw new Error(payload.error);
+              if (payload.error) {
+                const errMsg = typeof payload.error === "object" ? (payload.error.message || payload.error.code) : payload.error;
+                throw new Error(errMsg);
+              }
 
               if (payload.chunk) {
                 streamAccumulatedText += payload.chunk;
@@ -1473,7 +1476,9 @@ async function requestReply(isRetry = false) {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        const serverErrMsg = data?.error || `Server membalas dengan status ${res.status}.`;
+        const serverErrMsg =
+          (typeof data?.error === "object" ? (data.error?.message || data.error?.code) : data?.error) ||
+          `Server membalas dengan status ${res.status}.`;
         throw new Error(serverErrMsg);
       }
 
@@ -2753,13 +2758,13 @@ function renderComparisonContent(data) {
               <th scope="col" class="th-attr">Kriteria</th>
               <th scope="col" id="col-game-a" class="th-game comparison-col-a is-tab-active">
                 <div class="comparison-hero">
-                  ${data.gameA.headerImage ? `<img src="${escapeHtml(data.gameA.headerImage)}" alt="Cover ${escapeHtml(data.gameA.title)}" class="comparison-hero-img" loading="lazy">` : ""}
+                  ${data.gameA.headerImage ? `<img src="${escapeHtml(data.gameA.headerImage)}" alt="Cover ${escapeHtml(data.gameA.title)}" class="comparison-hero-img" loading="lazy" onerror="this.onerror=null;this.src='/icon.svg';">` : ""}
                   <h3 class="comparison-hero-title">${escapeHtml(data.gameA.title)}</h3>
                 </div>
               </th>
               <th scope="col" id="col-game-b" class="th-game comparison-col-b">
                 <div class="comparison-hero">
-                  ${data.gameB.headerImage ? `<img src="${escapeHtml(data.gameB.headerImage)}" alt="Cover ${escapeHtml(data.gameB.title)}" class="comparison-hero-img" loading="lazy">` : ""}
+                  ${data.gameB.headerImage ? `<img src="${escapeHtml(data.gameB.headerImage)}" alt="Cover ${escapeHtml(data.gameB.title)}" class="comparison-hero-img" loading="lazy" onerror="this.onerror=null;this.src='/icon.svg';">` : ""}
                   <h3 class="comparison-hero-title">${escapeHtml(data.gameB.title)}</h3>
                 </div>
               </th>
@@ -3053,13 +3058,23 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-// Penanganan error pemuatan gambar poster Steam dengan pengalihan otomatis ke CDN cadangan
+// Penanganan error pemuatan gambar poster Steam dengan pengalihan otomatis ke CDN cadangan atau placeholder SVG lokal
 document.addEventListener(
   "error",
   (e) => {
     const target = e.target;
     if (target && target.tagName === "IMG") {
       const src = target.src || "";
+      // Cegah perulangan jika placeholder lokal pun mengalami kegagalan
+      if (src.endsWith("/icon.svg") || src.endsWith("icon.svg")) {
+        const banner = target.closest(".game-card-banner");
+        if (banner) {
+          banner.style.display = "none";
+        } else if (target.classList.contains("comparison-hero-img")) {
+          target.style.display = "none";
+        }
+        return;
+      }
       // Coba beralih ke CDN cadangan Steam jika simpul awal gagal dimuat
       if (src.includes("fastly.steamstatic.com")) {
         target.src = src.replace("shared.fastly.steamstatic.com/store_item_assets", "cdn.akamai.steamstatic.com");
@@ -3074,13 +3089,8 @@ document.addEventListener(
         return;
       }
 
-      // Jika seluruh CDN gagal, sembunyikan wadah poster secara bersih tanpa meninggalkan kotak rusak
-      const banner = target.closest(".game-card-banner");
-      if (banner) {
-        banner.style.display = "none";
-      } else if (target.classList.contains("comparison-hero-img")) {
-        target.style.display = "none";
-      }
+      // Jika seluruh CDN gagal, alihkan ke placeholder SVG lokal
+      target.src = "/icon.svg";
     }
   },
   true // Wajib capture phase karena event error pada <img> tidak melakukan bubbling
