@@ -1491,8 +1491,7 @@ try {
 
   // Tunggu IndexedDB dan UI sesi siap
   await pageHistory.waitForFunction(() => {
-    const list = document.getElementById('sessions-list');
-    return list && list.children.length >= 1;
+    return Boolean(document.getElementById('sessions-list') && document.getElementById('user-input'));
   }, { timeout: 5000 });
 
   const historyTestResult = await pageHistory.evaluate(async () => {
@@ -1502,10 +1501,8 @@ try {
     const form = document.getElementById('chat-form');
     const messages = document.getElementById('messages');
 
-    // 1. Periksa sesi awal yang otomatis dibuat
+    // 1. Periksa bahwa sesi awal yang masih kosong TIDAK dimasukkan ke riwayat sesi
     const initialSessionCount = sessionsList.children.length;
-    const initialItem = sessionsList.querySelector('.session-item.is-active');
-    const initialTitle = initialItem ? initialItem.querySelector('.session-item-title').textContent : '';
 
     // 2. Kirim pesan ke sesi aktif dan pastikan judul terupdate
     input.value = 'Rekomendasi game roguelite aksi';
@@ -1514,10 +1511,11 @@ try {
     // Tunggu pesan muncul di container messages
     await new Promise((r) => setTimeout(r, 600));
 
+    const sessionCountAfterMsg1 = sessionsList.children.length;
     const updatedItem = sessionsList.querySelector('.session-item.is-active');
     const updatedTitle = updatedItem ? updatedItem.querySelector('.session-item-title').textContent : '';
 
-    // 3. Tekan tombol "+ Baru" untuk membuat sesi kedua
+    // 3. Tekan tombol "+ Baru" untuk menyiapkan sesi kedua (masih kosong, tidak masuk riwayat)
     newSessionBtn.click();
     await new Promise((r) => setTimeout(r, 500));
 
@@ -1530,6 +1528,7 @@ try {
     form.dispatchEvent(new Event('submit', { cancelable: true }));
     await new Promise((r) => setTimeout(r, 600));
 
+    const sessionCountAfterMsg2 = sessionsList.children.length;
     const session2Item = sessionsList.querySelector('.session-item.is-active');
     const session2Title = session2Item ? session2Item.querySelector('.session-item-title').textContent : '';
 
@@ -1546,22 +1545,25 @@ try {
 
     return {
       initialSessionCount,
-      initialTitle,
+      sessionCountAfterMsg1,
       updatedTitle,
       sessionCountAfterNew,
       messagesAfterNew,
       welcomeVisibleAfterNew,
+      sessionCountAfterMsg2,
       session2Title,
       messagesRestored,
       hasRogueliteMsg: restoredText.includes('roguelite'),
     };
   });
 
-  const passMultiSession = historyTestResult.initialSessionCount >= 1 &&
+  const passMultiSession = historyTestResult.initialSessionCount === 0 &&
+    historyTestResult.sessionCountAfterMsg1 === 1 &&
     historyTestResult.updatedTitle.includes('roguelite') &&
-    historyTestResult.sessionCountAfterNew >= 2 &&
+    historyTestResult.sessionCountAfterNew === 1 &&
     historyTestResult.messagesAfterNew === 0 &&
     historyTestResult.welcomeVisibleAfterNew === true &&
+    historyTestResult.sessionCountAfterMsg2 === 2 &&
     historyTestResult.session2Title.includes('simulator') &&
     historyTestResult.messagesRestored === true &&
     historyTestResult.hasRogueliteMsg === true;
@@ -1569,7 +1571,7 @@ try {
   await recordResult(
     'Riwayat obrolan multi-sesi IndexedDB mendukung pembuatan, perpindahan, dan pemulihan konteks pesan (Modul P4)',
     Boolean(passMultiSession),
-    `Awal: ${historyTestResult.initialSessionCount} sesi ("${historyTestResult.initialTitle}"), Update: "${historyTestResult.updatedTitle}", Sesi baru: ${historyTestResult.sessionCountAfterNew} sesi, Sesi 2: "${historyTestResult.session2Title}", Pulih: ${historyTestResult.messagesRestored} (${historyTestResult.hasRogueliteMsg})`,
+    `Awal kosong: ${historyTestResult.initialSessionCount} sesi, Msg 1: ${historyTestResult.sessionCountAfterMsg1} sesi ("${historyTestResult.updatedTitle}"), Sesi baru kosong: ${historyTestResult.sessionCountAfterNew} sesi, Msg 2: ${historyTestResult.sessionCountAfterMsg2} sesi ("${historyTestResult.session2Title}"), Pulih: ${historyTestResult.messagesRestored} (${historyTestResult.hasRogueliteMsg})`,
     pageHistory
   );
 

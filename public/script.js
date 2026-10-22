@@ -31,6 +31,8 @@ import {
 import {
   openDB,
   createSession,
+  generateSessionId,
+  cleanupEmptySessions,
   getSession,
   saveSession,
   getAllSessions,
@@ -434,7 +436,8 @@ function saveHistoryToStorage() {
     console.warn("Gagal menyimpan riwayat ke sessionStorage:", err);
   }
 
-  if (currentSessionId) {
+  // Hanya simpan sesi ke basis data IndexedDB bila ada percakapan
+  if (currentSessionId && Array.isArray(history) && history.length > 0) {
     saveSession({
       id: currentSessionId,
       title: currentSessionTitle,
@@ -476,7 +479,11 @@ function clearHistoryStorage() {
 /* Manajemen Sesi Obrolan Multi-Sesi IndexedDB (Modul P4) */
 async function renderSessionsList() {
   try {
-    const sessions = await getAllSessions();
+    const rawSessions = await getAllSessions();
+    // Hanya tampilkan sesi yang memiliki riwayat percakapan (tidak kosong)
+    const sessions = rawSessions.filter(
+      (sess) => Array.isArray(sess.messages) && sess.messages.length > 0
+    );
 
     const targets = [
       { container: els.sessionsList, isDrawer: false },
@@ -591,28 +598,24 @@ async function handleNewSession() {
     currentRequestController = null;
   }
 
+  // Siapkan sesi baru bersih tanpa menyimpan entri kosong ke basis data
+  currentSessionId = generateSessionId();
+  currentSessionTitle = "Obrolan Baru";
+  history = [];
   try {
-    const newSess = await createSession({ title: "Obrolan Baru", messages: [] });
-    currentSessionId = newSess.id;
-    try {
-      localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
-      sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
-    } catch {}
-    currentSessionTitle = newSess.title;
-    history = [];
+    localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+    sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+  } catch {}
 
-    resetComparisonState();
-    els.messages.innerHTML = "";
-    setWelcomeVisible(true);
-    renderSessionsList();
+  resetComparisonState();
+  els.messages.innerHTML = "";
+  setWelcomeVisible(true);
+  renderSessionsList();
 
-    if (isSessionsDrawerOpen) closeSessionsDrawer();
-    announceMessage("Sesi obrolan baru telah dibuat");
-    els.input.focus({ preventScroll: true });
-  } catch (err) {
-    console.warn("Gagal membuat sesi baru:", err);
-  }
+  if (isSessionsDrawerOpen) closeSessionsDrawer();
+  announceMessage("Sesi obrolan baru telah disiapkan");
+  els.input.focus({ preventScroll: true });
 }
 
 async function deleteSessionPrompt(id, title) {
@@ -623,19 +626,21 @@ async function deleteSessionPrompt(id, title) {
     announceMessage(`Sesi "${title}" telah dihapus`);
 
     if (id === currentSessionId) {
-      const remaining = await getAllSessions();
+      const all = await getAllSessions();
+      const remaining = all.filter(
+        (s) => s.id !== id && Array.isArray(s.messages) && s.messages.length > 0
+      );
       if (remaining.length > 0) {
         await switchSession(remaining[0].id);
       } else {
-        const fresh = await createSession({ title: "Obrolan Baru", messages: [] });
-        currentSessionId = fresh.id;
+        currentSessionId = generateSessionId();
+        currentSessionTitle = "Obrolan Baru";
+        history = [];
         try {
           localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
           sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+          sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
         } catch {}
-        currentSessionTitle = fresh.title;
-        history = [];
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
         resetComparisonState();
         els.messages.innerHTML = "";
         setWelcomeVisible(true);
@@ -680,55 +685,45 @@ function closeSessionsDrawer() {
 async function initChatSessions() {
   try {
     await migrateFromLegacyStorage(globalThis.sessionStorage);
-    const sessions = await getAllSessions();
-    if (sessions.length > 0) {
-      // Periksa apakah tab ini merupakan refresh dari sesi yang sedang aktif (via sessionStorage)
-      let targetSessionId = null;
-      try {
-        targetSessionId = sessionStorage.getItem(ACTIVE_SESSION_KEY);
-        if (!targetSessionId) {
-          targetSessionId = sessionStorage.getItem(LEGACY_ACTIVE_SESSION_KEY);
-        }
-      } catch (err) {
-        console.warn("Gagal membaca active session dari sessionStorage:", err);
-      }
+    // Bersihkan sesi kosong lawas yang tidak memiliki pesan
+    await cleanupEmptySessions();
 
-      let activeSession = null;
-      if (targetSessionId) {
-        activeSession = await getSession(targetSessionId);
-      }
+    const rawSessions = await getAllSessions();
+    const sessions = rawSessions.filter(
+      (s) => Array.isArray(s.messages) && s.messages.length > 0
+    );
 
-      // Jika membuka tab atau jendela baru (sessionStorage kosong) atau sesi target tidak ditemukan:
-      // Aktifkan sesi kosong "Obrolan Baru" jika sudah ada, atau buat sesi bersih baru agar
-      // tidak otomatis memulihkan obrolan masa lalu ke layar utama
-      if (!activeSession) {
-        const emptySession = sessions.find(
-          (s) => (!s.messages || s.messages.length === 0) && s.title === "Obrolan Baru"
-        );
-        if (emptySession) {
-          activeSession = emptySession;
-        } else {
-          activeSession = await createSession({ title: "Obrolan Baru", messages: [] });
-        }
-      }
+    let targetSessionId = null;
+    try {
+      targetSessionId = sessionStorage.getItem(ACTIVE_SESSION_KEY) || sessionStorage.getItem(LEGACY_ACTIVE_SESSION_KEY);
+    } catch (err) {
+      console.warn("Gagal membaca active session dari sessionStorage:", err);
+    }
 
+    let activeSession = null;
+    if (targetSessionId) {
+      activeSession = sessions.find((s) => s.id === targetSessionId) || (await getSession(targetSessionId));
+      if (activeSession && (!Array.isArray(activeSession.messages) || activeSession.messages.length === 0)) {
+        activeSession = null;
+      }
+    }
+
+    if (activeSession) {
       currentSessionId = activeSession.id;
       currentSessionTitle = activeSession.title || "Obrolan Baru";
       history = Array.isArray(activeSession.messages) ? activeSession.messages : [];
-      try {
-        localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
-        sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
-      } catch {}
     } else {
-      const initial = await createSession({ title: "Obrolan Baru", messages: [] });
-      currentSessionId = initial.id;
-      currentSessionTitle = initial.title;
+      // Sesi baru bersih (draft) - tidak disimpan ke IndexedDB sampai pengguna mengirim pesan
+      currentSessionId = generateSessionId();
+      currentSessionTitle = "Obrolan Baru";
       history = [];
-      try {
-        localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
-        sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
-      } catch {}
     }
+
+    try {
+      localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+      sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    } catch {}
 
     renderSessionsList();
 
@@ -1687,19 +1682,12 @@ els.resetBtn.addEventListener("click", () => {
   els.messages.innerHTML = "";
   setWelcomeVisible(true);
 
-  if (currentSessionId) {
-    saveSession({
-      id: currentSessionId,
-      title: "Obrolan Baru",
-      messages: [],
-    })
-      .then(() => {
-        renderSessionsList();
-      })
-      .catch((err) => {
-        console.warn("Gagal mereset sesi:", err);
-      });
-  }
+  currentSessionId = generateSessionId();
+  try {
+    localStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+    sessionStorage.setItem(ACTIVE_SESSION_KEY, currentSessionId);
+  } catch {}
+  renderSessionsList();
 
   // Buka kembali toolbar dan bersihkan filter aktif
   hasUserToggledToolbar = false;

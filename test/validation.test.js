@@ -1940,6 +1940,29 @@ test('chatHistoryCore (Modul P4): migrateFromLegacyStorage memigrasikan riwayat 
   assert.equal(all.length, 1);
 });
 
+test('chatHistoryCore (Modul P4): cleanupEmptySessions membersihkan sesi kosong tanpa pesan dari basis data', async () => {
+  const { createSession, getAllSessions, clearAllSessions, cleanupEmptySessions } = await import('../public/chatHistoryCore.js');
+  await clearAllSessions();
+
+  await createSession({ title: 'Obrolan Baru', messages: [] });
+  await createSession({ title: 'Obrolan Kedua', messages: [] });
+  await createSession({
+    title: 'Sesi Valid',
+    messages: [{ role: 'user', text: 'Halo' }],
+  });
+
+  const before = await getAllSessions();
+  assert.equal(before.length, 3);
+
+  const cleaned = await cleanupEmptySessions();
+  assert.equal(cleaned, 2);
+
+  const after = await getAllSessions();
+  assert.equal(after.length, 1);
+  assert.equal(after[0].title, 'Sesi Valid');
+});
+
+
 
 
 
