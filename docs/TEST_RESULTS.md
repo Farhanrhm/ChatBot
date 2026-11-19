@@ -86,26 +86,67 @@ done
 
 ---
 
-## 3. Pengujian Otomatis Unit Test
+## 3. Pengujian Otomatis Unit Test (153 Tes)
 
-Pengujian validasi fungsi inti `toContents()` dapat dijalankan kapan saja dengan perintah:
+Pengujian validasi fungsi inti backend, sanitasi data, kuota harian, serta modul komparasi dan wishlist dapat dijalankan kapan saja dengan perintah:
 ```bash
+npm run test:unit
+# atau alias:
 npm test
 ```
-Semua test case memeriksa:
-- Penolakan tipe data non-array dan array kosong.
-- Penolakan role tidak dikenal.
-- Pembersihan role `model` di awal percakapan.
-- Pemotongan otomatis maksimal 20 giliran percakapan terakhir.
-- Penolakan jika teks user melebihi 1000 karakter.
-- Validasi status harga, diskon, dan penolakan sekuel Steam.
+Seluruh 153 unit test terbagi dalam suite:
+- Validasi fungsi inti `toContents()` dan sanitasi masukan teks pengguna.
+- Penolakan tipe data non-array, array kosong, dan manipulasi role percakapan.
+- Pembersihan role `model` di awal percakapan dan pemotongan otomatis maksimal 20 turn terakhir.
+- Penolakan jika teks pengguna melebihi 1000 karakter.
+- Validasi status harga, diskon, dan penolakan sekuel Steam Storefront.
 - Batasan kuota harian (`DailyCapLimiter`) dan reset pergantian tanggal.
-- Validasi modul Wishlist Lokal (`wishlistCore.js`): sanitasi data stabil tanpa harga/diskon, pencocokan ketat isSameGame, auto-upgrade & anti-downgrade, migrasi aman data lama, batas kapasitas 50 item, ketahanan JSON rusak, dan penanganan kegagalan penyimpanan browser.
+- Validasi modul Wishlist Lokal (`wishlistCore.js`): sanitasi data stabil, pencocokan ketat `isSameGame`, auto-upgrade dan anti-downgrade, migrasi aman data lama, batas kapasitas 50 item, ketahanan JSON rusak, dan penanganan kegagalan penyimpanan browser.
 - Validasi filter preferensi cepat (`validatePreferences`, `buildPreferencesPromptNote`, dan perlindungan immutability `conversation`).
+- Validasi modul Komparasi Game (`comparisonCore.js`): batas maksimal 2 game, ekstraksi data harga/diskon, format harga, dan sanitasi payload komparasi.
 
 ---
 
-## 4. Daftar Uji Pasca-Deploy Produksi (Render / Railway)
+## 4. Pengujian Otomatis E2E Playwright (79 Tes)
+
+Pengujian interaksi peramban nyata, tata letak antarmuka, aksesibilitas, dan regresi visual dijalankan melalui Playwright Test Suite:
+```bash
+# Menjalankan seluruh pengujian E2E (79 skenario)
+npm run test:e2e
+
+# Menjalankan seluruh rangkaian tes (Unit + E2E)
+npm run test:all
+
+# Membuka laporan pengujian interaktif HTML & trace Playwright
+npx playwright show-report
+```
+
+### Rincian Skenario E2E (79 Tes):
+1. **Tata Letak & Aksesibilitas (22 Tes)**: `test/e2e/layout-and-a11y.spec.js`
+   - Validasi metrik layout L01-L04 pada 5 viewport standar (1366x768, 1024x575, 1920x1080, 375x667, 412x915).
+   - Memastikan `0px` vertical page scroll overflow (`docScrollH <= winH + 1`).
+   - Audit aksesibilitas otomatis axe-core dan siklus navigasi keyboard.
+2. **Regresi Visual Snapshot (20 Tes)**: `test/e2e/layout-visual.spec.js`
+   - Validasi visual L05-L08 pada 5 viewport (Default Chat, Drawer Wishlist Terbuka, Komparasi Normal, dan Komparasi Mode Hemat Data).
+   - Memeriksa kesesuaian pixel terhadap baseline dengan ambang batas `threshold: 0.1` dan `maxDiffPixelRatio: 0.015`.
+3. **Alur Chat, Streaming SSE, Offline, & Data Saver (13 Tes)**: `test/e2e/chat-flow.spec.js`
+   - Skenario B03, B04, B16, B17, B18, B30, B31, B32, B33, B34, B35, N01, N02.
+   - Streaming SSE, watchdog timeout sebelum token pertama dan di tengah stream, tombol coba lagi tanpa duplikasi pesan, mode offline, persistensi riwayat multi-sesi IndexedDB, supresi 0 request gambar Steam pada Mode Hemat Data, serta penanganan error 429 dan 500.
+4. **Wishlist & Komparasi Game Berdampingan (24 Tes)**: `test/e2e/wishlist-and-compare.spec.js`
+   - Skenario B01, B02, B05-B15, B27-B29 (16 tes Wishlist).
+   - Skenario B19-B26 (8 tes Komparasi).
+   - Sinkronisasi multi-tab reaktif, focus trap drawer dan modal, live filtering tanpa pergantian elemen DOM, debounce live announcer 400 ms, proteksi XSS, verifikasi fitur yang telah dikurangi, floating action bar, seleksi 2 game, penolakan game ke-3 via toast, atribut `inert`, sinkronisasi dua arah wishlist modal, dan reset obrolan.
+
+### Aturan & Standar Pengujian E2E:
+- **Wajib Offline / Isolasi Jaringan Penuh**: Seluruh tes menggunakan helper `installNetworkGuards(page)` agar hermetik. Gambar Steam disajikan lewat placeholder 1x1 lokal dan Google Fonts disajikan dari `test/e2e/fixtures/fonts/`.
+- **Dilarang Menggunakan `waitForTimeout`**: Seluruh sinkronisasi waktu wajib berbasis web-first assertions Playwright, polling adaptif (`expect.poll`), atau simulasi timer deterministik `page.clock`.
+- **Tes Independen**: Setiap tes harus berdiri sendiri tanpa bergantung pada urutan atau sisa state pengujian lain.
+- **Proteksi Baseline Visual**: File PNG baseline di `test/e2e/__screenshots__/` tidak boleh diperbarui otomatis (`--update-snapshots`) tanpa instruksi eksplisit pengguna.
+- **Browser Channel Khusus Visual**: Spesifikasi visual (`test/e2e/layout-visual.spec.js`) menggunakan Google Chrome asli (`channel: 'chrome'`) untuk keseragaman antialiasing dan tipografi font Barlow.
+
+---
+
+## 5. Daftar Uji Pasca-Deploy Produksi (Render / Railway)
 
 Jalankan pengujian ini setelah aplikasi selesai dipublikasikan ke layanan hosting cloud:
 

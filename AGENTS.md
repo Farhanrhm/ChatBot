@@ -27,6 +27,20 @@ SobatSteam adalah kurator dan teman ngobrol pencarian game PC di ekosistem Steam
 - Kunci penyimpanan wishlist utama: `sobatsteam_wishlist` (dengan fallback otomatis membaca data lama `steamscout_wishlist`).
 - Kunci sesi aktif: `sobatsteam_active_session_id` (dengan fallback otomatis membaca data lama `steamscout_active_session_id`).
 
+### Aturan & Panduan Pengujian E2E (Playwright)
+- Seluruh pengujian E2E dijalankan melalui Playwright Test Suite (`npm run test:e2e`). Total suite mencakup 153 unit test dan 79 skenario E2E:
+  - 22 tes metrik tata letak & aksesibilitas (`test/e2e/layout-and-a11y.spec.js`)
+  - 20 tes regresi visual snapshot pada 5 viewport (`test/e2e/layout-visual.spec.js`)
+  - 13 tes alur chat, streaming SSE, watchdog, offline, dan data saver (`test/e2e/chat-flow.spec.js`)
+  - 24 tes wishlist interaktif & komparasi berdampingan (`test/e2e/wishlist-and-compare.spec.js`)
+- **Isolasi Jaringan Hermetik (Network Guard)**: Setiap tes wajib memanggil `installNetworkGuards(page)`. Dilarang membiarkan request lolos ke domain eksternal tanpa mocking atau stub fixture.
+- **Tanpa Jeda Waktu Arbitrer**: Dilarang menggunakan `waitForTimeout()`. Seluruh penantian wajib menggunakan web-first assertions (`expect(locator)...`), `expect.poll()`, atau manipulasi timer deterministik `page.clock`.
+- **Independensi Tes**: Setiap tes harus independen dan terisolasi, tidak boleh mengasumsikan state atau urutan dari tes sebelumnya.
+- **Integritas Baseline Visual**: File PNG baseline di `test/e2e/__screenshots__/` dilarang diperbarui otomatis (`--update-snapshots`) tanpa persetujuan eksplisit pengguna.
+- **Browser Channel Khusus Visual**: Pengujian visual pada `test/e2e/layout-visual.spec.js` wajib menggunakan Google Chrome stabil (`channel: 'chrome'`) agar hasil rasterisasi dan antialiasing font cocok dengan baseline.
+- **Penyajian Font Lokal**: Font Google Fonts disajikan secara hermetik dari fixture lokal di `test/e2e/fixtures/fonts/`.
+- **Inspeksi Laporan**: Untuk melihat laporan pengujian interaktif HTML dan jejak kegagalan, jalankan `npx playwright show-report`.
+
 ## Proteksi Keamanan Berkas Sensitif & Kredensial (Strict Security Boundary)
 AI agent dilarang keras membuka, membaca, mengekstrak, atau menampilkan isi berkas sensitif dan kredensial dalam kondisi apa pun.
 
