@@ -39,6 +39,12 @@ import {
   migrateFromLegacyStorage,
 } from "./chatHistoryCore.js";
 
+import {
+  resolveDataSaverState,
+  buildCoverImageHtml,
+  DATA_SAVER_STORAGE_KEY,
+} from "./dataSaverCore.js";
+
 const API_URL = "/api/chat";
 const STORAGE_KEY = "sobatsteam_chat_history";
 const LEGACY_STORAGE_KEY = "steamscout_chat_history";
@@ -323,6 +329,7 @@ const els = {
   newSessionBtn: $("#new-session-btn"),
   sessionsList: $("#sessions-list"),
   sessionsBtn: $("#sessions-btn"),
+  dataSaverBtn: $("#data-saver-btn"),
   sessionsPanel: $("#sessions-panel"),
   sessionsBackdrop: $("#sessions-backdrop"),
   sessionsCloseBtn: $("#sessions-close-btn"),
@@ -2764,12 +2771,53 @@ function switchComparisonMobileTab(tab) {
   });
 }
 
+let activeComparisonData = null;
+
+function isDataSaverActive() {
+  const conn = typeof navigator !== "undefined" ? navigator.connection : null;
+  return resolveDataSaverState(globalThis.localStorage, conn);
+}
+
+function applyDataSaverMode(enabled) {
+  const isEnabled = Boolean(enabled);
+  if (document.body) {
+    document.body.classList.toggle("data-saver-active", isEnabled);
+  }
+  if (els.dataSaverBtn) {
+    els.dataSaverBtn.setAttribute("aria-checked", isEnabled ? "true" : "false");
+    els.dataSaverBtn.classList.toggle("is-active", isEnabled);
+  }
+  if (els.comparisonDialog && !els.comparisonDialog.hidden && activeComparisonData) {
+    renderComparisonContent(activeComparisonData);
+  }
+}
+
+function setDataSaverMode(enabled) {
+  const isEnabled = Boolean(enabled);
+  try {
+    localStorage.setItem(DATA_SAVER_STORAGE_KEY, isEnabled ? "true" : "false");
+  } catch (_) {
+    // Abaikan kegagalan akses storage
+  }
+  applyDataSaverMode(isEnabled);
+  const statusText = isEnabled
+    ? "Mode hemat data diaktifkan (supresi pemuatan gambar)"
+    : "Mode hemat data dinonaktifkan (gambar dimuat normal)";
+  showToast(statusText);
+  announceMessage(statusText);
+}
+
+function renderCoverImage(url, alt, className) {
+  return buildCoverImageHtml(url, alt, className, isDataSaverActive());
+}
+
 function openComparisonDialog() {
   if (selectedComparisonGames.length < 2) return;
   comparisonTriggerElement = document.activeElement;
 
   const [rawA, rawB] = selectedComparisonGames;
   const data = extractComparisonData(rawA, rawB);
+  activeComparisonData = data;
 
   renderComparisonContent(data);
 
@@ -2798,6 +2846,7 @@ function closeComparisonDialog() {
 
   if (els.comparisonBackdrop) els.comparisonBackdrop.hidden = true;
   if (els.comparisonDialog) els.comparisonDialog.hidden = true;
+  activeComparisonData = null;
 
   if (comparisonTriggerElement && typeof comparisonTriggerElement.focus === "function") {
     comparisonTriggerElement.focus({ preventScroll: true });
@@ -2821,13 +2870,13 @@ function renderComparisonContent(data) {
               <th scope="col" class="th-attr">Kriteria</th>
               <th scope="col" id="col-game-a" class="th-game comparison-col-a is-tab-active">
                 <div class="comparison-hero">
-                  ${data.gameA.headerImage ? `<img src="${escapeHtml(data.gameA.headerImage)}" alt="Cover ${escapeHtml(data.gameA.title)}" class="comparison-hero-img" loading="lazy" onerror="this.onerror=null;this.src='/icon.svg';">` : ""}
+                  ${renderCoverImage(data.gameA.headerImage, "Cover " + (data.gameA.title || ""), "comparison-hero-img")}
                   <h3 class="comparison-hero-title">${escapeHtml(data.gameA.title)}</h3>
                 </div>
               </th>
               <th scope="col" id="col-game-b" class="th-game comparison-col-b">
                 <div class="comparison-hero">
-                  ${data.gameB.headerImage ? `<img src="${escapeHtml(data.gameB.headerImage)}" alt="Cover ${escapeHtml(data.gameB.title)}" class="comparison-hero-img" loading="lazy" onerror="this.onerror=null;this.src='/icon.svg';">` : ""}
+                  ${renderCoverImage(data.gameB.headerImage, "Cover " + (data.gameB.title || ""), "comparison-hero-img")}
                   <h3 class="comparison-hero-title">${escapeHtml(data.gameB.title)}</h3>
                 </div>
               </th>
@@ -3105,6 +3154,27 @@ loadPreferencesFromStorage();
 updateFilterUI();
 setToolbarCollapsed(isToolbarCollapsed);
 
+// Inisialisasi Mode Hemat Data (Data Saver)
+applyDataSaverMode(isDataSaverActive());
+
+if (els.dataSaverBtn) {
+  els.dataSaverBtn.addEventListener("click", () => {
+    setDataSaverMode(!isDataSaverActive());
+  });
+}
+
+// Dengarkan perubahan koneksi jika preferensi manual belum pernah diset
+if (typeof navigator !== "undefined" && navigator.connection && typeof navigator.connection.addEventListener === "function") {
+  navigator.connection.addEventListener("change", () => {
+    try {
+      const manual = localStorage.getItem("sobatsteam_data_saver") ?? localStorage.getItem("steamscout_data_saver");
+      if (manual === null) {
+        applyDataSaverMode(Boolean(navigator.connection.saveData));
+      }
+    } catch (_) {}
+  });
+}
+
 // Memuat riwayat multi-sesi via IndexedDB (Modul P4)
 initChatSessions();
 
@@ -3168,4 +3238,11 @@ if ("serviceWorker" in navigator) {
         console.warn("Registrasi Service Worker gagal:", err);
       });
   });
+}
+
+/* Ekspor ke window untuk pengujian otomatis dan modul verifikasi */
+if (typeof window !== "undefined") {
+  window.isDataSaverActive = isDataSaverActive;
+  window.setDataSaverMode = setDataSaverMode;
+  window.renderCoverImage = renderCoverImage;
 }

@@ -2568,6 +2568,47 @@ body.keyboard-open .meta-hints {
   outline-offset: 2px;
 }
 
+/* Mode Hemat Data (Data Saver) */
+.btn-data-saver {
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.btn-data-saver.is-active,
+.btn-data-saver[aria-checked="true"] {
+  background: rgba(102, 192, 244, 0.16);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-data-saver.is-active svg,
+.btn-data-saver[aria-checked="true"] svg {
+  fill: currentColor;
+}
+
+@media (max-width: 680px) {
+  .btn-data-saver-text {
+    display: none;
+  }
+}
+
+/* Supresi Gambar dan Tampilan Placeholder */
+.cover-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #141f2d;
+  border: 1px dashed rgba(102, 192, 244, 0.25);
+  box-sizing: border-box;
+}
+
+.cover-placeholder img {
+  opacity: 0.75;
+  width: 48px;
+  height: 48px;
+  max-width: 100%;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

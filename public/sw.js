@@ -7,8 +7,10 @@ const PRECACHE_ASSETS = [
   "/script.js",
   "/wishlistCore.js",
   "/comparisonCore.js",
+  "/dataSaverCore.js",
   "/manifest.json",
   "/icon.svg",
+  "/placeholder-game.svg",
 ];
 
 self.addEventListener("install", (event) => {

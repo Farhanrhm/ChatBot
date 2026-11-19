@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 215" width="460" height="215">
+  <rect width="460" height="215" fill="#1b2838" rx="6"/>
+  <rect x="2" y="2" width="456" height="211" fill="none" stroke="rgba(102, 192, 244, 0.2)" stroke-width="2" rx="4"/>
+  <path d="M190 85h80a15 15 0 0 1 15 15v18a15 15 0 0 1-15 15l-12-8h-56l-12 8a15 15 0 0 1-15-15v-18a15 15 0 0 1 15-15z" fill="#212b3b" stroke="#66c0f4" stroke-width="2.5" stroke-linejoin="round"/>
+  <circle cx="212" cy="109" r="3.5" fill="#66c0f4"/>
+  <circle cx="248" cy="109" r="3.5" fill="#66c0f4"/>
+  <path d="M224 109h12" stroke="#66c0f4" stroke-width="2" stroke-linecap="round"/>
+  <text x="230" y="156" fill="#8f98a0" font-size="12" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-weight="500" text-anchor="middle">Mode Hemat Data (Gambar Dinonaktifkan)</text>
+</svg>

@@ -1980,6 +1980,67 @@ test('chatHistoryCore (Modul P4): saveSession mendukung pengubahan nama (rename)
   assert.equal(updated.title, 'Koleksi Game RPG Petualangan');
 });
 
+test('dataSaverCore: prioritas eksplisit localStorage selalu menang atas navigator.connection.saveData', async () => {
+  const { resolveDataSaverState, DATA_SAVER_STORAGE_KEY } = await import('../public/dataSaverCore.js');
+
+  const createMockStorage = (store = {}) => ({
+    getItem: (key) => (Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null),
+    setItem: (key, val) => { store[key] = String(val); },
+  });
+
+  // Kasus 1: localStorage 'true' menang atas connection.saveData: false
+  const storage1 = createMockStorage({ [DATA_SAVER_STORAGE_KEY]: 'true' });
+  assert.equal(resolveDataSaverState(storage1, { saveData: false }), true);
+
+  // Kasus 2: localStorage 'false' menang atas connection.saveData: true
+  const storage2 = createMockStorage({ [DATA_SAVER_STORAGE_KEY]: 'false' });
+  assert.equal(resolveDataSaverState(storage2, { saveData: true }), false);
+
+  // Kasus 3: localStorage null/belum diset -> gunakan connection.saveData
+  const storage3 = createMockStorage();
+  assert.equal(resolveDataSaverState(storage3, { saveData: true }), true);
+  assert.equal(resolveDataSaverState(storage3, { saveData: false }), false);
+
+  // Kasus 4: storage null dan connection undefined/null -> fallback false
+  assert.equal(resolveDataSaverState(null, null), false);
+  assert.equal(resolveDataSaverState(storage3, undefined), false);
+
+  // Kasus 5: Kompatibilitas mundur dengan kunci lama 'steamscout_data_saver'
+  const legacyStorage = createMockStorage({ steamscout_data_saver: 'true' });
+  assert.equal(resolveDataSaverState(legacyStorage, { saveData: false }), true);
+});
+
+test('dataSaverCore: buildCoverImageHtml melakukan supresi gambar Steam saat mode hemat data aktif', async () => {
+  const { buildCoverImageHtml } = await import('../public/dataSaverCore.js');
+
+  const steamCdnUrl = 'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/105600/header.jpg';
+
+  // 1. Saat data saver aktif: TIDAK ADA tag img yang memuat URL Steam
+  const activeHtml = buildCoverImageHtml(steamCdnUrl, 'Cover Terraria', 'test-cover', true);
+  assert.ok(!activeHtml.includes(steamCdnUrl), 'URL Steam CDN tidak boleh muncul pada HTML saat mode hemat data aktif');
+  assert.ok(activeHtml.includes('cover-placeholder'), 'Harus menyertakan kelas cover-placeholder');
+  assert.ok(activeHtml.includes('/placeholder-game.svg'), 'Harus menyertakan SVG placeholder lokal');
+  assert.ok(activeHtml.includes('aria-label="Cover Terraria"'), 'Harus menjaga label aksesibilitas');
+
+  // 2. Saat data saver nonaktif: memuat URL Steam dengan aman
+  const normalHtml = buildCoverImageHtml(steamCdnUrl, 'Cover Terraria', 'test-cover', false);
+  assert.ok(normalHtml.includes(`src="${steamCdnUrl}"`), 'Harus menyertakan URL gambar');
+  assert.ok(normalHtml.includes('class="test-cover"'), 'Harus menyertakan kelas');
+  assert.ok(normalHtml.includes('loading="lazy"'), 'Harus menyertakan loading lazy');
+  assert.ok(normalHtml.includes('onerror='), 'Harus memiliki fallback onerror');
+
+  // 3. Saat URL kosong/null meski data saver nonaktif: tetap gunakan placeholder
+  const emptyUrlHtml = buildCoverImageHtml(null, 'Game Tanpa Gambar', 'empty-cover', false);
+  assert.ok(emptyUrlHtml.includes('cover-placeholder'));
+  assert.ok(emptyUrlHtml.includes('/placeholder-game.svg'));
+
+  // 4. Sanitasi HTML XSS pada parameter teks
+  const xssHtml = buildCoverImageHtml(steamCdnUrl, '<script>alert(1)</script>', '"><b', false);
+  assert.ok(!xssHtml.includes('<script>'));
+  assert.ok(xssHtml.includes('&lt;script&gt;'));
+});
+
+
 
 
 
