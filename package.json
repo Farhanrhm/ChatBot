@@ -5,9 +5,10 @@
   "scripts": {
     "start": "node --import ./instrument.js index.js",
     "dev": "node --watch --import ./instrument.js index.js",
-    "test": "node --test",
-    "test:layout": "node scripts/verify-layout.mjs",
-    "test:behavior": "node scripts/verify-behavior.mjs",
+    "test": "npm run test:unit",
+    "test:unit": "node --test test/*.test.js",
+    "test:e2e": "playwright test",
+    "test:all": "npm run test:unit && npm run test:e2e",
     "eval": "node eval/run-eval.mjs"
   },
   "engines": {
@@ -28,6 +29,8 @@
     "helmet": "^8.3.0"
   },
   "devDependencies": {
-    "puppeteer-core": "^25.13.0"
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6"
   }
 }
