@@ -561,4 +561,45 @@ test.describe('Chat Flow & Perilaku SobatSteam', () => {
     await page1.close();
     await page2.close();
   });
+
+  // ==========================================================================
+  // [C03] Deduplikasi Header Brand, Empty State Sesi Desktop, & Live Region
+  // ==========================================================================
+  test('[C03] Sidebar desktop menampilkan empty state sesi dengan live region, dan brand header terdeduplikasi di desktop vs mobile', async ({ page }) => {
+    // 1. Desktop (1366x768): aside.rail tampil, .topbar-title tersembunyi, empty state sesi tampil
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/');
+
+    const rail = page.locator('aside.rail');
+    const topbarTitle = page.locator('.topbar-title');
+    const sidebarEmpty = page.locator('#sessions-sidebar-empty');
+    const sidebarError = page.locator('#sessions-sidebar-error');
+    const offlineBanner = page.locator('#offline-banner');
+
+    await expect(rail).toBeVisible();
+    await expect(topbarTitle).toBeHidden();
+    await expect(sidebarEmpty).toBeVisible();
+    await expect(sidebarEmpty).toHaveAttribute('role', 'status');
+    await expect(sidebarEmpty).toHaveAttribute('aria-live', 'polite');
+    await expect(sidebarError).toHaveAttribute('role', 'status');
+    await expect(sidebarError).toHaveAttribute('aria-live', 'polite');
+    await expect(offlineBanner).toHaveAttribute('role', 'status');
+    await expect(offlineBanner).toHaveAttribute('aria-live', 'polite');
+
+    // Setelah satu sesi percakapan dibuat, empty state harus otomatis menghilang
+    await mockChatSuccess(page, {
+      intro: 'Rekomendasi tes empty state sesi.',
+      games: [],
+    });
+    await page.locator('#user-input').fill('Halo tes sesi');
+    await page.locator('#send-btn').click();
+
+    await expect(page.locator('#sessions-list .session-item')).toHaveCount(1);
+    await expect(sidebarEmpty).toBeHidden();
+
+    // 2. Mobile (375x667): aside.rail tersembunyi dan .topbar-title tampil kembali
+    await page.setViewportSize({ width: 375, height: 667 });
+    await expect(rail).toBeHidden();
+    await expect(topbarTitle).toBeVisible();
+  });
 });
