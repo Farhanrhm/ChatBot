@@ -1,0 +1,475 @@
+import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
+import { installNetworkGuards } from './helpers/network.js';
+import {
+  mockChatSuccess,
+  mockChatError,
+  mockStreamHang,
+  getStreamCallCount,
+  getFallbackCallCount,
+} from './helpers/mockChat.js';
+import { visualFixtures } from './helpers/visualFixtures.js';
+
+test.describe('Chat Flow & Perilaku SobatSteam', () => {
+  test.beforeEach(async ({ page }) => {
+    await installNetworkGuards(page);
+  });
+
+  // ==========================================================================
+  // [B03] & [B04] Mode Offline & Online Recovery
+  // ==========================================================================
+  test('[B03] Mode offline menonaktifkan tombol Kirim dan menjaga teks input', async ({ context, page }) => {
+    await page.goto('/');
+
+    const input = page.locator('#user-input');
+    const sendBtn = page.locator('#send-btn');
+    const banner = page.locator('#offline-banner');
+
+    await input.fill('Game rekomendasi laptop kentang');
+    const textBefore = await input.inputValue();
+
+    // Simulasikan jaringan terputus (offline)
+    await context.setOffline(true);
+
+    await expect(sendBtn).toBeDisabled();
+    await expect(sendBtn).toHaveAttribute('aria-disabled', 'true');
+    await expect(banner).toBeVisible();
+    await expect(input).toHaveValue(textBefore);
+  });
+
+  test('[B04] Kembali online mengaktifkan kontrol dan teks input tetap utuh', async ({ context, page }) => {
+    await page.goto('/');
+
+    const input = page.locator('#user-input');
+    const sendBtn = page.locator('#send-btn');
+    const banner = page.locator('#offline-banner');
+
+    await input.fill('Game rekomendasi laptop kentang');
+    const textBefore = await input.inputValue();
+
+    // Masuk mode offline terlebih dahulu
+    await context.setOffline(true);
+    await expect(banner).toBeVisible();
+    await expect(sendBtn).toBeDisabled();
+
+    // Pulihkan status koneksi online
+    await context.setOffline(false);
+
+    await expect(sendBtn).toBeEnabled();
+    await expect(sendBtn).not.toHaveAttribute('aria-disabled');
+    await expect(banner).toBeHidden();
+    await expect(input).toHaveValue(textBefore);
+  });
+
+  // ==========================================================================
+  // [B16], [B17], [B18] Watchdog Streaming & Mekanisme Coba Lagi
+  // ==========================================================================
+  test('[B16] Watchdog sebelum token pertama: stream macet fallback otomatis ke POST /api/chat', async ({ page }) => {
+    // Percepat batas waktu watchdog agar pengujian deterministik dan cepat (< 1 detik)
+    await page.addInitScript(() => {
+      window.__STREAM_FIRST_TIMEOUT_MS = 400;
+      window.__STREAM_INTER_TIMEOUT_MS = 250;
+    });
+
+    // Pasang stream hanging sebelum chunk pertama
+    await mockStreamHang(page, { afterFirstChunk: false });
+
+    // Mock endpoint fallback POST /api/chat
+    await page.route('**/api/chat', async (route) => {
+      if (route.request().url().includes('/api/chat/stream')) {
+        return route.fallback();
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            intro: 'Rekomendasi hasil fallback POST berhasil.',
+            games: [],
+            followUp: 'Ada pertanyaan lain?',
+          },
+        }),
+      });
+    });
+
+    await page.goto('/');
+    await page.locator('#user-input').fill('Cari game santai');
+    await page.locator('#send-btn').click();
+
+    // Tunggu balasan dari fallback POST muncul di layar obrolan
+    const botMsg = page.locator('.msg.bot');
+    await expect(botMsg).toContainText('Rekomendasi hasil fallback POST berhasil.');
+
+    const streamCount = await getStreamCallCount(page);
+    const fallbackCount = await getFallbackCallCount(page);
+    expect(streamCount).toBeGreaterThanOrEqual(1);
+    expect(fallbackCount).toBeGreaterThanOrEqual(1);
+  });
+
+  test('[B17] Watchdog di tengah stream: pertahankan teks parsial, larang fallback diam-diam, sediakan tombol Coba lagi', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__STREAM_FIRST_TIMEOUT_MS = 800;
+      window.__STREAM_INTER_TIMEOUT_MS = 300;
+    });
+
+    await mockStreamHang(page, {
+      afterFirstChunk: true,
+      introText: 'Game santai yang cocok untukmu:',
+    });
+
+    await page.goto('/');
+    await page.locator('#user-input').fill('Game santai');
+    await page.locator('#send-btn').click();
+
+    // Verifikasi teks intro parsial tampil dan dipertahankan
+    const botIntro = page.locator('.msg.bot .bot-intro');
+    await expect(botIntro).toContainText('Game santai yang cocok untukmu:');
+
+    // Verifikasi notifikasi koneksi terputus dan tombol coba lagi muncul
+    const notice = page.locator('.stream-disconnected-notice');
+    const retryBtn = page.locator('.btn-retry-stream');
+    const sendBtn = page.locator('#send-btn');
+
+    await expect(notice).toBeVisible();
+    await expect(retryBtn).toBeVisible();
+    await expect(sendBtn).toBeEnabled();
+
+    // Larang fallback diam-diam ke POST /api/chat
+    const fallbackCount = await getFallbackCallCount(page);
+    expect(fallbackCount).toBe(0);
+  });
+
+  test('[B18] Tombol Coba lagi tidak menambah pesan user ganda', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__STREAM_FIRST_TIMEOUT_MS = 800;
+      window.__STREAM_INTER_TIMEOUT_MS = 300;
+    });
+
+    await mockStreamHang(page, {
+      afterFirstChunk: true,
+      introText: 'Game santai yang cocok untukmu:',
+    });
+
+    await page.goto('/');
+    await page.locator('#user-input').fill('Game santai');
+    await page.locator('#send-btn').click();
+
+    const retryBtn = page.locator('.btn-retry-stream');
+    await expect(retryBtn).toBeVisible();
+
+    const userMsgs = page.locator('.msg.user');
+    await expect(userMsgs).toHaveCount(1);
+
+    // Klik tombol Coba lagi
+    await retryBtn.click();
+
+    // Permintaan stream baru harus dikirimkan (total >= 2)
+    await expect.poll(async () => await getStreamCallCount(page)).toBeGreaterThanOrEqual(2);
+
+    // Jumlah pesan user di layar harus tetap 1 (tidak terduplikasi)
+    await expect(userMsgs).toHaveCount(1);
+  });
+
+  // ==========================================================================
+  // [B30] PWA & Deteksi Status Offline (Modul P3)
+  // ==========================================================================
+  test('[B30] PWA & deteksi status offline menonaktifkan komposer teks dan memunculkan banner (Modul P3)', async ({ context, page }) => {
+    await page.goto('/');
+
+    // 1. Verifikasi referensi manifest PWA
+    const manifestLink = await page.locator('link[rel="manifest"]').getAttribute('href');
+    expect(manifestLink).toBe('manifest.json');
+
+    const manifestPath = path.resolve('public', 'manifest.json');
+    const manifestObj = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    expect(manifestObj.short_name).toBe('SobatSteam');
+    expect(manifestObj.name).toBe('SobatSteam: Teman Ngobrol Cari Game PC');
+
+    const banner = page.locator('#offline-banner');
+    const statusPill = page.locator('#connection-status');
+    const sendBtn = page.locator('#send-btn');
+    const input = page.locator('#user-input');
+
+    // 2. Putuskan jaringan
+    await context.setOffline(true);
+
+    await expect(banner).toBeVisible();
+    await expect(statusPill).toContainText('Offline');
+    await expect(statusPill).toHaveClass(/is-offline/);
+    await expect(sendBtn).toBeDisabled();
+    await expect(sendBtn).toHaveAttribute('title', /Koneksi terputus/);
+
+    // 3. Coba kirim pesan saat offline
+    await input.fill('Rekomendasi game RPG');
+    await page.evaluate(() => {
+      const form = document.getElementById('chat-form');
+      if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    });
+    const toast = page.locator('.wishlist-toast');
+    await expect(toast).toContainText('Koneksi terputus');
+
+    // 4. Pulihkan koneksi jaringan online
+    await context.setOffline(false);
+
+    await expect(banner).toBeHidden();
+    await expect(statusPill).toContainText('Online');
+    await expect(statusPill).not.toHaveClass(/is-offline/);
+    await expect(sendBtn).toBeEnabled();
+  });
+
+  // ==========================================================================
+  // [B31] Riwayat Obrolan Multi-Sesi via IndexedDB (Modul P4)
+  // ==========================================================================
+  test('[B31] Riwayat obrolan multi-sesi IndexedDB mendukung pembuatan, perpindahan, dan pemulihan konteks pesan (Modul P4)', async ({ page }) => {
+    // Bersihkan storage dan basis data sebelum pengujian
+    await page.addInitScript(() => {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        indexedDB.deleteDatabase('SteamScoutDB');
+      } catch {}
+    });
+
+    await page.goto('/');
+    const sessionsList = page.locator('#sessions-list');
+    const newSessionBtn = page.locator('#new-session-btn');
+    const input = page.locator('#user-input');
+    const sendBtn = page.locator('#send-btn');
+    const messages = page.locator('#messages');
+    const welcome = page.locator('#welcome');
+
+    // 1. Sesi awal yang masih kosong tidak masuk ke daftar riwayat sesi
+    await expect(sessionsList.locator('.session-item')).toHaveCount(0);
+
+    // 2. Kirim pesan ke sesi pertama
+    await input.fill('Rekomendasi game roguelite aksi');
+    await sendBtn.click();
+
+    // Tunggu respon bot dan pembaruan judul sesi di sidebar via polling
+    await expect(messages.locator('.msg.bot')).toBeVisible();
+    await expect.poll(async () => await sessionsList.locator('.session-item').count()).toBe(1);
+
+    const activeSessionItem = sessionsList.locator('.session-item.is-active');
+    await expect(activeSessionItem.locator('.session-item-title')).toContainText('roguelite');
+
+    // 3. Tekan tombol "+ Baru" untuk menyiapkan sesi kedua yang kosong
+    await newSessionBtn.click();
+
+    // Sesi baru yang masih kosong tidak menambah entri riwayat
+    await expect(sessionsList.locator('.session-item')).toHaveCount(1);
+    await expect(messages.locator('.msg')).toHaveCount(0);
+    await expect(welcome).toBeVisible();
+
+    // 4. Konfigurasi respons berbeda untuk sesi kedua
+    await mockChatSuccess(page, {
+      intro: 'Berikut rekomendasi game simulator santai:',
+      games: [
+        {
+          title: 'PowerWash Simulator',
+          year: '2022',
+          priceFormatted: 'Rp 200.000',
+          ratingPercent: 97,
+          steamUrl: 'https://store.steampowered.com/app/1290000/',
+          headerImage: 'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1290000/header.jpg',
+        },
+      ],
+      text: 'Berikut rekomendasi game simulator santai:',
+    });
+
+    await input.fill('Game simulator santai');
+    await sendBtn.click();
+
+    // Verifikasi sesi kedua tersimpan di riwayat
+    await expect(messages.locator('.msg.bot')).toBeVisible();
+    await expect.poll(async () => await sessionsList.locator('.session-item').count()).toBe(2);
+
+    const session2Item = sessionsList.locator('.session-item.is-active');
+    await expect(session2Item.locator('.session-item-title')).toContainText('simulator');
+
+    // 5. Beralih kembali ke sesi pertama
+    const firstSessionBtn = sessionsList.locator('.session-item-title', { hasText: 'roguelite' });
+    await firstSessionBtn.click();
+
+    // Pesan dari sesi pertama harus dipulihkan secara utuh
+    await expect(messages.locator('.msg.user')).toContainText('roguelite');
+    await expect(messages.locator('.msg.bot')).toBeVisible();
+  });
+
+  // ==========================================================================
+  // [B32] Ubah Nama Sesi, Tombol Salin Pesan, & Skeleton Loader
+  // ==========================================================================
+  test('[B32] Fitur Ubah Nama Sesi, Tombol Salin Pesan, dan Skeleton Loader berfungsi sesuai spesifikasi', async ({ context, page }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+    await page.goto('/');
+
+    // 1. Suntikkan sesi aktif ke dalam obrolan
+    await page.locator('#user-input').fill('Rekomendasi roguelite seru');
+    await page.locator('#send-btn').click();
+    await expect(page.locator('.msg.bot')).toBeVisible();
+
+    // 2. Ubah Nama Sesi melalui prompt
+    page.once('dialog', async (dialog) => {
+      expect(dialog.type()).toBe('prompt');
+      await dialog.accept('Koleksi Roguelite Seru');
+    });
+
+    const activeItem = page.locator('#sessions-list .session-item.is-active');
+    const renameBtn = activeItem.locator('.btn-session-rename');
+    await renameBtn.click();
+
+    await expect(activeItem.locator('.session-item-title')).toContainText('Koleksi Roguelite Seru');
+
+    // 3. Tombol Salin Pesan Bot
+    const copyBtn = page.locator('.msg.bot .btn-copy-msg').first();
+    await expect(copyBtn).toBeVisible();
+
+    await copyBtn.click();
+    await expect(copyBtn).toHaveClass(/is-copied/);
+    const copyLabel = copyBtn.locator('.copy-label');
+    await expect(copyLabel).toContainText('Tersalin!');
+
+    // 4. Skeleton Loader Kerangka Muat
+    const hasSkeleton = await page.evaluate(() => {
+      const dummy = typeof window.createTypingIndicator === 'function' ? window.createTypingIndicator() : null;
+      return Boolean(dummy?.querySelector('.skeleton-card'));
+    });
+    expect(hasSkeleton).toBe(true);
+  });
+
+  // ==========================================================================
+  // [B33], [B34], [B35] Mode Hemat Data (Data Saver)
+  // ==========================================================================
+  test('[B33] Mode Hemat Data: Tombol toggle memperbarui role switch, aria-checked, kelas body, dan live-announcer', async ({ page }) => {
+    await page.goto('/');
+
+    const btn = page.locator('#data-saver-btn');
+    const announcer = page.locator('#live-announcer');
+    const body = page.locator('body');
+
+    await expect(btn).toHaveAttribute('role', 'switch');
+    await expect(btn).toHaveAttribute('aria-checked', 'false');
+    await expect(body).not.toHaveClass(/data-saver-active/);
+
+    // Klik untuk mengaktifkan
+    await btn.click();
+
+    await expect(btn).toHaveAttribute('aria-checked', 'true');
+    await expect(body).toHaveClass(/data-saver-active/);
+    await expect(announcer).toContainText('Mode hemat data');
+    const activeStored = await page.evaluate(() => localStorage.getItem('sobatsteam_data_saver'));
+    expect(activeStored).toBe('true');
+
+    // Klik lagi untuk menonaktifkan
+    await btn.click();
+
+    await expect(btn).toHaveAttribute('aria-checked', 'false');
+    await expect(body).not.toHaveClass(/data-saver-active/);
+    const deactiveStored = await page.evaluate(() => localStorage.getItem('sobatsteam_data_saver'));
+    expect(deactiveStored).toBe('false');
+  });
+
+  test('[B34] Mode Hemat Data: Verifikasi level jaringan tepat 0 request HTTP ke CDN Steam saat mode aktif', async ({ page }) => {
+    const steamRequests = [];
+    page.on('request', (req) => {
+      if (/steamstatic\.com|akamaihd\.net/.test(req.url())) {
+        steamRequests.push(req.url());
+      }
+    });
+
+    await page.goto('/');
+
+    const renderResult = await page.evaluate(() => {
+      window.setDataSaverMode(true);
+      const steamUrlA = 'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/105600/header.jpg';
+      const steamUrlB = 'https://cdn.akamai.steamstatic.com/steam/apps/210970/header.jpg';
+
+      const testWrap = document.createElement('div');
+      testWrap.id = 'data-saver-network-test';
+      testWrap.innerHTML = `
+        ${window.renderCoverImage(steamUrlA, 'Cover Game A', 'test-hero-a')}
+        ${window.renderCoverImage(steamUrlB, 'Cover Game B', 'test-hero-b')}
+      `;
+      document.body.appendChild(testWrap);
+
+      return {
+        placeholderCount: testWrap.querySelectorAll('.cover-placeholder').length,
+        directSteamImgCount: testWrap.querySelectorAll('img[src*="steamstatic.com"]').length,
+      };
+    });
+
+    expect(renderResult.placeholderCount).toBe(2);
+    expect(renderResult.directSteamImgCount).toBe(0);
+    expect(steamRequests).toHaveLength(0);
+  });
+
+  test('[B35] Mode Hemat Data: Request gambar Steam CDN kembali diizinkan saat mode hemat data dinonaktifkan', async ({ page }) => {
+    const steamRequests = [];
+    page.on('request', (req) => {
+      if (/steamstatic\.com|akamaihd\.net/.test(req.url())) {
+        steamRequests.push(req.url());
+      }
+    });
+
+    await page.goto('/');
+
+    await page.evaluate(() => {
+      window.setDataSaverMode(false);
+      const testWrap = document.createElement('div');
+      testWrap.id = 'data-saver-normal-test';
+      testWrap.innerHTML = window.renderCoverImage(
+        'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/570/header.jpg',
+        'Cover Dota 2',
+        'normal-cover'
+      );
+      document.body.appendChild(testWrap);
+    });
+
+    await expect.poll(() => steamRequests.length).toBeGreaterThan(0);
+  });
+
+  // ==========================================================================
+  // [N01] & [N02] Penanganan Error HTTP Streaming (429 & 500)
+  // ==========================================================================
+  test('[N01] Penanganan error HTTP 429 pada stream otomatis fallback ke POST /api/chat dan menampilkan bubble error rate limit', async ({ page }) => {
+    await mockChatError(page, {
+      status: 429,
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Terlalu banyak permintaan dalam waktu singkat. Mohon tunggu sebentar sebelum mengirim pesan lagi.',
+    });
+
+    await page.goto('/');
+    await page.locator('#user-input').fill('Rekomendasi game santai');
+    await page.locator('#send-btn').click();
+
+    // Verifikasi bubble error bot muncul di layar obrolan
+    const errorBubble = page.locator('.msg.bot.error .bubble');
+    await expect(errorBubble).toBeVisible();
+    await expect(errorBubble).toContainText('Terlalu banyak permintaan dalam waktu singkat');
+
+    // Input dan tombol kirim harus kembali aktif setelah error ditangani
+    const sendBtn = page.locator('#send-btn');
+    await expect(sendBtn).toBeEnabled();
+  });
+
+  test('[N02] Penanganan error HTTP 500 pada stream otomatis fallback ke POST /api/chat dan menampilkan bubble error server', async ({ page }) => {
+    await mockChatError(page, {
+      status: 500,
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Terjadi kesalahan pada server saat memproses streaming rekomendasi.',
+    });
+
+    await page.goto('/');
+    await page.locator('#user-input').fill('Rekomendasi game RPG');
+    await page.locator('#send-btn').click();
+
+    // Verifikasi bubble error bot muncul di layar obrolan
+    const errorBubble = page.locator('.msg.bot.error .bubble');
+    await expect(errorBubble).toBeVisible();
+    await expect(errorBubble).toContainText('Terjadi kesalahan pada server');
+
+    const sendBtn = page.locator('#send-btn');
+    await expect(sendBtn).toBeEnabled();
+  });
+});
