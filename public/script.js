@@ -39,6 +39,13 @@ import {
   migrateFromLegacyStorage,
 } from "./chatHistoryCore.js";
 
+import {
+  resolveDataSaverState,
+  buildCoverImageHtml,
+  DATA_SAVER_STORAGE_KEY,
+  LEGACY_DATA_SAVER_STORAGE_KEY,
+} from "./dataSaverCore.js";
+
 const API_URL = "/api/chat";
 const STORAGE_KEY = "sobatsteam_chat_history";
 const LEGACY_STORAGE_KEY = "steamscout_chat_history";
@@ -323,6 +330,7 @@ const els = {
   newSessionBtn: $("#new-session-btn"),
   sessionsList: $("#sessions-list"),
   sessionsBtn: $("#sessions-btn"),
+  dataSaverBtn: $("#data-saver-btn"),
   sessionsPanel: $("#sessions-panel"),
   sessionsBackdrop: $("#sessions-backdrop"),
   sessionsCloseBtn: $("#sessions-close-btn"),
@@ -2578,50 +2586,60 @@ els.messages.addEventListener("click", (e) => {
   updateWishlistUI();
 });
 
-/* REVISI 2: Sinkronisasi wishlist antar-tab (Storage Event) */
+/* REVISI 2: Sinkronisasi state lintas tab (Storage Event) */
 window.addEventListener("storage", (e) => {
-  // Hanya proses jika kunci sobatsteam_wishlist, steamscout_wishlist, atau null (akibat localStorage.clear())
-  if (e.key !== WISHLIST_STORAGE_KEY && e.key !== LEGACY_WISHLIST_STORAGE_KEY && e.key !== null) return;
-
   // PENTING: Hanya MEMBACA dan memperbarui tampilan.
-  // DILARANG menulis ke localStorage atau memanggil fungsi migrasi/deduplikasi di sini!
-  try {
-    const activeEl = document.activeElement;
-    const isFocusInItems = Boolean(activeEl && els.wishlistItems && els.wishlistItems.contains(activeEl));
-    const focusedKey = isFocusInItems && activeEl.dataset ? activeEl.dataset.key : null;
-    let focusedIndex = -1;
-    if (isFocusInItems) {
-      const allBtns = Array.from(els.wishlistItems.querySelectorAll(".btn-item-delete"));
-      focusedIndex = allBtns.indexOf(activeEl);
+  // DILARANG menulis ke localStorage dari dalam handler ini!
+
+  // 1. Sinkronisasi Mode Hemat Data (Data Saver)
+  if (e.key === DATA_SAVER_STORAGE_KEY || e.key === LEGACY_DATA_SAVER_STORAGE_KEY || e.key === null) {
+    try {
+      applyDataSaverMode(isDataSaverActive());
+    } catch (err) {
+      console.warn("Gagal memperbarui UI data saver saat storage event:", err);
     }
+  }
 
-    updateWishlistUI();
-
-    // Pulihkan fokus jika drawer sedang terbuka dan tombol yang sedang fokus hilang (Bagian J)
-    if (isFocusInItems && !els.wishlistPanel.hidden) {
-      const deleteBtns = Array.from(els.wishlistItems.querySelectorAll(".btn-item-delete"));
-      if (focusedKey) {
-        const matchingBtn = els.wishlistItems.querySelector(`.btn-item-delete[data-key="${focusedKey}"]`);
-        if (matchingBtn) {
-          matchingBtn.focus();
-          return;
-        }
+  // 2. Sinkronisasi Wishlist
+  if (e.key === WISHLIST_STORAGE_KEY || e.key === LEGACY_WISHLIST_STORAGE_KEY || e.key === null) {
+    try {
+      const activeEl = document.activeElement;
+      const isFocusInItems = Boolean(activeEl && els.wishlistItems && els.wishlistItems.contains(activeEl));
+      const focusedKey = isFocusInItems && activeEl.dataset ? activeEl.dataset.key : null;
+      let focusedIndex = -1;
+      if (isFocusInItems) {
+        const allBtns = Array.from(els.wishlistItems.querySelectorAll(".btn-item-delete"));
+        focusedIndex = allBtns.indexOf(activeEl);
       }
 
-      if (deleteBtns.length > 0) {
-        const nextIdx = Math.min(Math.max(0, focusedIndex), deleteBtns.length - 1);
-        deleteBtns[nextIdx].focus();
-      } else {
-        const total = getWishlist(globalThis.localStorage).length;
-        if (total > 0 && wishlistSearchInput && !wishlistToolbar.hidden) {
-          wishlistSearchInput.focus();
-        } else if (els.wishlistCloseBtn) {
-          els.wishlistCloseBtn.focus();
+      updateWishlistUI();
+
+      // Pulihkan fokus jika drawer sedang terbuka dan tombol yang sedang fokus hilang (Bagian J)
+      if (isFocusInItems && !els.wishlistPanel.hidden) {
+        const deleteBtns = Array.from(els.wishlistItems.querySelectorAll(".btn-item-delete"));
+        if (focusedKey) {
+          const matchingBtn = els.wishlistItems.querySelector(`.btn-item-delete[data-key="${focusedKey}"]`);
+          if (matchingBtn) {
+            matchingBtn.focus();
+            return;
+          }
+        }
+
+        if (deleteBtns.length > 0) {
+          const nextIdx = Math.min(Math.max(0, focusedIndex), deleteBtns.length - 1);
+          deleteBtns[nextIdx].focus();
+        } else {
+          const total = getWishlist(globalThis.localStorage).length;
+          if (total > 0 && wishlistSearchInput && !wishlistToolbar.hidden) {
+            wishlistSearchInput.focus();
+          } else if (els.wishlistCloseBtn) {
+            els.wishlistCloseBtn.focus();
+          }
         }
       }
+    } catch (err) {
+      console.warn("Gagal memperbarui UI wishlist saat storage event:", err);
     }
-  } catch (err) {
-    console.warn("Gagal memperbarui UI wishlist saat storage event:", err);
   }
 });
 
@@ -2764,12 +2782,53 @@ function switchComparisonMobileTab(tab) {
   });
 }
 
+let activeComparisonData = null;
+
+function isDataSaverActive() {
+  const conn = typeof navigator !== "undefined" ? navigator.connection : null;
+  return resolveDataSaverState(globalThis.localStorage, conn);
+}
+
+function applyDataSaverMode(enabled) {
+  const isEnabled = Boolean(enabled);
+  if (document.body) {
+    document.body.classList.toggle("data-saver-active", isEnabled);
+  }
+  if (els.dataSaverBtn) {
+    els.dataSaverBtn.setAttribute("aria-checked", isEnabled ? "true" : "false");
+    els.dataSaverBtn.classList.toggle("is-active", isEnabled);
+  }
+  if (els.comparisonDialog && !els.comparisonDialog.hidden && activeComparisonData) {
+    renderComparisonContent(activeComparisonData);
+  }
+}
+
+function setDataSaverMode(enabled) {
+  const isEnabled = Boolean(enabled);
+  try {
+    localStorage.setItem(DATA_SAVER_STORAGE_KEY, isEnabled ? "true" : "false");
+  } catch (_) {
+    // Abaikan kegagalan akses storage
+  }
+  applyDataSaverMode(isEnabled);
+  const statusText = isEnabled
+    ? "Mode hemat data diaktifkan (supresi pemuatan gambar)"
+    : "Mode hemat data dinonaktifkan (gambar dimuat normal)";
+  showToast(statusText);
+  announceMessage(statusText);
+}
+
+function renderCoverImage(url, alt, className) {
+  return buildCoverImageHtml(url, alt, className, isDataSaverActive());
+}
+
 function openComparisonDialog() {
   if (selectedComparisonGames.length < 2) return;
   comparisonTriggerElement = document.activeElement;
 
   const [rawA, rawB] = selectedComparisonGames;
   const data = extractComparisonData(rawA, rawB);
+  activeComparisonData = data;
 
   renderComparisonContent(data);
 
@@ -2798,6 +2857,7 @@ function closeComparisonDialog() {
 
   if (els.comparisonBackdrop) els.comparisonBackdrop.hidden = true;
   if (els.comparisonDialog) els.comparisonDialog.hidden = true;
+  activeComparisonData = null;
 
   if (comparisonTriggerElement && typeof comparisonTriggerElement.focus === "function") {
     comparisonTriggerElement.focus({ preventScroll: true });
@@ -2821,13 +2881,13 @@ function renderComparisonContent(data) {
               <th scope="col" class="th-attr">Kriteria</th>
               <th scope="col" id="col-game-a" class="th-game comparison-col-a is-tab-active">
                 <div class="comparison-hero">
-                  ${data.gameA.headerImage ? `<img src="${escapeHtml(data.gameA.headerImage)}" alt="Cover ${escapeHtml(data.gameA.title)}" class="comparison-hero-img" loading="lazy" onerror="this.onerror=null;this.src='/icon.svg';">` : ""}
+                  ${renderCoverImage(data.gameA.headerImage, "Cover " + (data.gameA.title || ""), "comparison-hero-img")}
                   <h3 class="comparison-hero-title">${escapeHtml(data.gameA.title)}</h3>
                 </div>
               </th>
               <th scope="col" id="col-game-b" class="th-game comparison-col-b">
                 <div class="comparison-hero">
-                  ${data.gameB.headerImage ? `<img src="${escapeHtml(data.gameB.headerImage)}" alt="Cover ${escapeHtml(data.gameB.title)}" class="comparison-hero-img" loading="lazy" onerror="this.onerror=null;this.src='/icon.svg';">` : ""}
+                  ${renderCoverImage(data.gameB.headerImage, "Cover " + (data.gameB.title || ""), "comparison-hero-img")}
                   <h3 class="comparison-hero-title">${escapeHtml(data.gameB.title)}</h3>
                 </div>
               </th>
@@ -3105,6 +3165,27 @@ loadPreferencesFromStorage();
 updateFilterUI();
 setToolbarCollapsed(isToolbarCollapsed);
 
+// Inisialisasi Mode Hemat Data (Data Saver)
+applyDataSaverMode(isDataSaverActive());
+
+if (els.dataSaverBtn) {
+  els.dataSaverBtn.addEventListener("click", () => {
+    setDataSaverMode(!isDataSaverActive());
+  });
+}
+
+// Dengarkan perubahan koneksi jika preferensi manual belum pernah diset
+if (typeof navigator !== "undefined" && navigator.connection && typeof navigator.connection.addEventListener === "function") {
+  navigator.connection.addEventListener("change", () => {
+    try {
+      const manual = localStorage.getItem("sobatsteam_data_saver") ?? localStorage.getItem("steamscout_data_saver");
+      if (manual === null) {
+        applyDataSaverMode(Boolean(navigator.connection.saveData));
+      }
+    } catch (_) {}
+  });
+}
+
 // Memuat riwayat multi-sesi via IndexedDB (Modul P4)
 initChatSessions();
 
@@ -3128,8 +3209,8 @@ document.addEventListener(
     const target = e.target;
     if (target && target.tagName === "IMG") {
       const src = target.src || "";
-      // Cegah perulangan jika placeholder lokal pun mengalami kegagalan
-      if (src.endsWith("/icon.svg") || src.endsWith("icon.svg")) {
+      // Cegah perulangan jika placeholder lokal pun mengalami kegagalan atau fallback sudah diterapkan
+      if (target.dataset.fallbackApplied === "true" || src.endsWith("/icon.svg") || src.endsWith("icon.svg")) {
         const banner = target.closest(".game-card-banner");
         if (banner) {
           banner.style.display = "none";
@@ -3152,7 +3233,8 @@ document.addEventListener(
         return;
       }
 
-      // Jika seluruh CDN gagal, alihkan ke placeholder SVG lokal
+      // Jika seluruh CDN gagal, tandai fallback dan alihkan ke placeholder SVG lokal
+      target.dataset.fallbackApplied = "true";
       target.src = "/icon.svg";
     }
   },
@@ -3168,4 +3250,11 @@ if ("serviceWorker" in navigator) {
         console.warn("Registrasi Service Worker gagal:", err);
       });
   });
+}
+
+/* Ekspor ke window untuk pengujian otomatis dan modul verifikasi */
+if (typeof window !== "undefined") {
+  window.isDataSaverActive = isDataSaverActive;
+  window.setDataSaverMode = setDataSaverMode;
+  window.renderCoverImage = renderCoverImage;
 }

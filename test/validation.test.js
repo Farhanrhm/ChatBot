@@ -1830,11 +1830,42 @@ test('PWA (Modul P3): berkas sw.js menerapkan caching UI dan Network-Only untuk 
   assert.ok(fs.existsSync(swPath), 'sw.js harus ada di folder public');
 
   const content = fs.readFileSync(swPath, 'utf8');
-  assert.ok(content.includes('sobatsteam-shell-v1'), 'Harus mendefinisikan CACHE_NAME');
+  assert.ok(/sobatsteam-shell-v\d+/.test(content), 'Harus mendefinisikan CACHE_NAME');
   assert.ok(content.includes('url.pathname.startsWith("/api/")'), 'Harus strict Network-Only untuk endpoint API');
   assert.ok(content.includes('caches.match'), 'Harus menerapkan Cache matching');
   assert.ok(content.includes('!event.request.url.startsWith("http://")'), 'Harus mengabaikan skema non-HTTP seperti chrome-extension');
   assert.ok(content.includes('new Response'), 'Harus memiliki fallback Response terdefinisi');
+});
+
+test('PWA (Modul P3): seluruh modul lokal yang diimpor oleh script.js terdaftar di PRECACHE_ASSETS sw.js', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const scriptPath = path.resolve('public/script.js');
+  const swPath = path.resolve('public/sw.js');
+
+  const scriptContent = fs.readFileSync(scriptPath, 'utf8');
+  const swContent = fs.readFileSync(swPath, 'utf8');
+
+  // Ambil seluruh path import lokal (diawali ./)
+  const localImports = Array.from(scriptContent.matchAll(/from\s+["'](\.\/[^"']+)["']/g)).map(
+    (m) => m[1]
+  );
+  assert.ok(localImports.length > 0, 'script.js harus memiliki modul impor lokal');
+
+  // Ekstrak daftar PRECACHE_ASSETS dari sw.js
+  const precacheMatch = swContent.match(/PRECACHE_ASSETS\s*=\s*\[([\s\S]*?)\];/);
+  assert.ok(precacheMatch, 'PRECACHE_ASSETS array harus ada di sw.js');
+  const precachedFiles = Array.from(precacheMatch[1].matchAll(/["']([^"']+)["']/g)).map((m) => m[1]);
+
+  // Pastikan tiap berkas impor lokal ada di PRECACHE_ASSETS
+  for (const importPath of localImports) {
+    const expectedPrecachePath = importPath.replace(/^\./, '');
+    assert.ok(
+      precachedFiles.includes(expectedPrecachePath),
+      `Modul lokal '${expectedPrecachePath}' yang diimpor di script.js wajib ada di PRECACHE_ASSETS sw.js`
+    );
+  }
 });
 
 test('chatHistoryCore (Modul P4): sanitizeSessionTitle merapikan spasi dan memotong panjang string dengan aman', async () => {
@@ -1979,6 +2010,67 @@ test('chatHistoryCore (Modul P4): saveSession mendukung pengubahan nama (rename)
   assert.ok(updated);
   assert.equal(updated.title, 'Koleksi Game RPG Petualangan');
 });
+
+test('dataSaverCore: prioritas eksplisit localStorage selalu menang atas navigator.connection.saveData', async () => {
+  const { resolveDataSaverState, DATA_SAVER_STORAGE_KEY } = await import('../public/dataSaverCore.js');
+
+  const createMockStorage = (store = {}) => ({
+    getItem: (key) => (Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null),
+    setItem: (key, val) => { store[key] = String(val); },
+  });
+
+  // Kasus 1: localStorage 'true' menang atas connection.saveData: false
+  const storage1 = createMockStorage({ [DATA_SAVER_STORAGE_KEY]: 'true' });
+  assert.equal(resolveDataSaverState(storage1, { saveData: false }), true);
+
+  // Kasus 2: localStorage 'false' menang atas connection.saveData: true
+  const storage2 = createMockStorage({ [DATA_SAVER_STORAGE_KEY]: 'false' });
+  assert.equal(resolveDataSaverState(storage2, { saveData: true }), false);
+
+  // Kasus 3: localStorage null/belum diset -> gunakan connection.saveData
+  const storage3 = createMockStorage();
+  assert.equal(resolveDataSaverState(storage3, { saveData: true }), true);
+  assert.equal(resolveDataSaverState(storage3, { saveData: false }), false);
+
+  // Kasus 4: storage null dan connection undefined/null -> fallback false
+  assert.equal(resolveDataSaverState(null, null), false);
+  assert.equal(resolveDataSaverState(storage3, undefined), false);
+
+  // Kasus 5: Kompatibilitas mundur dengan kunci lama 'steamscout_data_saver'
+  const legacyStorage = createMockStorage({ steamscout_data_saver: 'true' });
+  assert.equal(resolveDataSaverState(legacyStorage, { saveData: false }), true);
+});
+
+test('dataSaverCore: buildCoverImageHtml melakukan supresi gambar Steam saat mode hemat data aktif', async () => {
+  const { buildCoverImageHtml } = await import('../public/dataSaverCore.js');
+
+  const steamCdnUrl = 'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/105600/header.jpg';
+
+  // 1. Saat data saver aktif: TIDAK ADA tag img yang memuat URL Steam
+  const activeHtml = buildCoverImageHtml(steamCdnUrl, 'Cover Terraria', 'test-cover', true);
+  assert.ok(!activeHtml.includes(steamCdnUrl), 'URL Steam CDN tidak boleh muncul pada HTML saat mode hemat data aktif');
+  assert.ok(activeHtml.includes('cover-placeholder'), 'Harus menyertakan kelas cover-placeholder');
+  assert.ok(activeHtml.includes('/placeholder-game.svg'), 'Harus menyertakan SVG placeholder lokal');
+  assert.ok(activeHtml.includes('aria-label="Cover Terraria"'), 'Harus menjaga label aksesibilitas');
+
+  // 2. Saat data saver nonaktif: memuat URL Steam dengan aman (bebas inline event handler agar patuh CSP)
+  const normalHtml = buildCoverImageHtml(steamCdnUrl, 'Cover Terraria', 'test-cover', false);
+  assert.ok(normalHtml.includes(`src="${steamCdnUrl}"`), 'Harus menyertakan URL gambar');
+  assert.ok(normalHtml.includes('class="test-cover"'), 'Harus menyertakan kelas');
+  assert.ok(normalHtml.includes('loading="lazy"'), 'Harus menyertakan loading lazy');
+  assert.ok(!/\son\w+\s*=/i.test(normalHtml), 'Dilarang memuat atribut inline event handler (patuh CSP script-src self)');
+
+  // 3. Saat URL kosong/null meski data saver nonaktif: tetap gunakan placeholder
+  const emptyUrlHtml = buildCoverImageHtml(null, 'Game Tanpa Gambar', 'empty-cover', false);
+  assert.ok(emptyUrlHtml.includes('cover-placeholder'));
+  assert.ok(emptyUrlHtml.includes('/placeholder-game.svg'));
+
+  // 4. Sanitasi HTML XSS pada parameter teks
+  const xssHtml = buildCoverImageHtml(steamCdnUrl, '<script>alert(1)</script>', '"><b', false);
+  assert.ok(!xssHtml.includes('<script>'));
+  assert.ok(xssHtml.includes('&lt;script&gt;'));
+});
+
 
 
 

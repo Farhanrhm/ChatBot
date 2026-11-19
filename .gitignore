@@ -18,6 +18,8 @@ lerna-debug.log*
 # OS temporary files
 .DS_Store
 Thumbs.db
+desktop.ini
+*.tmp
 __MACOSX/
 anti-slop
 .vercel
@@ -38,6 +40,13 @@ AGENTS.md
 eval/results/*
 !eval/results/.gitkeep
 
-# Temporary testing scripts and screenshot artifacts
+# Temporary testing scripts and scratch artifacts
 scratch/
-scripts/screenshots/
+
+# Playwright & Coverage
+test-results/
+playwright-report/
+blob-report/
+/playwright/.cache/
+/playwright/.auth/
+coverage/

@@ -1,14 +1,17 @@
-const CACHE_NAME = "sobatsteam-shell-v1";
+const CACHE_NAME = "sobatsteam-shell-v2";
 
 const PRECACHE_ASSETS = [
   "/",
   "/index.html",
   "/style.css",
   "/script.js",
+  "/chatHistoryCore.js",
   "/wishlistCore.js",
   "/comparisonCore.js",
+  "/dataSaverCore.js",
   "/manifest.json",
   "/icon.svg",
+  "/placeholder-game.svg",
 ];
 
 self.addEventListener("install", (event) => {

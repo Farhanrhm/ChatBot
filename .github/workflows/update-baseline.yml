@@ -1,0 +1,49 @@
+# PANDUAN PENGGUNAAN:
+# Workflow ini HANYA boleh dijalankan setelah mendapatkan persetujuan eksplisit.
+# Menjalankan pembaruan snapshot visual Playwright (--update-snapshots) di lingkungan
+# Ubuntu CI dan mengunggah hasil baseline PNG baru sebagai artefak unduhan.
+# Artefak harus ditinjau secara manual sebelum diperbarui ke repositori.
+
+name: Update Visual Regression Baselines (Playwright)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Alasan pembaruan baseline visual Playwright'
+        required: true
+        default: 'Pembaruan UI atau spesifikasi tata letak yang disetujui'
+
+jobs:
+  update-baselines:
+    name: Update Playwright Baselines
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium chrome
+
+      - name: Update visual snapshots
+        run: npx playwright test layout-visual --update-snapshots
+
+      - name: Upload updated visual snapshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: updated-playwright-baselines
+          path: test/e2e/__screenshots__/
+          retention-days: 7
+          if-no-files-found: error

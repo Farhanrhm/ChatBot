@@ -57,8 +57,37 @@ Pengguna menyampaikan kriteria atau preferensi game yang dicari melalui kolom pe
 - **Penyimpanan Klien**: IndexedDB (multi-sesi chat) dan LocalStorage (wishlist & preferensi)
 - **Frontend**: Vanilla HTML5, Vanilla CSS3, dan Vanilla JavaScript modern (tanpa framework, tanpa build step)
 - **Keamanan & Utilitas**: Helmet, Express Rate Limit, Dotenv
-- **Pengujian**: Node.js Test Runner bawaan (`node:test`, `node:assert`), Puppeteer Core (`puppeteer-core`)
-- **CI/CD**: GitHub Actions
+- **Pengujian**: Node.js Test Runner bawaan (`node:test`, `node:assert`) untuk 153 unit test, Playwright Test Suite (`@playwright/test`) untuk 79 skenario E2E (layout, regresi visual snapshot Playwright, alur chat streaming SSE, wishlist, dan komparasi), serta `@axe-core/playwright` untuk audit aksesibilitas otomatis
+- **CI/CD**: GitHub Actions (terbagi atas job terpisah: unit test dan E2E test)
+
+---
+
+## Perintah Pengujian
+
+SobatSteam dilengkapi dengan rangkaian pengujian komprehensif (153 unit test dan 79 tes E2E Playwright):
+
+```bash
+# Menjalankan seluruh pengujian (Unit + E2E)
+npm run test:all
+
+# Menjalankan unit test saja (153 tes)
+npm run test:unit
+# atau alias:
+npm test
+
+# Menjalankan pengujian E2E Playwright saja (79 tes)
+npm run test:e2e
+
+# Membuka laporan pengujian interaktif & jejak Playwright
+npx playwright show-report
+```
+
+### Aturan & Standar Pengujian E2E Playwright:
+1. **Isolasi Jaringan Penuh (Hermetik)**: Seluruh tes wajib menggunakan `installNetworkGuards`. Request ke Steam CDN disajikan lewat fixture gambar lokal dan font disajikan dari `test/e2e/fixtures/fonts/`.
+2. **Tanpa Jeda Waktu Arbitrer**: Dilarang menggunakan `waitForTimeout`. Seluruh penantian DOM berbasis web-first assertions atau `page.clock`.
+3. **Tes Independen**: Setiap tes berdiri sendiri dalam halaman/konteks baru tanpa bergantung pada riwayat tes lain.
+4. **Proteksi Baseline Visual**: File PNG baseline di `test/e2e/__screenshots__/` dilarang diperbarui otomatis (`--update-snapshots`) tanpa persetujuan eksplisit.
+5. **Browser Channel Khusus Visual**: Spesifikasi regresi visual dijalankan pada Google Chrome asli (`channel: 'chrome'`) untuk presisi antialiasing font dan perbandingan snapshot visual.
 
 ---
 
