@@ -472,4 +472,51 @@ test.describe('Chat Flow & Perilaku SobatSteam', () => {
     const sendBtn = page.locator('#send-btn');
     await expect(sendBtn).toBeEnabled();
   });
+
+  // ==========================================================================
+  // [C01] Fallback Gambar Cover & Kepatuhan Header CSP
+  // ==========================================================================
+  test('[C01] Fallback cover image beralih ke /icon.svg saat gagal memuat dan bebas pelanggaran CSP', async ({ page }) => {
+    const cspErrors = [];
+    page.on('console', (msg) => {
+      const text = msg.text();
+      if (/content security policy/i.test(text)) {
+        cspErrors.push(text);
+      }
+    });
+
+    // Gagalkan request gambar cover CDN Steam agar memicu error event
+    await page.route('**/*steamstatic.com/**', (route) => route.abort());
+    await page.route('**/*akamaihd.net/**', (route) => route.abort());
+
+    await page.goto('/');
+
+    await page.evaluate(() => {
+      window.setDataSaverMode(false);
+      const testWrap = document.createElement('div');
+      testWrap.id = 'cover-fallback-test';
+      testWrap.innerHTML = window.renderCoverImage(
+        'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/105600/header.jpg',
+        'Cover Terraria',
+        'fallback-test-img'
+      );
+      document.body.appendChild(testWrap);
+    });
+
+    const img = page.locator('#cover-fallback-test img');
+    await expect(img).toBeVisible();
+
+    // Verifikasi bahwa src gambar beralih ke fallback /icon.svg
+    await expect.poll(async () => {
+      return await img.getAttribute('src');
+    }).toContain('/icon.svg');
+
+    // Verifikasi guard anti-loop dataset.fallbackApplied telah terpasang
+    await expect.poll(async () => {
+      return await img.getAttribute('data-fallback-applied');
+    }).toBe('true');
+
+    // Verifikasi tidak ada pesan console yang memuat Content Security Policy
+    expect(cspErrors).toHaveLength(0);
+  });
 });

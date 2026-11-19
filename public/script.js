@@ -3198,8 +3198,8 @@ document.addEventListener(
     const target = e.target;
     if (target && target.tagName === "IMG") {
       const src = target.src || "";
-      // Cegah perulangan jika placeholder lokal pun mengalami kegagalan
-      if (src.endsWith("/icon.svg") || src.endsWith("icon.svg")) {
+      // Cegah perulangan jika placeholder lokal pun mengalami kegagalan atau fallback sudah diterapkan
+      if (target.dataset.fallbackApplied === "true" || src.endsWith("/icon.svg") || src.endsWith("icon.svg")) {
         const banner = target.closest(".game-card-banner");
         if (banner) {
           banner.style.display = "none";
@@ -3222,7 +3222,8 @@ document.addEventListener(
         return;
       }
 
-      // Jika seluruh CDN gagal, alihkan ke placeholder SVG lokal
+      // Jika seluruh CDN gagal, tandai fallback dan alihkan ke placeholder SVG lokal
+      target.dataset.fallbackApplied = "true";
       target.src = "/icon.svg";
     }
   },

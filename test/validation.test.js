@@ -2053,12 +2053,12 @@ test('dataSaverCore: buildCoverImageHtml melakukan supresi gambar Steam saat mod
   assert.ok(activeHtml.includes('/placeholder-game.svg'), 'Harus menyertakan SVG placeholder lokal');
   assert.ok(activeHtml.includes('aria-label="Cover Terraria"'), 'Harus menjaga label aksesibilitas');
 
-  // 2. Saat data saver nonaktif: memuat URL Steam dengan aman
+  // 2. Saat data saver nonaktif: memuat URL Steam dengan aman (bebas inline event handler agar patuh CSP)
   const normalHtml = buildCoverImageHtml(steamCdnUrl, 'Cover Terraria', 'test-cover', false);
   assert.ok(normalHtml.includes(`src="${steamCdnUrl}"`), 'Harus menyertakan URL gambar');
   assert.ok(normalHtml.includes('class="test-cover"'), 'Harus menyertakan kelas');
   assert.ok(normalHtml.includes('loading="lazy"'), 'Harus menyertakan loading lazy');
-  assert.ok(normalHtml.includes('onerror='), 'Harus memiliki fallback onerror');
+  assert.ok(!/\son\w+\s*=/i.test(normalHtml), 'Dilarang memuat atribut inline event handler (patuh CSP script-src self)');
 
   // 3. Saat URL kosong/null meski data saver nonaktif: tetap gunakan placeholder
   const emptyUrlHtml = buildCoverImageHtml(null, 'Game Tanpa Gambar', 'empty-cover', false);

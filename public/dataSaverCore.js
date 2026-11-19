@@ -56,7 +56,7 @@ export function buildCoverImageHtml(url, alt = "Cover game", className = "", isD
     return `<div class="cover-placeholder ${safeClass}" role="img" aria-label="${safeAlt}">\n  <img src="/placeholder-game.svg" alt="" width="48" height="48" aria-hidden="true">\n</div>`;
   }
 
-  return `<img src="${escapeHtml(url)}" alt="${safeAlt}" class="${safeClass}" loading="lazy" onerror="this.onerror=null;this.src='/icon.svg';">`;
+  return `<img src="${escapeHtml(url)}" alt="${safeAlt}" class="${safeClass}" loading="lazy">`;
 }
 
 function escapeHtml(str) {
