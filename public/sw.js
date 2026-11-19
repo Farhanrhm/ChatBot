@@ -1,10 +1,11 @@
-const CACHE_NAME = "sobatsteam-shell-v1";
+const CACHE_NAME = "sobatsteam-shell-v2";
 
 const PRECACHE_ASSETS = [
   "/",
   "/index.html",
   "/style.css",
   "/script.js",
+  "/chatHistoryCore.js",
   "/wishlistCore.js",
   "/comparisonCore.js",
   "/dataSaverCore.js",

@@ -1830,11 +1830,42 @@ test('PWA (Modul P3): berkas sw.js menerapkan caching UI dan Network-Only untuk 
   assert.ok(fs.existsSync(swPath), 'sw.js harus ada di folder public');
 
   const content = fs.readFileSync(swPath, 'utf8');
-  assert.ok(content.includes('sobatsteam-shell-v1'), 'Harus mendefinisikan CACHE_NAME');
+  assert.ok(/sobatsteam-shell-v\d+/.test(content), 'Harus mendefinisikan CACHE_NAME');
   assert.ok(content.includes('url.pathname.startsWith("/api/")'), 'Harus strict Network-Only untuk endpoint API');
   assert.ok(content.includes('caches.match'), 'Harus menerapkan Cache matching');
   assert.ok(content.includes('!event.request.url.startsWith("http://")'), 'Harus mengabaikan skema non-HTTP seperti chrome-extension');
   assert.ok(content.includes('new Response'), 'Harus memiliki fallback Response terdefinisi');
+});
+
+test('PWA (Modul P3): seluruh modul lokal yang diimpor oleh script.js terdaftar di PRECACHE_ASSETS sw.js', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const scriptPath = path.resolve('public/script.js');
+  const swPath = path.resolve('public/sw.js');
+
+  const scriptContent = fs.readFileSync(scriptPath, 'utf8');
+  const swContent = fs.readFileSync(swPath, 'utf8');
+
+  // Ambil seluruh path import lokal (diawali ./)
+  const localImports = Array.from(scriptContent.matchAll(/from\s+["'](\.\/[^"']+)["']/g)).map(
+    (m) => m[1]
+  );
+  assert.ok(localImports.length > 0, 'script.js harus memiliki modul impor lokal');
+
+  // Ekstrak daftar PRECACHE_ASSETS dari sw.js
+  const precacheMatch = swContent.match(/PRECACHE_ASSETS\s*=\s*\[([\s\S]*?)\];/);
+  assert.ok(precacheMatch, 'PRECACHE_ASSETS array harus ada di sw.js');
+  const precachedFiles = Array.from(precacheMatch[1].matchAll(/["']([^"']+)["']/g)).map((m) => m[1]);
+
+  // Pastikan tiap berkas impor lokal ada di PRECACHE_ASSETS
+  for (const importPath of localImports) {
+    const expectedPrecachePath = importPath.replace(/^\./, '');
+    assert.ok(
+      precachedFiles.includes(expectedPrecachePath),
+      `Modul lokal '${expectedPrecachePath}' yang diimpor di script.js wajib ada di PRECACHE_ASSETS sw.js`
+    );
+  }
 });
 
 test('chatHistoryCore (Modul P4): sanitizeSessionTitle merapikan spasi dan memotong panjang string dengan aman', async () => {
