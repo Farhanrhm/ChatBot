@@ -1,4 +1,4 @@
-const CACHE_NAME = "sobatsteam-shell-v2";
+const CACHE_NAME = "sobatsteam-shell-v3";
 
 const PRECACHE_ASSETS = [
   "/",

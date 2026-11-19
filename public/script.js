@@ -327,6 +327,9 @@ const els = {
   comparisonTabBLabel: $("#comparison-tab-b-label"),
   comparisonContent: $("#comparison-content"),
   sessionsSidebar: $(".sessions-sidebar"),
+  sessionsSidebarEmpty: $("#sessions-sidebar-empty"),
+  sessionsSidebarError: $("#sessions-sidebar-error"),
+  sessionsRetryBtn: $("#sessions-retry-btn"),
   newSessionBtn: $("#new-session-btn"),
   sessionsList: $("#sessions-list"),
   sessionsBtn: $("#sessions-btn"),
@@ -479,6 +482,8 @@ function clearHistoryStorage() {
 
 /* Manajemen Sesi Obrolan Multi-Sesi IndexedDB (Modul P4) */
 async function renderSessionsList() {
+  if (els.sessionsSidebarError) els.sessionsSidebarError.hidden = true;
+
   try {
     const rawSessions = await getAllSessions();
     // Hanya tampilkan sesi yang memiliki riwayat percakapan (tidak kosong)
@@ -497,10 +502,12 @@ async function renderSessionsList() {
 
       if (sessions.length === 0) {
         if (isDrawer && els.sessionsEmpty) els.sessionsEmpty.hidden = false;
+        if (!isDrawer && els.sessionsSidebarEmpty) els.sessionsSidebarEmpty.hidden = false;
         return;
       }
 
       if (isDrawer && els.sessionsEmpty) els.sessionsEmpty.hidden = true;
+      if (!isDrawer && els.sessionsSidebarEmpty) els.sessionsSidebarEmpty.hidden = true;
 
       sessions.forEach((sess) => {
         const li = document.createElement("li");
@@ -561,6 +568,8 @@ async function renderSessionsList() {
     });
   } catch (err) {
     console.warn("Gagal merender daftar sesi:", err);
+    if (els.sessionsSidebarEmpty) els.sessionsSidebarEmpty.hidden = true;
+    if (els.sessionsSidebarError) els.sessionsSidebarError.hidden = false;
   }
 }
 
@@ -783,6 +792,8 @@ async function initChatSessions() {
     }
   } catch (err) {
     console.warn("Gagal inisialisasi sesi obrolan IndexedDB:", err);
+    if (els.sessionsSidebarEmpty) els.sessionsSidebarEmpty.hidden = true;
+    if (els.sessionsSidebarError) els.sessionsSidebarError.hidden = false;
     history = loadHistoryFromStorage();
     if (history.length > 0) {
       setWelcomeVisible(false);
@@ -3107,6 +3118,12 @@ if (els.sessionsBackdrop) {
 
 if (els.newSessionBtn) {
   els.newSessionBtn.addEventListener("click", handleNewSession);
+}
+
+if (els.sessionsRetryBtn) {
+  els.sessionsRetryBtn.addEventListener("click", () => {
+    renderSessionsList();
+  });
 }
 
 if (els.drawerNewSessionBtn) {
