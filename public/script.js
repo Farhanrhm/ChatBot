@@ -43,6 +43,7 @@ import {
   resolveDataSaverState,
   buildCoverImageHtml,
   DATA_SAVER_STORAGE_KEY,
+  LEGACY_DATA_SAVER_STORAGE_KEY,
 } from "./dataSaverCore.js";
 
 const API_URL = "/api/chat";
@@ -2585,50 +2586,60 @@ els.messages.addEventListener("click", (e) => {
   updateWishlistUI();
 });
 
-/* REVISI 2: Sinkronisasi wishlist antar-tab (Storage Event) */
+/* REVISI 2: Sinkronisasi state lintas tab (Storage Event) */
 window.addEventListener("storage", (e) => {
-  // Hanya proses jika kunci sobatsteam_wishlist, steamscout_wishlist, atau null (akibat localStorage.clear())
-  if (e.key !== WISHLIST_STORAGE_KEY && e.key !== LEGACY_WISHLIST_STORAGE_KEY && e.key !== null) return;
-
   // PENTING: Hanya MEMBACA dan memperbarui tampilan.
-  // DILARANG menulis ke localStorage atau memanggil fungsi migrasi/deduplikasi di sini!
-  try {
-    const activeEl = document.activeElement;
-    const isFocusInItems = Boolean(activeEl && els.wishlistItems && els.wishlistItems.contains(activeEl));
-    const focusedKey = isFocusInItems && activeEl.dataset ? activeEl.dataset.key : null;
-    let focusedIndex = -1;
-    if (isFocusInItems) {
-      const allBtns = Array.from(els.wishlistItems.querySelectorAll(".btn-item-delete"));
-      focusedIndex = allBtns.indexOf(activeEl);
+  // DILARANG menulis ke localStorage dari dalam handler ini!
+
+  // 1. Sinkronisasi Mode Hemat Data (Data Saver)
+  if (e.key === DATA_SAVER_STORAGE_KEY || e.key === LEGACY_DATA_SAVER_STORAGE_KEY || e.key === null) {
+    try {
+      applyDataSaverMode(isDataSaverActive());
+    } catch (err) {
+      console.warn("Gagal memperbarui UI data saver saat storage event:", err);
     }
+  }
 
-    updateWishlistUI();
-
-    // Pulihkan fokus jika drawer sedang terbuka dan tombol yang sedang fokus hilang (Bagian J)
-    if (isFocusInItems && !els.wishlistPanel.hidden) {
-      const deleteBtns = Array.from(els.wishlistItems.querySelectorAll(".btn-item-delete"));
-      if (focusedKey) {
-        const matchingBtn = els.wishlistItems.querySelector(`.btn-item-delete[data-key="${focusedKey}"]`);
-        if (matchingBtn) {
-          matchingBtn.focus();
-          return;
-        }
+  // 2. Sinkronisasi Wishlist
+  if (e.key === WISHLIST_STORAGE_KEY || e.key === LEGACY_WISHLIST_STORAGE_KEY || e.key === null) {
+    try {
+      const activeEl = document.activeElement;
+      const isFocusInItems = Boolean(activeEl && els.wishlistItems && els.wishlistItems.contains(activeEl));
+      const focusedKey = isFocusInItems && activeEl.dataset ? activeEl.dataset.key : null;
+      let focusedIndex = -1;
+      if (isFocusInItems) {
+        const allBtns = Array.from(els.wishlistItems.querySelectorAll(".btn-item-delete"));
+        focusedIndex = allBtns.indexOf(activeEl);
       }
 
-      if (deleteBtns.length > 0) {
-        const nextIdx = Math.min(Math.max(0, focusedIndex), deleteBtns.length - 1);
-        deleteBtns[nextIdx].focus();
-      } else {
-        const total = getWishlist(globalThis.localStorage).length;
-        if (total > 0 && wishlistSearchInput && !wishlistToolbar.hidden) {
-          wishlistSearchInput.focus();
-        } else if (els.wishlistCloseBtn) {
-          els.wishlistCloseBtn.focus();
+      updateWishlistUI();
+
+      // Pulihkan fokus jika drawer sedang terbuka dan tombol yang sedang fokus hilang (Bagian J)
+      if (isFocusInItems && !els.wishlistPanel.hidden) {
+        const deleteBtns = Array.from(els.wishlistItems.querySelectorAll(".btn-item-delete"));
+        if (focusedKey) {
+          const matchingBtn = els.wishlistItems.querySelector(`.btn-item-delete[data-key="${focusedKey}"]`);
+          if (matchingBtn) {
+            matchingBtn.focus();
+            return;
+          }
+        }
+
+        if (deleteBtns.length > 0) {
+          const nextIdx = Math.min(Math.max(0, focusedIndex), deleteBtns.length - 1);
+          deleteBtns[nextIdx].focus();
+        } else {
+          const total = getWishlist(globalThis.localStorage).length;
+          if (total > 0 && wishlistSearchInput && !wishlistToolbar.hidden) {
+            wishlistSearchInput.focus();
+          } else if (els.wishlistCloseBtn) {
+            els.wishlistCloseBtn.focus();
+          }
         }
       }
+    } catch (err) {
+      console.warn("Gagal memperbarui UI wishlist saat storage event:", err);
     }
-  } catch (err) {
-    console.warn("Gagal memperbarui UI wishlist saat storage event:", err);
   }
 });
 

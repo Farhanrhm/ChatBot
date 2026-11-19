@@ -519,4 +519,46 @@ test.describe('Chat Flow & Perilaku SobatSteam', () => {
     // Verifikasi tidak ada pesan console yang memuat Content Security Policy
     expect(cspErrors).toHaveLength(0);
   });
+
+  // ==========================================================================
+  // [C02] Sinkronisasi Multi-Tab Mode Hemat Data (Data Saver)
+  // ==========================================================================
+  test('[C02] Sinkronisasi multi-tab: toggle Mode Hemat Data di Tab 1 otomatis memperbarui tombol dan kelas di Tab 2 secara dua arah', async ({ context }) => {
+    const page1 = await context.newPage();
+    const page2 = await context.newPage();
+
+    await installNetworkGuards(page1);
+    await installNetworkGuards(page2);
+
+    await page1.goto('/');
+    await page2.goto('/');
+
+    const btn1 = page1.locator('#data-saver-btn');
+    const btn2 = page2.locator('#data-saver-btn');
+
+    // Kondisi awal di kedua tab: data saver nonaktif
+    await expect(page1.locator('body')).not.toHaveClass(/data-saver-active/);
+    await expect(page2.locator('body')).not.toHaveClass(/data-saver-active/);
+    await expect(btn1).toHaveAttribute('aria-checked', 'false');
+    await expect(btn2).toHaveAttribute('aria-checked', 'false');
+
+    // 1. Arah 1: Aktifkan data saver di Tab 1 -> Tab 2 harus otomatis aktif tanpa reload
+    await btn1.click();
+    await expect(page1.locator('body')).toHaveClass(/data-saver-active/);
+    await expect(btn1).toHaveAttribute('aria-checked', 'true');
+
+    await expect(page2.locator('body')).toHaveClass(/data-saver-active/);
+    await expect(btn2).toHaveAttribute('aria-checked', 'true');
+
+    // 2. Arah 2: Nonaktifkan data saver dari Tab 2 -> Tab 1 harus otomatis nonaktif tanpa reload
+    await btn2.click();
+    await expect(page2.locator('body')).not.toHaveClass(/data-saver-active/);
+    await expect(btn2).toHaveAttribute('aria-checked', 'false');
+
+    await expect(page1.locator('body')).not.toHaveClass(/data-saver-active/);
+    await expect(btn1).toHaveAttribute('aria-checked', 'false');
+
+    await page1.close();
+    await page2.close();
+  });
 });
