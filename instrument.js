@@ -1,9 +1,100 @@
 import 'dotenv/config';
 import * as Sentry from '@sentry/node';
 
-// DSN proyek Sentry SobatSteam
-const DEFAULT_SENTRY_DSN =
-  'https://f842eeddfd9b0cb15f99684410e52c4f@o4512293906153472.ingest.de.sentry.io/4512294027788368';
+const SENSITIVE_HEADER_NAMES = new Set([
+  'authorization',
+  'proxy-authorization',
+  'cookie',
+  'set-cookie',
+  'x-api-key',
+  'x-forwarded-for',
+  'x-real-ip',
+  'x-vercel-forwarded-for',
+  'cf-connecting-ip',
+  'forwarded',
+]);
+
+/**
+ * Menyamarkan fragmen rahasia (kunci Gemini, Bearer token, parameter query key)
+ * dari string pesan atau log sebelum dikirim ke telemetri.
+ *
+ * @param {string} str
+ * @returns {string}
+ */
+export function redactSecretsInText(str) {
+  if (typeof str !== 'string') return str;
+  return str
+    .replace(/AIza[0-9A-Za-z-_]{20,}/g, '[REDACTED_GEMINI_KEY]')
+    .replace(/Bearer\s+[0-9A-Za-z._~+/=-]{10,}/gi, 'Bearer [REDACTED_TOKEN]')
+    .replace(/([?&](?:key|api_key|token)=)[^&\s]+/gi, '$1[REDACTED]');
+}
+
+/**
+ * Membersihkan event Sentry dari data PII (prompt, IP, cookie, header sensitif)
+ * serta fragmen kredensial sebelum dikirim keluar.
+ *
+ * @param {object} event
+ * @returns {object}
+ */
+export function sanitizeSentryEvent(event) {
+  if (!event || typeof event !== 'object') return event;
+
+  if (event.request && typeof event.request === 'object') {
+    delete event.request.data;
+    delete event.request.cookies;
+    delete event.request.query_string;
+
+    if (event.request.headers && typeof event.request.headers === 'object') {
+      for (const key of Object.keys(event.request.headers)) {
+        if (SENSITIVE_HEADER_NAMES.has(key.toLowerCase())) {
+          delete event.request.headers[key];
+        }
+      }
+    }
+  }
+
+  if (event.user && typeof event.user === 'object') {
+    delete event.user.ip_address;
+  }
+
+  if (typeof event.message === 'string') {
+    event.message = redactSecretsInText(event.message);
+  }
+
+  if (Array.isArray(event.exception?.values)) {
+    for (const val of event.exception.values) {
+      if (val && typeof val.value === 'string') {
+        val.value = redactSecretsInText(val.value);
+      }
+    }
+  }
+
+  if (Array.isArray(event.breadcrumbs)) {
+    for (const crumb of event.breadcrumbs) {
+      if (!crumb || typeof crumb !== 'object') continue;
+      if (typeof crumb.message === 'string') {
+        crumb.message = redactSecretsInText(crumb.message);
+      }
+      if (crumb.data && typeof crumb.data === 'object') {
+        for (const [k, v] of Object.entries(crumb.data)) {
+          if (typeof v === 'string') {
+            crumb.data[k] = redactSecretsInText(v);
+          }
+        }
+      }
+    }
+  }
+
+  if (event.extra && typeof event.extra === 'object') {
+    for (const [k, v] of Object.entries(event.extra)) {
+      if (typeof v === 'string') {
+        event.extra[k] = redactSecretsInText(v);
+      }
+    }
+  }
+
+  return event;
+}
 
 /**
  * Membersihkan nilai DSN dari kesalahan umum penulisan variabel lingkungan,
@@ -15,11 +106,9 @@ const DEFAULT_SENTRY_DSN =
 export function sanitizeDsn(raw) {
   if (!raw || typeof raw !== 'string') return '';
   let cleaned = raw.trim();
-  // Tangani kasus pengguna tidak sengaja menyalin nama variabel ke nilainya
   if (cleaned.startsWith('SENTRY_DSN=')) {
     cleaned = cleaned.replace(/^SENTRY_DSN=\s*/, '');
   }
-  // Hapus tanda kutip pembungkus
   cleaned = cleaned.replace(/^['"]|['"]$/g, '').trim();
   return cleaned;
 }
@@ -32,7 +121,6 @@ export function sanitizeDsn(raw) {
  */
 export function isValidDsn(dsn) {
   if (!dsn || typeof dsn !== 'string') return false;
-  // Deteksi placeholder yang belum diganti
   if (dsn.includes('<') || dsn.includes('>') || dsn.includes('https_____')) {
     return false;
   }
@@ -44,49 +132,47 @@ export function isValidDsn(dsn) {
   }
 }
 
-const rawDsn = process.env.SENTRY_DSN || DEFAULT_SENTRY_DSN;
+const rawDsn = process.env.SENTRY_DSN || '';
 const cleanedDsn = sanitizeDsn(rawDsn);
-const activeDsn = isValidDsn(cleanedDsn) ? cleanedDsn : (isValidDsn(DEFAULT_SENTRY_DSN) ? DEFAULT_SENTRY_DSN : '');
+const activeDsn = isValidDsn(cleanedDsn) ? cleanedDsn : '';
+
+const rawSampleRate = process.env.SENTRY_TRACES_SAMPLE_RATE;
+const parsedSampleRate = rawSampleRate !== undefined && rawSampleRate.trim() !== ''
+  ? Number(rawSampleRate)
+  : Number.NaN;
+const tracesSampleRate = Number.isFinite(parsedSampleRate) && parsedSampleRate >= 0 && parsedSampleRate <= 1
+  ? parsedSampleRate
+  : 1.0;
 
 const isTestMode =
   process.env.NODE_ENV === 'test' ||
   process.execArgv.includes('--test') ||
   process.argv.some((arg) => arg.includes('test'));
 
-// Pastikan inisialisasi Sentry hanya berjalan tepat satu kali dan tidak mengganggu unit test lokal
+// Pastikan inisialisasi Sentry hanya berjalan tepat satu kali jika SENTRY_DSN eksplisit valid
 if ((!isTestMode || process.env.ENABLE_TEST_SENTRY === 'true') && activeDsn && !globalThis.__sentry_initialized__) {
   globalThis.__sentry_initialized__ = true;
 
   Sentry.init({
     dsn: activeDsn,
     environment: process.env.NODE_ENV || 'development',
-    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE) || 1.0,
+    tracesSampleRate,
     dataCollection: {
       userInfo: false,
+      cookies: false,
+      httpBodies: [],
+      urlQueryParams: false,
+      genAI: { inputs: false, outputs: false },
+      stackFrameVariables: false,
+      httpHeaders: {
+        request: {
+          deny: Array.from(SENSITIVE_HEADER_NAMES),
+        },
+        response: false,
+      },
     },
     beforeSend(event) {
-      // Hapus header sensitif dari pelaporan
-      if (event.request?.headers) {
-        delete event.request.headers['authorization'];
-        delete event.request.headers['cookie'];
-        delete event.request.headers['x-api-key'];
-      }
-      // Hapus data identitas IP pengguna
-      if (event.user) {
-        delete event.user.ip_address;
-      }
-      // Samarkan kunci API Google Gemini jika tidak sengaja tertulis di pesan error
-      if (event.message) {
-        event.message = event.message.replace(/AIza[0-9A-Za-z-_]{35}/g, '[REDACTED_GEMINI_KEY]');
-      }
-      if (event.exception?.values) {
-        for (const val of event.exception.values) {
-          if (val.value) {
-            val.value = val.value.replace(/AIza[0-9A-Za-z-_]{35}/g, '[REDACTED_GEMINI_KEY]');
-          }
-        }
-      }
-      return event;
+      return sanitizeSentryEvent(event);
     },
   });
 }

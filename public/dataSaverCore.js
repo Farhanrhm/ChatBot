@@ -2,6 +2,8 @@
  * dataSaverCore.js - Logika Inti Mode Hemat Data (Data Saver) untuk SobatSteam.
  */
 
+import { isValidSteamCdnUrl } from "./wishlistCore.js";
+
 export const DATA_SAVER_STORAGE_KEY = "sobatsteam_data_saver";
 export const LEGACY_DATA_SAVER_STORAGE_KEY = "steamscout_data_saver";
 
@@ -51,12 +53,13 @@ export function resolveDataSaverState(storage, connection) {
 export function buildCoverImageHtml(url, alt = "Cover game", className = "", isDataSaverActive = false) {
   const safeAlt = escapeHtml(alt || "Cover game");
   const safeClass = escapeHtml(className || "");
+  const safeUrl = isValidSteamCdnUrl(url) ? url.trim() : "";
 
-  if (isDataSaverActive || !url) {
+  if (isDataSaverActive || !safeUrl) {
     return `<div class="cover-placeholder ${safeClass}" role="img" aria-label="${safeAlt}">\n  <img src="/placeholder-game.svg" alt="" width="48" height="48" aria-hidden="true">\n</div>`;
   }
 
-  return `<img src="${escapeHtml(url)}" alt="${safeAlt}" class="${safeClass}" loading="lazy">`;
+  return `<img src="${escapeHtml(safeUrl)}" alt="${safeAlt}" class="${safeClass}" loading="lazy">`;
 }
 
 function escapeHtml(str) {

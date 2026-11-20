@@ -8,7 +8,14 @@
  * serta standardisasi identitas itemKey selaras dengan wishlistCore.js.
  */
 
-import { getItemKey, normalizeGameTitle } from "./wishlistCore.js";
+import {
+  getItemKey,
+  normalizeGameTitle,
+  isValidSteamStoreUrl,
+  isValidSteamCdnUrl,
+} from "./wishlistCore.js";
+
+export { isValidSteamStoreUrl, isValidSteamCdnUrl };
 
 export const MAX_COMPARISON_ITEMS = 2;
 
@@ -90,7 +97,7 @@ export function sanitizeComparisonGame(raw) {
   const verified = Boolean(item.verified === true && appId !== null);
 
   let storeUrl = "";
-  if (isValidHttpsUrl(item.storeUrl)) {
+  if (isValidSteamStoreUrl(item.storeUrl)) {
     storeUrl = item.storeUrl.trim();
   } else if (appId) {
     storeUrl = `https://store.steampowered.com/app/${appId}/`;
@@ -99,7 +106,7 @@ export function sanitizeComparisonGame(raw) {
   }
 
   let headerImage = null;
-  if (isValidHttpsUrl(item.headerImage)) {
+  if (isValidSteamCdnUrl(item.headerImage)) {
     headerImage = item.headerImage.trim();
   }
 

@@ -114,7 +114,10 @@ export class DailyCapLimiter {
   }
 
   /**
-   * Mengonsumsi kuota menggunakan Upstash Redis pipeline secara atomik.
+   * Mengonsumsi kuota menggunakan Upstash Redis pipeline secara berurutan:
+   * 1. Cek & increment kuota per-IP terlebih dahulu agar satu IP yang sudah diblokir
+   *    tidak dapat membakar kuota global pengguna lain.
+   * 2. Hanya bila kuota IP lolos, increment kuota global.
    *
    * @param {string} ip
    * @returns {Promise<{ allowed: boolean, reason?: string, message?: string }>}
@@ -126,30 +129,31 @@ export class DailyCapLimiter {
       const globalKey = `dailycap:${todayStr}:global`;
       const ipKey = `dailycap:${todayStr}:ip:${cleanIp}`;
 
-      // Operasi atomik: increment global, set TTL 86400s (24 jam), increment IP, set TTL 86400s
-      const pipeline = this.redis.pipeline();
-      pipeline.incr(globalKey);
-      pipeline.expire(globalKey, 86400);
-      pipeline.incr(ipKey);
-      pipeline.expire(ipKey, 86400);
-
-      const results = await pipeline.exec();
-      const globalCount = Number(results[0]) || 0;
-      const ipCount = Number(results[2]) || 0;
-
-      if (globalCount > this.globalCap) {
-        return {
-          allowed: false,
-          reason: 'global',
-          message: 'Batas kuota demo harian aplikasi telah tercapai. Silakan coba lagi besok.',
-        };
-      }
+      const ipPipeline = this.redis.pipeline();
+      ipPipeline.incr(ipKey);
+      ipPipeline.expire(ipKey, 86400);
+      const ipResults = await ipPipeline.exec();
+      const ipCount = Number(ipResults?.[0]) || 0;
 
       if (ipCount > this.ipCap) {
         return {
           allowed: false,
           reason: 'ip',
           message: `Batas kuota demo harian untuk perangkat Anda telah tercapai (maksimal ${this.ipCap} pesan per hari). Silakan coba lagi besok.`,
+        };
+      }
+
+      const globalPipeline = this.redis.pipeline();
+      globalPipeline.incr(globalKey);
+      globalPipeline.expire(globalKey, 86400);
+      const globalResults = await globalPipeline.exec();
+      const globalCount = Number(globalResults?.[0]) || 0;
+
+      if (globalCount > this.globalCap) {
+        return {
+          allowed: false,
+          reason: 'global',
+          message: 'Batas kuota demo harian aplikasi telah tercapai. Silakan coba lagi besok.',
         };
       }
 
@@ -211,6 +215,20 @@ export class DailyCapLimiter {
         next();
       } catch (err) {
         console.error('[DailyCapLimiter Middleware Error]', err?.message || err);
+        const fallbackResult = this._localConsume(clientIp);
+        if (!fallbackResult.allowed) {
+          return res.status(429).json({
+            success: false,
+            error: {
+              code: 'DAILY_QUOTA_EXCEEDED',
+              message: fallbackResult.message,
+              details: null,
+            },
+            meta: {
+              timestamp: new Date().toISOString(),
+            },
+          });
+        }
         next();
       }
     };

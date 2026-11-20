@@ -9,6 +9,7 @@ export const MAX_CACHE_ENTRIES = 200;
 export const OVERALL_ENRICHMENT_TIMEOUT_MS = 6000; // 6 detik
 export const PER_REQUEST_TIMEOUT_MS = 3000;        // 3 detik (dioptimalkan 3000ms - 4000ms)
 export const MAX_TITLE_QUERY_LENGTH = 120;         // Batas panjang query
+export const MAX_ENRICH_GAMES = 5;                 // Batas maksimal game diperkaya per respons
 
 const ROMAN_NUMERALS = {
   i: '1',
@@ -714,17 +715,31 @@ export async function enrichGamesWithSteam(
     totalTimeoutMs = OVERALL_ENRICHMENT_TIMEOUT_MS,
     perRequestTimeoutMs = PER_REQUEST_TIMEOUT_MS,
     fetchFn = globalThis.fetch,
+    signal = null,
   } = {}
 ) {
   if (!Array.isArray(games) || games.length === 0) {
     return [];
   }
 
+  const boundedGames = games.slice(0, MAX_ENRICH_GAMES);
   const overallController = new AbortController();
   const overallTimeoutId = setTimeout(() => overallController.abort(), totalTimeoutMs);
 
+  const onExternalAbort = () => {
+    overallController.abort(signal?.reason || new Error('CLIENT_CLOSED'));
+  };
+
+  if (signal) {
+    if (signal.aborted) {
+      overallController.abort(signal.reason || new Error('CLIENT_CLOSED'));
+    } else {
+      signal.addEventListener('abort', onExternalAbort, { once: true });
+    }
+  }
+
   try {
-    const promises = games.map(async (game) => {
+    const promises = boundedGames.map(async (game) => {
       if (!game || typeof game !== 'object') return game;
 
       const title = game.title || '';
@@ -764,7 +779,7 @@ export async function enrichGamesWithSteam(
       if (r.status === 'fulfilled') {
         return r.value;
       }
-      const g = games[idx] || {};
+      const g = boundedGames[idx] || {};
       return {
         ...g,
         appId: null,
@@ -777,5 +792,8 @@ export async function enrichGamesWithSteam(
     });
   } finally {
     clearTimeout(overallTimeoutId);
+    if (signal) {
+      signal.removeEventListener('abort', onExternalAbort);
+    }
   }
 }

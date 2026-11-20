@@ -18,6 +18,60 @@ export const WISHLIST_STORAGE_KEY = 'sobatsteam_wishlist';
 export const LEGACY_WISHLIST_STORAGE_KEY = 'steamscout_wishlist';
 export const MAX_WISHLIST_ITEMS = 50;
 
+const ALLOWED_STEAM_STORE_HOST = 'store.steampowered.com';
+const ALLOWED_STEAM_CDN_EXACT_HOSTS = new Set(['steamcdn-a.akamaihd.net']);
+
+/**
+ * Validasi ketat URL resmi halaman Steam Store (HTTPS, host store.steampowered.com, tanpa port/kredensial).
+ *
+ * @param {string} [url]
+ * @returns {boolean}
+ */
+export function isValidSteamStoreUrl(url) {
+  if (typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return (
+      parsed.protocol === 'https:' &&
+      parsed.hostname.toLowerCase() === ALLOWED_STEAM_STORE_HOST &&
+      parsed.port === '' &&
+      parsed.username === '' &&
+      parsed.password === ''
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validasi ketat URL resmi CDN gambar Steam (HTTPS, subdomain *.steamstatic.com atau steamcdn-a.akamaihd.net, tanpa port/kredensial).
+ *
+ * @param {string} [url]
+ * @returns {boolean}
+ */
+export function isValidSteamCdnUrl(url) {
+  if (typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  try {
+    const parsed = new URL(trimmed);
+    if (
+      parsed.protocol !== 'https:' ||
+      parsed.port !== '' ||
+      parsed.username !== '' ||
+      parsed.password !== ''
+    ) {
+      return false;
+    }
+    const host = parsed.hostname.toLowerCase();
+    return ALLOWED_STEAM_CDN_EXACT_HOSTS.has(host) || (host.endsWith('.steamstatic.com') && host.length > '.steamstatic.com'.length);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Normalisasi judul game secara deterministik.
  *
@@ -133,7 +187,7 @@ export function sanitizeWishlistItem(raw, options) {
   }
 
   let storeUrl = '';
-  if (typeof item.storeUrl === 'string' && item.storeUrl.trim().startsWith('http')) {
+  if (isValidSteamStoreUrl(item.storeUrl)) {
     storeUrl = item.storeUrl.trim();
   } else if (appId) {
     storeUrl = `https://store.steampowered.com/app/${appId}/`;
@@ -766,9 +820,14 @@ export function exportWishlistToMarkdown(wishlist) {
   } else {
     validItems.forEach((item, idx) => {
       const num = idx + 1;
-      const title = item.title || 'Game Steam';
-      const storeUrl = item.storeUrl || (item.appId ? `https://store.steampowered.com/app/${item.appId}/` : '');
-      const link = storeUrl ? `[${title}](${storeUrl})` : title;
+      const rawTitle = item.title || 'Game Steam';
+      const safeTitle = rawTitle.replace(/([\\[\]()])/g, '\\$1');
+      const fallbackUrl = item.appId
+        ? `https://store.steampowered.com/app/${item.appId}/`
+        : `https://store.steampowered.com/search/?term=${encodeURIComponent(rawTitle)}`;
+      const storeUrl = isValidSteamStoreUrl(item.storeUrl) ? item.storeUrl.trim() : fallbackUrl;
+      const safeUrl = storeUrl.replace(/\(/g, '%28').replace(/\)/g, '%29');
+      const link = safeUrl ? `[${safeTitle}](${safeUrl})` : safeTitle;
       lines.push(`${num}. ${link}`);
     });
   }

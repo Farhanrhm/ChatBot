@@ -821,4 +821,120 @@ test.describe('Chat Flow & Perilaku SobatSteam', () => {
     await expect(page.locator('#sessions-empty')).toBeVisible();
     await expect(page.locator('#drawer-new-session-btn')).toBeFocused();
   });
+
+  // ==========================================================================
+  // [C09] Keamanan XSS storeUrl, Validasi Host Steam, Anti Double-Escape, & 0 CSP Error
+  // ==========================================================================
+  test('[C09] Data sesi korup/phishing dibersihkan aman tanpa DOM XSS, double-escape, maupun pelanggaran CSP', async ({ page }) => {
+    const cspErrors = [];
+    const pageErrors = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error' && /content security policy|csp/i.test(msg.text())) {
+        cspErrors.push(msg.text());
+      }
+    });
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+
+    await page.goto('/');
+
+    // Suntikkan sesi dengan payload uji storeUrl (attribute breakout, javascript:, phishing),
+    // headerImage non-Steam & query string Steam CDN, serta tautan Markdown phishing vs Steam resmi
+    await page.evaluate(async () => {
+      const craftedReply = JSON.stringify({
+        intro: 'Cek [Link Asing](https://evil.example/phish) dan [Halaman Steam](https://store.steampowered.com/app/367520/).',
+        games: [
+          {
+            appId: 367520,
+            title: 'Hollow Knight',
+            year: '2017',
+            developer: 'Team Cherry',
+            genres: ['Metroidvania'],
+            verified: true,
+            storeUrl: '" data-xss="1',
+            headerImage: 'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/367520/header.jpg?t=1&v=2',
+            whyFit: 'Atmosfer mendalam.',
+            specsAndBudget: 'Ringan.',
+          },
+          {
+            appId: 413150,
+            title: 'Stardew Valley',
+            year: '2016',
+            developer: 'ConcernedApe',
+            genres: ['Farming Sim'],
+            verified: true,
+            storeUrl: 'javascript:alert(1)',
+            headerImage: 'https://evil.example/tracker.png',
+            whyFit: 'Santai.',
+            specsAndBudget: 'Ringan.',
+          },
+        ],
+        followUp: 'Mau cari genre lain?',
+      });
+
+      const session = {
+        id: 'session_sec_test',
+        title: 'Uji Keamanan Sesi',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [
+          { role: 'user', text: 'Rekomendasi game aman' },
+          { role: 'model', text: craftedReply },
+        ],
+      };
+
+      const db = await new Promise((resolve, reject) => {
+        const req = indexedDB.open('SteamScoutDB', 1);
+        req.onupgradeneeded = (ev) => {
+          const d = ev.target.result;
+          if (!d.objectStoreNames.contains('chat_sessions')) {
+            const st = d.createObjectStore('chat_sessions', { keyPath: 'id' });
+            st.createIndex('updatedAt', 'updatedAt', { unique: false });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('chat_sessions', 'readwrite');
+        tx.objectStore('chat_sessions').put(session);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+
+      sessionStorage.setItem('sobatsteam_active_session_id', 'session_sec_test');
+      sessionStorage.setItem('sobatsteam_chat_history', JSON.stringify(session.messages));
+    });
+
+    await page.reload();
+    await expect(page.locator('.game-card')).toHaveCount(2);
+
+    // 1. Tidak boleh ada atribut injeksi [data-xss] di DOM
+    await expect(page.locator('[data-xss]')).toHaveCount(0);
+
+    // 2. Seluruh tombol Steam Store wajib jatuh ke https://store.steampowered.com/...
+    const storeLinks = page.locator('.steam-store-card-btn');
+    await expect(storeLinks.nth(0)).toHaveAttribute('href', 'https://store.steampowered.com/app/367520/');
+    await expect(storeLinks.nth(1)).toHaveAttribute('href', 'https://store.steampowered.com/app/413150/');
+
+    // 3. Gambar Steam CDN ber-query string tidak mengalami double-escaping, dan gambar non-Steam diblokir
+    const thumbs = page.locator('.game-card-thumb');
+    await expect(thumbs).toHaveCount(1);
+    const thumbImg = thumbs.first().locator('img');
+    await expect(thumbImg).toHaveAttribute(
+      'src',
+      'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/367520/header.jpg?t=1&v=2'
+    );
+    await expect(page.locator('img[src*="evil.example"]')).toHaveCount(0);
+
+    // 4. Tautan Markdown non-Steam dirender sebagai teks biasa, sedangkan tautan Steam tetap aktif
+    const introEl = page.locator('.bot-intro').first();
+    await expect(introEl).toContainText('Link Asing');
+    await expect(introEl.locator('a[href*="evil.example"]')).toHaveCount(0);
+    await expect(introEl.locator('a[href="https://store.steampowered.com/app/367520/"]')).toHaveCount(1);
+
+    // 5. Nol pelanggaran console CSP dan nol uncaught pageerror
+    expect(cspErrors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
 });

@@ -11,6 +11,8 @@ import {
   LEGACY_WISHLIST_STORAGE_KEY,
   filterAndSortWishlist,
   extractTopGenres,
+  isValidSteamStoreUrl,
+  isValidSteamCdnUrl,
 } from "./wishlistCore.js";
 
 import {
@@ -1254,15 +1256,33 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+const ALLOWED_INLINE_LINK_HOSTS = new Set([
+  "store.steampowered.com",
+  "steamcommunity.com",
+  "help.steampowered.com",
+]);
+
 function inline(str) {
   let s = escapeHtml(str);
   s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
   s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   s = s.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<em>$2</em>");
-  s = s.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
-  );
+  s = s.replace(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g, (_fullMatch, label, escapedUrl) => {
+    const decodedUrl = escapedUrl.replace(/&amp;/g, "&");
+    try {
+      const parsed = new URL(decodedUrl);
+      if (
+        parsed.protocol === "https:" &&
+        parsed.port === "" &&
+        parsed.username === "" &&
+        parsed.password === "" &&
+        ALLOWED_INLINE_LINK_HOSTS.has(parsed.hostname.toLowerCase())
+      ) {
+        return `<a href="${escapeHtml(parsed.href)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+      }
+    } catch {}
+    return label;
+  });
   return s;
 }
 
@@ -1399,8 +1419,12 @@ function formatBotContent(raw) {
         const year = g.year ? escapeHtml(g.year) : "";
         const dev = g.developer ? escapeHtml(g.developer) : "";
         const metaStr = [year, dev].filter(Boolean).join(" • ");
-        const storeUrl = g.storeUrl || (appId ? `https://store.steampowered.com/app/${appId}/` : `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || "")}`);
-        const headerImg = g.headerImage ? escapeHtml(g.headerImage) : null;
+        const fallbackStoreUrl = appId
+          ? `https://store.steampowered.com/app/${appId}/`
+          : `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || "")}`;
+        const rawStoreUrl = isValidSteamStoreUrl(g.storeUrl) ? g.storeUrl.trim() : fallbackStoreUrl;
+        const safeStoreUrl = escapeHtml(rawStoreUrl);
+        const rawHeaderImg = isValidSteamCdnUrl(g.headerImage) ? g.headerImage.trim() : null;
 
         const isUnverified = g.verified === false && !appId;
         const discountBadgeHtml =
@@ -1462,19 +1486,19 @@ function formatBotContent(raw) {
             developer: g.developer,
             genres: g.genres,
             verified: g.verified,
-            storeUrl,
-            headerImage: headerImg,
+            storeUrl: rawStoreUrl,
+            headerImage: rawHeaderImg,
             pricing: g.pricing,
             whyFit: g.whyFit,
             specsAndBudget: g.specsAndBudget,
           });
         }
         const isCompared = isGameInComparison(selectedComparisonGames, { appId, title: g.title });
-        const thumbImgHtml = !isUnverified && headerImg
-          ? renderCoverImage(headerImg, `Sampul ${g.title || "Game Steam"}`, "game-card-thumb-img")
+        const thumbImgHtml = !isUnverified && rawHeaderImg
+          ? renderCoverImage(rawHeaderImg, `Sampul ${g.title || "Game Steam"}`, "game-card-thumb-img")
           : "";
-        const thumbHtml = !isUnverified && headerImg
-          ? `<div class="game-card-thumb" data-header-image="${headerImg}" data-game-title="${title}">${thumbImgHtml}</div>`
+        const thumbHtml = !isUnverified && rawHeaderImg
+          ? `<div class="game-card-thumb" data-header-image="${escapeHtml(rawHeaderImg)}" data-game-title="${title}">${thumbImgHtml}</div>`
           : "";
 
         html += `
@@ -1497,7 +1521,7 @@ function formatBotContent(raw) {
                 ${g.specsAndBudget ? `<p class="game-card-specs"><strong>Spek & budget:</strong> ${inline(g.specsAndBudget)}</p>` : ""}
               </div>
               <div class="game-card-actions">
-                <a href="${storeUrl}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="${btnAriaLabel}">
+                <a href="${safeStoreUrl}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="${btnAriaLabel}">
                   <span>${btnLabel}</span>
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -1510,7 +1534,7 @@ function formatBotContent(raw) {
                   class="btn-wishlist-toggle"
                   data-appid="${appId ? escapeHtml(String(appId)) : ""}"
                   data-title="${title}"
-                  data-store-url="${storeUrl}"
+                  data-store-url="${safeStoreUrl}"
                   data-genres="${Array.isArray(g.genres) ? escapeHtml(g.genres.join(",")) : ""}"
                   aria-pressed="false"
                   aria-label="Simpan ${title} ke wishlist"
@@ -2549,18 +2573,9 @@ function createWishlistItemElement(item, idx, onRemove) {
   link.rel = "noopener noreferrer";
   link.setAttribute("aria-label", `Buka ${titleText} di Steam Store`);
 
-  // Validasi URL ketat: hanya izinkan skema http: atau https:
+  // Validasi URL ketat: hanya izinkan URL HTTPS resmi Steam Store
   const rawUrl = typeof item.storeUrl === "string" ? item.storeUrl.trim() : "";
-  let isHttp = false;
-  try {
-    const parsed = new URL(rawUrl);
-    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-      isHttp = true;
-    }
-  } catch (_) {
-    isHttp = false;
-  }
-  if (isHttp) {
+  if (isValidSteamStoreUrl(rawUrl)) {
     link.href = rawUrl;
   }
 

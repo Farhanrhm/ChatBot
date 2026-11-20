@@ -2117,6 +2117,70 @@ test('chatHistoryCore: prepareEditableSessionTitle menghapus elipsis otomatis ha
   assert.equal(prepareEditableSessionTitle(null), '');
 });
 
+test('Security URL Validation (H-01 & M-02): validasi ketat host/port/kredensial Steam Store & CDN serta anti-injeksi Markdown', async () => {
+  const {
+    isValidSteamStoreUrl,
+    isValidSteamCdnUrl,
+    sanitizeWishlistItem,
+    exportWishlistToMarkdown,
+  } = await import('../public/wishlistCore.js');
+  const { buildCoverImageHtml } = await import('../public/dataSaverCore.js');
+
+  // Steam Store URL allowlist
+  assert.equal(isValidSteamStoreUrl('https://store.steampowered.com/app/105600/'), true);
+  assert.equal(isValidSteamStoreUrl('https://store.steampowered.com/search/?term=Hades'), true);
+  assert.equal(isValidSteamStoreUrl('http://store.steampowered.com/app/105600/'), false);
+  assert.equal(isValidSteamStoreUrl('https://evil.example/app/105600/'), false);
+  assert.equal(isValidSteamStoreUrl('https://store.steampowered.com:8443/app/105600/'), false);
+  assert.equal(isValidSteamStoreUrl('https://user:pass@store.steampowered.com/app/105600/'), false);
+  assert.equal(isValidSteamStoreUrl('http:javascript:alert(1)'), false);
+  assert.equal(isValidSteamStoreUrl('javascript:alert(1)'), false);
+
+  // Steam CDN URL allowlist
+  assert.equal(isValidSteamCdnUrl('https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/105600/header.jpg'), true);
+  assert.equal(isValidSteamCdnUrl('https://cdn.akamai.steamstatic.com/steam/apps/105600/header.jpg?t=1&v=2'), true);
+  assert.equal(isValidSteamCdnUrl('https://steamcdn-a.akamaihd.net/steam/apps/105600/header.jpg'), true);
+  assert.equal(isValidSteamCdnUrl('https://evil.akamaihd.net/tracker.png'), false);
+  assert.equal(isValidSteamCdnUrl('https://evil.example/cover.jpg'), false);
+  assert.equal(isValidSteamCdnUrl('https://cdn.akamai.steamstatic.com:444/header.jpg'), false);
+  assert.equal(isValidSteamCdnUrl('https://user@cdn.akamai.steamstatic.com/header.jpg'), false);
+  assert.equal(isValidSteamCdnUrl('data:image/svg+xml,<svg/>'), false);
+
+  // sanitizeWishlistItem jatuh aman ke URL resmi Steam untuk domain asing atau http:foo
+  const cleanPhish = sanitizeWishlistItem({
+    appId: 105600,
+    title: 'Terraria',
+    storeUrl: 'https://evil.example/phish',
+  });
+  assert.equal(cleanPhish.storeUrl, 'https://store.steampowered.com/app/105600/');
+
+  const cleanMalformed = sanitizeWishlistItem({
+    title: 'Hades',
+    storeUrl: 'http:javascript:alert(1)',
+  });
+  assert.equal(cleanMalformed.storeUrl, 'https://store.steampowered.com/search/?term=Hades');
+
+  // exportWishlistToMarkdown meng-escape tanda kurung Markdown di judul
+  const md = exportWishlistToMarkdown([
+    { appId: 105600, title: 'Game [Klik](https://evil.example)' },
+  ]);
+  assert.ok(md.includes('1. [Game \\[Klik\\]\\(https://evil.example\\)](https://store.steampowered.com/app/105600/)'));
+
+  // buildCoverImageHtml menolak domain non-Steam dan tidak melakukan double-escaping pada query string
+  const blockedCover = buildCoverImageHtml('https://evil.example/tracker.png', 'Cover', 'cls', false);
+  assert.ok(blockedCover.includes('/placeholder-game.svg'));
+  assert.ok(!blockedCover.includes('evil.example'));
+
+  const queryCover = buildCoverImageHtml(
+    'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/105600/header.jpg?t=1&v=2',
+    'Cover',
+    'cls',
+    false
+  );
+  assert.ok(queryCover.includes('?t=1&amp;v=2'));
+  assert.ok(!queryCover.includes('&amp;amp;'));
+});
+
 
 
 
