@@ -119,20 +119,18 @@ button, textarea { font: inherit; color: inherit; }
   color: var(--text-strong);
 }
 
-.tips ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tips ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
 
 .tips li {
   display: flex;
-  gap: 10px;
+  gap: 9px;
   align-items: flex-start;
-  padding: 9px 11px;
-  border-radius: 6px;
-  background: rgba(33, 43, 59, 0.55);
+  padding: 2px 0;
 }
 
 .tip-icon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   flex: none;
   color: var(--accent);
   stroke: currentColor;
@@ -140,7 +138,7 @@ button, textarea { font: inherit; color: inherit; }
   fill: none;
   margin-top: 2px;
 }
-.tips li strong { display: block; font-weight: 600; color: var(--text-strong); font-size: 14px; }
+.tips li strong { display: block; font-weight: 600; color: var(--text-strong); font-size: 13.5px; }
 .tips li small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.35; }
 
 /* Kolom Chat Kanan */
@@ -194,18 +192,33 @@ button, textarea { font: inherit; color: inherit; }
 
 .topbar-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-shrink: 0; }
 
-.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(164, 208, 7, 0.12);
+  color: #c3e84d;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
 .status i {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--online);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c3e84d;
+  flex-shrink: 0;
 }
 
 .status.is-offline {
-  color: #ff8585;
+  background: rgba(229, 115, 115, 0.14);
+  color: #ff9e9e;
 }
 
 .status.is-offline i {
-  background: #ff5252;
+  background: #ff9e9e;
 }
 
 /* Banner Notifikasi Status Offline */
@@ -471,11 +484,7 @@ button, textarea { font: inherit; color: inherit; }
   font-weight: 500;
 }
 
-/* ========================================================
-   REVISI 2: KARTU GAME LAYOUT HORIZONTAL DI DESKTOP
-   Banner di kiri lebar tetap ~240px tanpa max-height pemotong,
-   konten detail di kolom kanan.
-   ======================================================== */
+/* Kartu game dengan thumbnail kapsul mini 110x52px dan hierarki aksi utama */
 .game-cards {
   display: flex;
   flex-direction: column;
@@ -505,22 +514,22 @@ button, textarea { font: inherit; color: inherit; }
   transform: translateY(-1px);
 }
 
-.game-card-banner {
-  flex: 0 0 230px;
+.game-card-thumb {
+  flex: 0 0 110px;
+  width: 110px;
+  height: 52px;
   position: relative;
   overflow: hidden;
+  border-radius: 5px;
   background: #0e1a24;
-  border-right: 1px solid rgba(102, 192, 244, 0.15);
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
+  border: 1px solid rgba(102, 192, 244, 0.22);
 }
 
-.game-card-banner img {
+.game-card-thumb img,
+.game-card-thumb-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center top;
   aspect-ratio: 460 / 215;
   display: block;
 }
@@ -553,11 +562,17 @@ button, textarea { font: inherit; color: inherit; }
 
 .game-card-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 2px;
+}
+
+.game-card-head-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .game-card-title-group {
@@ -695,8 +710,8 @@ button, textarea { font: inherit; color: inherit; }
   gap: 6px;
   min-height: 36px;
   padding: 0 14px;
-  background: linear-gradient(135deg, #1b2838, #2a475e);
-  border: 1px solid var(--border-control);
+  background: rgba(102, 192, 244, 0.18);
+  border: 1px solid rgba(102, 192, 244, 0.45);
   border-radius: 6px;
   color: #ffffff;
   font-size: 0.85rem;
@@ -713,9 +728,9 @@ button, textarea { font: inherit; color: inherit; }
 }
 
 .steam-store-card-btn:hover {
-  background: linear-gradient(135deg, #2a475e, #3d6888);
+  background: rgba(102, 192, 244, 0.26);
   border-color: #66c0f4;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
   color: #ffffff;
   text-decoration: none;
 }
@@ -735,11 +750,11 @@ button, textarea { font: inherit; color: inherit; }
   min-width: 36px;
   padding: 0 12px;
   background: var(--surface-control);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(102, 192, 244, 0.18);
   border-radius: 6px;
   color: var(--text);
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.18s ease;
 }
@@ -757,13 +772,13 @@ button, textarea { font: inherit; color: inherit; }
 }
 
 .btn-wishlist-toggle[aria-pressed="true"] {
-  background: rgba(164, 208, 7, 0.14);
-  border-color: var(--online);
-  color: var(--online);
+  background: rgba(164, 208, 7, 0.08);
+  border-color: rgba(164, 208, 7, 0.42);
+  color: #b8db48;
 }
 
 .btn-wishlist-toggle[aria-pressed="true"] svg {
-  fill: var(--online);
+  fill: #b8db48;
 }
 
 .btn-wishlist-toggle[aria-pressed="true"]:hover {
@@ -791,11 +806,11 @@ button, textarea { font: inherit; color: inherit; }
   min-width: 36px;
   padding: 0 12px;
   background: var(--surface-control);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(102, 192, 244, 0.18);
   border-radius: 6px;
   color: var(--text);
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.18s ease;
 }
@@ -814,10 +829,9 @@ button, textarea { font: inherit; color: inherit; }
 
 .btn-compare-toggle[aria-pressed="true"],
 .btn-compare-toggle.is-selected {
-  background: rgba(102, 192, 244, 0.22);
-  border-color: var(--accent);
-  color: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  background: rgba(102, 192, 244, 0.10);
+  border-color: rgba(102, 192, 244, 0.45);
+  color: #c7e6fa;
 }
 
 .btn-compare-toggle[aria-pressed="true"]:hover,
@@ -865,36 +879,20 @@ button, textarea { font: inherit; color: inherit; }
   pointer-events: none;
 }
 
-/* Efek Fade Mask di Tepi Kiri & Kanan */
-.quick-toolbar-wrap::before,
-.quick-toolbar-wrap::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 28px;
-  pointer-events: none;
-  z-index: 2;
-  opacity: 0;
-  transition: opacity 0.15s ease;
+/* Indikator Batas Scroll Horizontal dengan CSS mask-image Transparan */
+.quick-toolbar-wrap.has-right:not(.has-left) .quick-toolbar {
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent 100%);
 }
 
-.quick-toolbar-wrap::before {
-  left: 0;
-  background: linear-gradient(90deg, #1b2838, transparent);
+.quick-toolbar-wrap.has-left:not(.has-right) .quick-toolbar {
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 28px, #000 100%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 28px, #000 100%);
 }
 
-.quick-toolbar-wrap::after {
-  right: 0;
-  background: linear-gradient(270deg, #1b2838, transparent);
-}
-
-.quick-toolbar-wrap.has-left::before {
-  opacity: 1;
-}
-
-.quick-toolbar-wrap.has-right::after {
-  opacity: 1;
+.quick-toolbar-wrap.has-left.has-right .quick-toolbar {
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 28px, #000 calc(100% - 28px), transparent 100%);
 }
 
 /* Baris geser horizontal (tinggi total <= 46px) */
@@ -1413,9 +1411,6 @@ body.keyboard-open .meta-hints {
   .composer {
     padding: 4px 16px 6px;
   }
-  .game-card-banner {
-    flex: 0 0 200px;
-  }
   .game-card-inner {
     padding: 8px 12px;
     gap: 3px;
@@ -1440,26 +1435,20 @@ body.keyboard-open .meta-hints {
 }
 
 @media (max-width: 768px) {
-  /* Di mobile/tablet sempit: kartu game kembali ke layout vertikal penuh */
-  .game-card {
-    flex-direction: column;
-  }
-  .game-card-banner {
-    flex: none;
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid rgba(102, 192, 244, 0.15);
-  }
-  .game-card-banner img {
-    width: 100%;
-    height: auto;
-  }
   .game-card-inner {
     padding: 12px 14px;
   }
 }
 
 @media (max-width: 520px) {
+  .game-card-head {
+    gap: 10px;
+  }
+  .game-card-thumb {
+    flex: 0 0 96px;
+    width: 96px;
+    height: 45px;
+  }
   .topbar {
     padding: 8px 10px;
     gap: 6px;
@@ -2119,7 +2108,7 @@ body.keyboard-open .meta-hints {
   flex-direction: column;
   gap: 4px;
   overflow-y: auto;
-  max-height: 240px;
+  max-height: 290px;
   scrollbar-width: thin;
   scrollbar-color: #2a475e transparent;
 }
@@ -2149,22 +2138,34 @@ body.keyboard-open .meta-hints {
 
 .session-item.is-active .session-item-title {
   color: #ffffff;
+}
+
+.session-item.is-active .session-item-name {
   font-weight: 600;
 }
 
 .session-item-title {
   font-size: 0.82rem;
   color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
   flex: 1;
+  display: flex;
+  align-items: center;
   text-align: left;
   background: none;
   border: none;
   padding: 8px 6px;
   border-radius: 4px;
   cursor: pointer;
+}
+
+.session-item-name {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
 }
 
 .session-item-actions {
@@ -2771,6 +2772,254 @@ body.keyboard-open .meta-hints {
   }
 }
 
+/* Modal Dialog Kustom: Ubah Nama Sesi & Konfirmasi Hapus / Reset */
+.session-action-backdrop {
+  z-index: 110;
+}
+
+.session-action-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  z-index: 120;
+  background: var(--bg-1);
+  border: 1px solid rgba(102, 192, 244, 0.3);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.78);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalFadeScale 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.session-action-dialog[hidden] {
+  display: none !important;
+}
+
+.session-action-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-0);
+  border-bottom: 1px solid var(--line);
+}
+
+.session-action-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.session-action-title-wrap h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--text-strong);
+  line-height: 1.25;
+}
+
+.session-action-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(102, 192, 244, 0.14);
+  color: var(--accent);
+}
+
+.session-action-icon.is-danger {
+  background: rgba(229, 115, 115, 0.14);
+  color: #ff9e9e;
+}
+
+.session-action-body {
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.session-action-desc {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.48;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.session-action-subnote {
+  margin: -4px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.session-rename-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.session-rename-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.session-rename-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border-control);
+  color: #ffffff;
+  font-size: 0.94rem;
+  line-height: 1.35;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.session-rename-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(102, 192, 244, 0.2);
+}
+
+.session-rename-input[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px rgba(229, 115, 115, 0.2);
+}
+
+.session-rename-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.session-rename-counter {
+  font-variant-numeric: tabular-nums;
+}
+
+.session-rename-counter.is-limit {
+  color: #ff9e9e;
+  font-weight: 600;
+}
+
+.session-action-error {
+  margin: -2px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: #ff9e9e;
+}
+
+.session-action-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.btn-modal-secondary,
+.btn-modal-primary,
+.btn-modal-danger {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 6px;
+  font-size: 0.86rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.btn-modal-secondary {
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.btn-modal-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
+  color: var(--text-strong);
+}
+
+.btn-modal-primary {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border: 1px solid transparent;
+  color: #0b1620;
+  font-weight: 600;
+}
+
+.btn-modal-primary:hover:not(:disabled) {
+  background: linear-gradient(90deg, #8fd3fa, #36a9eb);
+  color: #0b1620;
+}
+
+.btn-modal-danger {
+  background: #b83232;
+  border: 1px solid #d14747;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.btn-modal-danger:hover:not(:disabled) {
+  background: #c93b3b;
+  border-color: #e57373;
+  color: #ffffff;
+}
+
+.btn-modal-secondary:disabled,
+.btn-modal-primary:disabled,
+.btn-modal-danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 520px) {
+  .session-action-dialog {
+    width: calc(100vw - 20px);
+    border-radius: 10px;
+  }
+
+  .session-action-header {
+    padding: 10px 14px;
+  }
+
+  .session-action-body {
+    padding: 14px;
+  }
+
+  .session-action-footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .btn-modal-secondary,
+  .btn-modal-primary,
+  .btn-modal-danger {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
 /* Peningkatan Aksesibilitas: Indikator Focus Visible */
 .chip:focus-visible,
 .capsule:focus-visible,
@@ -2785,18 +3034,26 @@ body.keyboard-open .meta-hints {
 .btn-sessions-top:focus-visible,
 .btn-session-delete:focus-visible,
 .session-item-title:focus-visible,
+.session-rename-input:focus-visible,
+.btn-modal-secondary:focus-visible,
+.btn-modal-danger:focus-visible,
 .btn-icon:focus-visible,
 .btn-ghost:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.btn-comparison-open:focus-visible {
+.btn-comparison-open:focus-visible,
+.btn-modal-primary:focus-visible {
   outline: 2px solid #ffffff;
   outline-offset: 2px;
 }
 
 /* Mode Hemat Data (Data Saver) */
+body.data-saver-active .game-card-thumb {
+  display: none;
+}
+
 .btn-data-saver {
   transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
@@ -2864,7 +3121,10 @@ body.keyboard-open .meta-hints {
   .btn-compare-toggle,
   .btn-comparison-open,
   .btn-comparison-clear,
-  .btn-new-session {
+  .btn-new-session,
+  .btn-modal-secondary,
+  .btn-modal-primary,
+  .btn-modal-danger {
     min-height: 44px;
   }
 

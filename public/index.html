@@ -267,7 +267,7 @@
                 </button>
               </div>
 
-              <div class="toolbar-divider" aria-hidden="true"></div>
+              <div id="toolbar-divider" class="toolbar-divider" aria-hidden="true"></div>
 
               <div id="chips" class="toolbar-group suggestion-chips-group" role="group" aria-label="Saran cepat"></div>
             </div>
@@ -461,6 +461,60 @@
     <div id="comparison-content" class="comparison-body">
       <!-- Konten tabel semantik dan naratif dirender secara dinamis -->
     </div>
+  </div>
+
+  <!-- Modal Dialog Kustom: Ubah Nama Sesi & Konfirmasi Hapus / Reset -->
+  <div id="session-action-backdrop" class="modal-backdrop session-action-backdrop" hidden></div>
+  <div
+    id="session-action-dialog"
+    class="session-action-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="session-action-title"
+    aria-describedby="session-action-desc"
+    hidden
+  >
+    <div class="session-action-header">
+      <div class="session-action-title-wrap">
+        <span id="session-action-icon" class="session-action-icon" aria-hidden="true"></span>
+        <h2 id="session-action-title">Konfirmasi</h2>
+      </div>
+      <button type="button" id="session-action-close-btn" class="btn-icon" aria-label="Tutup dialog">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <form id="session-action-form" class="session-action-body" novalidate>
+      <p id="session-action-desc" class="session-action-desc"></p>
+      <p id="session-action-subnote" class="session-action-subnote" hidden></p>
+
+      <div id="session-rename-field" class="session-rename-field" hidden>
+        <label for="session-rename-input" class="session-rename-label">Nama sesi obrolan</label>
+        <input
+          type="text"
+          id="session-rename-input"
+          class="session-rename-input"
+          maxlength="35"
+          autocomplete="off"
+          placeholder="Masukkan nama sesi..."
+          aria-describedby="session-rename-hint session-action-error"
+        >
+        <div class="session-rename-meta">
+          <span id="session-rename-hint" class="session-rename-hint">Maksimal 35 karakter</span>
+          <span id="session-rename-counter" class="session-rename-counter">0/35</span>
+        </div>
+      </div>
+
+      <p id="session-action-error" class="session-action-error" role="status" aria-live="polite" hidden></p>
+
+      <div class="session-action-footer">
+        <button type="button" id="session-action-cancel-btn" class="btn-modal-secondary">Batal</button>
+        <button type="submit" id="session-action-confirm-btn" class="btn-modal-primary">Simpan</button>
+      </div>
+    </form>
   </div>
 
   <script type="module" src="script.js"></script>
