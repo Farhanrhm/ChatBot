@@ -2071,6 +2071,52 @@ test('dataSaverCore: buildCoverImageHtml melakukan supresi gambar Steam saat mod
   assert.ok(xssHtml.includes('&lt;script&gt;'));
 });
 
+test('chatHistoryCore: extractSessionTooltip mengembalikan prompt penuh atau fallback aman saat messages kosong', async () => {
+  const { extractSessionTooltip, sanitizeSessionTitle } = await import('../public/chatHistoryCore.js');
+
+  const longPrompt = 'Carikan game cozy santai peliharaan untuk laptop kentang budget di bawah 100 ribu rupiah';
+  const defaultTitle = sanitizeSessionTitle(longPrompt);
+
+  assert.equal(
+    extractSessionTooltip({
+      title: defaultTitle,
+      messages: [{ role: 'user', text: longPrompt }],
+    }),
+    longPrompt
+  );
+
+  assert.equal(
+    extractSessionTooltip({
+      title: 'Daftar Cozy Laptop',
+      messages: [{ role: 'user', text: longPrompt }],
+    }),
+    `Daftar Cozy Laptop - Prompt: ${longPrompt}`
+  );
+
+  assert.equal(extractSessionTooltip({ title: 'Sesi Kosong', messages: [] }), 'Sesi Kosong');
+  assert.equal(extractSessionTooltip({ title: 'Tanpa Pesan', messages: [{ role: 'model', text: 'Halo' }] }), 'Tanpa Pesan');
+  assert.equal(extractSessionTooltip(null), 'Obrolan Baru');
+});
+
+test('chatHistoryCore: prepareEditableSessionTitle menghapus elipsis otomatis hasil pemotongan (>35 char) secara aman', async () => {
+  const { prepareEditableSessionTitle, sanitizeSessionTitle } = await import('../public/chatHistoryCore.js');
+
+  const longPrompt = 'Carikan game cozy santai pelepas stres untuk laptop kentang harga terjangkau';
+  const truncatedTitle = sanitizeSessionTitle(longPrompt);
+  assert.equal(Array.from(truncatedTitle).length, 36);
+  assert.ok(truncatedTitle.endsWith('…'));
+
+  const editable = prepareEditableSessionTitle(truncatedTitle);
+  assert.equal(Array.from(editable).length, 35);
+  assert.ok(!editable.endsWith('…'));
+
+  // Judul singkat yang sengaja memakai elipsis tidak boleh dipotong
+  assert.equal(prepareEditableSessionTitle('Game Santai…'), 'Game Santai…');
+  assert.equal(prepareEditableSessionTitle('  Koleksi RPG  '), 'Koleksi RPG');
+  assert.equal(prepareEditableSessionTitle(''), '');
+  assert.equal(prepareEditableSessionTitle(null), '');
+});
+
 
 
 
