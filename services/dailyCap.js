@@ -1,4 +1,5 @@
 import { getRedisClient } from './redisClient.js';
+import { sanitizeLogMessage } from './logSanitizer.js';
 
 /**
  * Limiter kuota harian untuk membatasi konsumsi API di lingkungan serverless dan demo publik.
@@ -114,7 +115,10 @@ export class DailyCapLimiter {
   }
 
   /**
-   * Mengonsumsi kuota menggunakan Upstash Redis pipeline secara atomik.
+   * Mengonsumsi kuota menggunakan Upstash Redis pipeline secara berurutan:
+   * 1. Cek & increment kuota per-IP terlebih dahulu agar satu IP yang sudah diblokir
+   *    tidak dapat membakar kuota global pengguna lain.
+   * 2. Hanya bila kuota IP lolos, increment kuota global.
    *
    * @param {string} ip
    * @returns {Promise<{ allowed: boolean, reason?: string, message?: string }>}
@@ -126,24 +130,11 @@ export class DailyCapLimiter {
       const globalKey = `dailycap:${todayStr}:global`;
       const ipKey = `dailycap:${todayStr}:ip:${cleanIp}`;
 
-      // Operasi atomik: increment global, set TTL 86400s (24 jam), increment IP, set TTL 86400s
-      const pipeline = this.redis.pipeline();
-      pipeline.incr(globalKey);
-      pipeline.expire(globalKey, 86400);
-      pipeline.incr(ipKey);
-      pipeline.expire(ipKey, 86400);
-
-      const results = await pipeline.exec();
-      const globalCount = Number(results[0]) || 0;
-      const ipCount = Number(results[2]) || 0;
-
-      if (globalCount > this.globalCap) {
-        return {
-          allowed: false,
-          reason: 'global',
-          message: 'Batas kuota demo harian aplikasi telah tercapai. Silakan coba lagi besok.',
-        };
-      }
+      const ipPipeline = this.redis.pipeline();
+      ipPipeline.incr(ipKey);
+      ipPipeline.expire(ipKey, 86400);
+      const ipResults = await ipPipeline.exec();
+      const ipCount = Number(ipResults?.[0]) || 0;
 
       if (ipCount > this.ipCap) {
         return {
@@ -153,9 +144,23 @@ export class DailyCapLimiter {
         };
       }
 
+      const globalPipeline = this.redis.pipeline();
+      globalPipeline.incr(globalKey);
+      globalPipeline.expire(globalKey, 86400);
+      const globalResults = await globalPipeline.exec();
+      const globalCount = Number(globalResults?.[0]) || 0;
+
+      if (globalCount > this.globalCap) {
+        return {
+          allowed: false,
+          reason: 'global',
+          message: 'Batas kuota demo harian aplikasi telah tercapai. Silakan coba lagi besok.',
+        };
+      }
+
       return { allowed: true };
     } catch (err) {
-      console.warn('[DailyCapLimiter] Redis error, mengalihkan ke fallback in-memory:', err?.message || err);
+      console.warn('[DailyCapLimiter] Redis error, mengalihkan ke fallback in-memory:', sanitizeLogMessage(err));
       return this._localConsume(ip);
     }
   }
@@ -210,7 +215,21 @@ export class DailyCapLimiter {
         }
         next();
       } catch (err) {
-        console.error('[DailyCapLimiter Middleware Error]', err?.message || err);
+        console.error('[DailyCapLimiter Middleware Error]', sanitizeLogMessage(err));
+        const fallbackResult = this._localConsume(clientIp);
+        if (!fallbackResult.allowed) {
+          return res.status(429).json({
+            success: false,
+            error: {
+              code: 'DAILY_QUOTA_EXCEEDED',
+              message: fallbackResult.message,
+              details: null,
+            },
+            meta: {
+              timestamp: new Date().toISOString(),
+            },
+          });
+        }
         next();
       }
     };

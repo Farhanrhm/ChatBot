@@ -6,21 +6,13 @@ import { renderMockChatRecommendation } from './helpers/mockChat.js';
 import { installNetworkGuards } from './helpers/network.js';
 import { waitForFontsReady } from './helpers/fonts.js';
 
-const STABILIZE_CSS = `
-  *, *::before, *::after {
-    animation: none !important;
-    transition: none !important;
-    caret-color: transparent !important;
-  }
-`;
-
 /**
- * Menyuntikkan CSS stabilisasi dan menunggu font selesai dimuat.
+ * Memuat CSS stabilisasi same-origin (patuh CSP style-src 'self') dan menunggu font selesai dimuat.
  * @param {import('@playwright/test').Page} page
  */
 async function setupPage(page) {
   await page.goto('/');
-  await page.addStyleTag({ content: STABILIZE_CSS });
+  await page.addStyleTag({ url: '/__e2e_stabilize.css' });
   await waitForFontsReady(page);
 }
 

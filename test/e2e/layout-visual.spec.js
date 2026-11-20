@@ -8,21 +8,13 @@ import { waitForFontsReady } from './helpers/fonts.js';
 // Pengujian visual menggunakan Google Chrome sistem untuk mereplikasi engine skrip verifikasi lama
 test.use({ channel: 'chrome' });
 
-const STABILIZE_CSS = `
-  *, *::before, *::after {
-    animation: none !important;
-    transition: none !important;
-    caret-color: transparent !important;
-  }
-`;
-
 /**
  * Menyiapkan tampilan chat default (Kondisi 1).
  * @param {import('@playwright/test').Page} page
  */
 async function prepareDefaultChat(page) {
   await page.goto('/');
-  await page.addStyleTag({ content: STABILIZE_CSS });
+  await page.addStyleTag({ url: '/__e2e_stabilize.css' });
   await waitForFontsReady(page);
 
   await renderMockChatRecommendation(page);

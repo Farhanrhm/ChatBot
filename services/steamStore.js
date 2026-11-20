@@ -9,6 +9,7 @@ export const MAX_CACHE_ENTRIES = 200;
 export const OVERALL_ENRICHMENT_TIMEOUT_MS = 6000; // 6 detik
 export const PER_REQUEST_TIMEOUT_MS = 3000;        // 3 detik (dioptimalkan 3000ms - 4000ms)
 export const MAX_TITLE_QUERY_LENGTH = 120;         // Batas panjang query
+export const MAX_ENRICH_GAMES = 5;                 // Batas maksimal game diperkaya per respons
 
 const ROMAN_NUMERALS = {
   i: '1',
@@ -24,6 +25,7 @@ const ROMAN_NUMERALS = {
 };
 
 import { getRedisClient } from './redisClient.js';
+import { sanitizeLogMessage } from './logSanitizer.js';
 
 /**
  * Cache terdistribusi berbatas waktu (TTL) berbasis Upstash Redis / Vercel KV REST
@@ -139,7 +141,7 @@ export class DistributedCache {
             return cached;
           }
         } catch (err) {
-          console.warn('[DistributedCache] Redis get error, fallback ke lokal:', err?.message || err);
+          console.warn('[DistributedCache] Redis get error, fallback ke lokal:', sanitizeLogMessage(err));
         }
         return this._getLocal(key);
       })();
@@ -165,7 +167,7 @@ export class DistributedCache {
           const redisKey = this._formatKey(key);
           await this.redis.set(redisKey, value, { ex: seconds });
         } catch (err) {
-          console.warn('[DistributedCache] Redis set error, fallback ke lokal:', err?.message || err);
+          console.warn('[DistributedCache] Redis set error, fallback ke lokal:', sanitizeLogMessage(err));
         }
         return true;
       })();
@@ -476,7 +478,7 @@ export async function getAppDetails(appId, { signal, fetchFn = globalThis.fetch,
     await appDetailsCache.set(appId, appData, TTL_SUCCESS_MS);
     return { status: 'success', data: appData };
   } catch (err) {
-    console.error(`[Steam AppDetails Error] AppID ${appId}:`, err?.message || err);
+    console.error(`[Steam AppDetails Error] AppID ${appId}:`, sanitizeLogMessage(err));
     return { status: 'network_error', data: null };
   }
 }
@@ -693,7 +695,7 @@ export async function getSteamGameDetails(
     await titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
     return fallback;
   } catch (err) {
-    console.error(`[Steam StoreSearch Error] ${cleanTitle}:`, err?.message || err);
+    console.error(`[Steam StoreSearch Error] ${sanitizeLogMessage(cleanTitle, 120)}:`, sanitizeLogMessage(err));
     const fallback = makeFallback(cleanTitle, null, 'network_error');
     await titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
     return fallback;
@@ -714,17 +716,31 @@ export async function enrichGamesWithSteam(
     totalTimeoutMs = OVERALL_ENRICHMENT_TIMEOUT_MS,
     perRequestTimeoutMs = PER_REQUEST_TIMEOUT_MS,
     fetchFn = globalThis.fetch,
+    signal = null,
   } = {}
 ) {
   if (!Array.isArray(games) || games.length === 0) {
     return [];
   }
 
+  const boundedGames = games.slice(0, MAX_ENRICH_GAMES);
   const overallController = new AbortController();
   const overallTimeoutId = setTimeout(() => overallController.abort(), totalTimeoutMs);
 
+  const onExternalAbort = () => {
+    overallController.abort(signal?.reason || new Error('CLIENT_CLOSED'));
+  };
+
+  if (signal) {
+    if (signal.aborted) {
+      overallController.abort(signal.reason || new Error('CLIENT_CLOSED'));
+    } else {
+      signal.addEventListener('abort', onExternalAbort, { once: true });
+    }
+  }
+
   try {
-    const promises = games.map(async (game) => {
+    const promises = boundedGames.map(async (game) => {
       if (!game || typeof game !== 'object') return game;
 
       const title = game.title || '';
@@ -745,7 +761,7 @@ export async function enrichGamesWithSteam(
           matchStatus: steamDetails.matchStatus ?? 'network_error',
         };
       } catch (err) {
-        console.error(`[Steam Game Enrichment Error] ${title}:`, err?.message || err);
+        console.error(`[Steam Game Enrichment Error] ${sanitizeLogMessage(title, 120)}:`, sanitizeLogMessage(err));
         return {
           ...game,
           appId: null,
@@ -764,7 +780,7 @@ export async function enrichGamesWithSteam(
       if (r.status === 'fulfilled') {
         return r.value;
       }
-      const g = games[idx] || {};
+      const g = boundedGames[idx] || {};
       return {
         ...g,
         appId: null,
@@ -777,5 +793,8 @@ export async function enrichGamesWithSteam(
     });
   } finally {
     clearTimeout(overallTimeoutId);
+    if (signal) {
+      signal.removeEventListener('abort', onExternalAbort);
+    }
   }
 }

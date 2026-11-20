@@ -86,33 +86,34 @@ done
 
 ---
 
-## 3. Pengujian Otomatis Unit Test (156 Tes)
+## 3. Pengujian Otomatis Unit Test (172 Tes)
 
-Pengujian validasi fungsi inti backend, sanitasi data, kuota harian, riwayat sesi, mode hemat data, serta modul komparasi dan wishlist dapat dijalankan kapan saja dengan perintah:
+Pengujian validasi fungsi inti backend, keamanan & sanitasi data, kuota harian, riwayat sesi, mode hemat data, serta modul komparasi dan wishlist dapat dijalankan kapan saja dengan perintah:
 ```bash
 npm run test:unit
 # atau alias:
 npm test
 ```
-Seluruh 156 unit test terbagi dalam suite:
-- Validasi fungsi inti `toContents()` dan sanitasi masukan teks pengguna.
+Seluruh 172 unit test terbagi dalam suite:
+- Validasi fungsi inti `toContents()`, sanitasi masukan teks pengguna, penolakan giliran `model` berturut-turut, dan pembungkusan multi-turn `<user_query>` / `<system_context_filters>`.
 - Penolakan tipe data non-array, array kosong, dan manipulasi role percakapan.
 - Pembersihan role `model` di awal percakapan dan pemotongan otomatis maksimal 20 turn terakhir.
 - Penolakan jika teks pengguna melebihi 1000 karakter.
-- Validasi status harga, diskon, dan penolakan sekuel Steam Storefront.
-- Batasan kuota harian (`DailyCapLimiter`) dan reset pergantian tanggal.
-- Validasi modul Wishlist Lokal (`wishlistCore.js`): sanitasi data stabil, pencocokan ketat `isSameGame`, auto-upgrade dan anti-downgrade, migrasi aman data lama, batas kapasitas 50 item, ketahanan JSON rusak, dan penanganan kegagalan penyimpanan browser.
+- Validasi status harga, diskon, pembatasan maksimal `MAX_ENRICH_GAMES`, propagasi abort sinyal eksternal, dan penolakan sekuel Steam Storefront.
+- Batasan kuota harian (`DailyCapLimiter`) berurutan (cek IP sebelum global di Redis), proteksi `enforceSameOriginOrAllowlist` (`403 FORBIDDEN_ORIGIN`), validasi sebelum konsumsi kuota, serta reset pergantian tanggal.
+- Audit keamanan HTTP & telemetri: CSP ketat tanpa `'unsafe-inline'`, security headers `vercel.json`, privasi Sentry (`sanitizeSentryEvent`), redaksi log & anti-CRLF (`sanitizeLogMessage`), pembatasan `/debug-sentry`, parsing angka env `parseEnvNumber`, status `GeminiKeyPool.isConfigured`, serta pengecekan `permissions` & SHA pinning pada workflow CI.
+- Validasi modul Wishlist Lokal (`wishlistCore.js`): sanitasi data stabil, validasi host/port/kredensial URL resmi Steam (`isValidSteamStoreUrl`, `isValidSteamCdnUrl`), pencocokan ketat `isSameGame`, auto-upgrade dan anti-downgrade, migrasi aman data lama, batas kapasitas 50 item, batas impor 256 KB UTF-8 & 500 raw items, anti-injeksi Markdown, ketahanan JSON rusak, dan penanganan `QuotaExceededError`.
 - Validasi filter preferensi cepat (`validatePreferences`, `buildPreferencesPromptNote`, dan perlindungan immutability `conversation`).
 - Validasi modul Komparasi Game (`comparisonCore.js`): batas maksimal 2 game, ekstraksi data harga/diskon, format harga, dan sanitasi payload komparasi.
-- Validasi modul Riwayat Sesi (`chatHistoryCore.js`) & Mode Hemat Data (`dataSaverCore.js`): manajemen IndexedDB multi-sesi, sanitasi & pembersihan judul edit (`prepareEditableSessionTitle`), tooltip prompt penuh (`extractSessionTooltip`), serta supresi URL gambar eksternal (`buildCoverImageHtml`).
+- Validasi modul Riwayat Sesi (`chatHistoryCore.js`), Mode Hemat Data (`dataSaverCore.js`), & Service Worker (`public/sw.js` v8): manajemen IndexedDB multi-sesi, sanitasi & pembersihan judul edit (`prepareEditableSessionTitle`), tooltip prompt penuh (`extractSessionTooltip`), supresi URL gambar eksternal (`buildCoverImageHtml`), serta isolasi cache PWA (`/api`, `/health`, `/debug-sentry`, dan `PRECACHE_ASSET_SET`).
 
 ---
 
-## 4. Pengujian Otomatis E2E Playwright (87 Tes)
+## 4. Pengujian Otomatis E2E Playwright (90 Tes)
 
-Pengujian interaksi peramban nyata, tata letak antarmuka, aksesibilitas, dan regresi visual dijalankan melalui Playwright Test Suite:
+Pengujian interaksi peramban nyata, tata letak antarmuka, aksesibilitas, keamanan DOM, dan regresi visual dijalankan melalui Playwright Test Suite:
 ```bash
-# Menjalankan seluruh pengujian E2E (87 skenario)
+# Menjalankan seluruh pengujian E2E (90 skenario)
 npm run test:e2e
 
 # Menjalankan seluruh rangkaian tes (Unit + E2E)
@@ -122,7 +123,7 @@ npm run test:all
 npx playwright show-report
 ```
 
-### Rincian Skenario E2E (87 Tes):
+### Rincian Skenario E2E (90 Tes):
 1. **Tata Letak & Aksesibilitas (22 Tes)**: `test/e2e/layout-and-a11y.spec.js`
    - Validasi metrik layout L01-L04 pada 5 viewport standar (1366x768, 1024x575, 1920x1080, 375x667, 412x915).
    - Memastikan `0px` vertical page scroll overflow (`docScrollH <= winH + 1`).
@@ -130,13 +131,13 @@ npx playwright show-report
 2. **Regresi Visual Snapshot (20 Tes)**: `test/e2e/layout-visual.spec.js`
    - Validasi visual L05-L08 pada 5 viewport (Default Chat, Drawer Wishlist Terbuka, Komparasi Normal, dan Komparasi Mode Hemat Data).
    - Memeriksa kesesuaian pixel terhadap baseline dengan ambang batas `threshold: 0.1` dan `maxDiffPixelRatio: 0.015`.
-3. **Alur Chat, Streaming SSE, Offline, & Data Saver (21 Tes)**: `test/e2e/chat-flow.spec.js`
-   - Skenario B03, B04, B16, B17, B18, B30, B31, B32, B33, B34, B35, N01, N02, C01-C08.
-   - Streaming SSE, watchdog timeout sebelum token pertama dan di tengah stream, tombol coba lagi tanpa duplikasi pesan, mode offline, persistensi riwayat multi-sesi IndexedDB, tooltip penuh sesi, modal kustom ubah nama sesi & konfirmasi hapus sesi (desktop maupun drawer mobile), thumbnail kapsul kartu patuh Mode Hemat Data, toolbar sesi aktif (`#chips` tersembunyi), deduplikasi header/live region, serta penanganan error 429 dan 500.
-4. **Wishlist & Komparasi Game Berdampingan (24 Tes)**: `test/e2e/wishlist-and-compare.spec.js`
-   - Skenario B01, B02, B05-B15, B27-B29 (16 tes Wishlist).
+3. **Alur Chat, Streaming SSE, Offline, Keamanan DOM, & Data Saver (23 Tes)**: `test/e2e/chat-flow.spec.js`
+   - Skenario B03, B04, B16, B17, B18, B30, B31, B32, B33, B34, B35, N01, N02, C01-C10.
+   - Streaming SSE, watchdog timeout sebelum token pertama dan di tengah stream, tombol coba lagi tanpa duplikasi pesan, mode offline, persistensi riwayat multi-sesi IndexedDB, tooltip penuh sesi, modal kustom ubah nama sesi & konfirmasi hapus sesi (desktop maupun drawer mobile), thumbnail kapsul kartu patuh Mode Hemat Data, toolbar sesi aktif (`#chips` tersembunyi), deduplikasi header/live region, proteksi anti-XSS `storeUrl` & anti double-escape (`C09`), ketahanan data storage korup & anti infinite loop fallback CDN (`C10`), serta penanganan error 429 dan 500.
+4. **Wishlist & Komparasi Game Berdampingan (25 Tes)**: `test/e2e/wishlist-and-compare.spec.js`
+   - Skenario B01, B02, B05-B15, B27-B29, B36 (17 tes Wishlist).
    - Skenario B19-B26 (8 tes Komparasi).
-   - Sinkronisasi multi-tab reaktif, focus trap drawer dan modal, live filtering tanpa pergantian elemen DOM, debounce live announcer 400 ms, proteksi XSS, verifikasi fitur yang telah dikurangi, floating action bar, seleksi 2 game, penolakan game ke-3 via toast, atribut `inert`, sinkronisasi dua arah wishlist modal, dan reset obrolan.
+   - Sinkronisasi multi-tab reaktif (termasuk keamanan `CSS.escape` selector untuk karakter backslash pada `B36`), focus trap drawer dan modal, live filtering tanpa pergantian elemen DOM, debounce live announcer 400 ms, proteksi XSS, verifikasi fitur yang telah dikurangi, floating action bar, seleksi 2 game, penolakan game ke-3 via toast, atribut `inert`, sinkronisasi dua arah wishlist modal, dan reset obrolan.
 
 ### Aturan & Standar Pengujian E2E:
 - **Wajib Offline / Isolasi Jaringan Penuh**: Seluruh tes menggunakan helper `installNetworkGuards(page)` agar hermetik. Gambar Steam disajikan lewat placeholder 1x1 lokal dan Google Fonts disajikan dari `test/e2e/fixtures/fonts/`.

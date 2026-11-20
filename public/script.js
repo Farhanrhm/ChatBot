@@ -11,6 +11,8 @@ import {
   LEGACY_WISHLIST_STORAGE_KEY,
   filterAndSortWishlist,
   extractTopGenres,
+  isValidSteamStoreUrl,
+  isValidSteamCdnUrl,
 } from "./wishlistCore.js";
 
 import {
@@ -628,7 +630,8 @@ async function switchSession(id) {
     if (history.length > 0) {
       setWelcomeVisible(false);
       history.forEach((msg) => {
-        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+        if (!msg || typeof msg !== "object") return;
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text ?? "");
       });
     } else {
       setWelcomeVisible(true);
@@ -1142,7 +1145,8 @@ async function initChatSessions() {
     if (history.length > 0) {
       setWelcomeVisible(false);
       history.forEach((msg) => {
-        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+        if (!msg || typeof msg !== "object") return;
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text ?? "");
       });
     } else {
       setWelcomeVisible(true);
@@ -1155,7 +1159,8 @@ async function initChatSessions() {
     if (history.length > 0) {
       setWelcomeVisible(false);
       history.forEach((msg) => {
-        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+        if (!msg || typeof msg !== "object") return;
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text ?? "");
       });
     } else {
       setWelcomeVisible(true);
@@ -1246,7 +1251,7 @@ function setWelcomeVisible(visible) {
 
 /* Parser Markdown aman (escape HTML dan link sanitasi) */
 function escapeHtml(str) {
-  return str
+  return String(str ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -1254,20 +1259,38 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+const ALLOWED_INLINE_LINK_HOSTS = new Set([
+  "store.steampowered.com",
+  "steamcommunity.com",
+  "help.steampowered.com",
+]);
+
 function inline(str) {
   let s = escapeHtml(str);
   s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
   s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   s = s.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<em>$2</em>");
-  s = s.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
-  );
+  s = s.replace(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g, (_fullMatch, label, escapedUrl) => {
+    const decodedUrl = escapedUrl.replace(/&amp;/g, "&");
+    try {
+      const parsed = new URL(decodedUrl);
+      if (
+        parsed.protocol === "https:" &&
+        parsed.port === "" &&
+        parsed.username === "" &&
+        parsed.password === "" &&
+        ALLOWED_INLINE_LINK_HOSTS.has(parsed.hostname.toLowerCase())
+      ) {
+        return `<a href="${escapeHtml(parsed.href)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+      }
+    } catch {}
+    return label;
+  });
   return s;
 }
 
 function formatMarkdown(text) {
-  const lines = text.replace(/\r/g, "").split("\n");
+  const lines = String(text ?? "").replace(/\r/g, "").split("\n");
   let html = "";
   let list = null;
 
@@ -1376,6 +1399,7 @@ function formatBotContent(raw) {
     if (Array.isArray(structured.games) && structured.games.length > 0) {
       html += `<div class="game-cards">`;
       structured.games.forEach((g) => {
+        if (!g || typeof g !== "object") return;
         let appId = g.appId ? Number.parseInt(String(g.appId).trim(), 10) : null;
         if (!Number.isInteger(appId) || appId <= 0) {
           appId = null;
@@ -1399,8 +1423,12 @@ function formatBotContent(raw) {
         const year = g.year ? escapeHtml(g.year) : "";
         const dev = g.developer ? escapeHtml(g.developer) : "";
         const metaStr = [year, dev].filter(Boolean).join(" • ");
-        const storeUrl = g.storeUrl || (appId ? `https://store.steampowered.com/app/${appId}/` : `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || "")}`);
-        const headerImg = g.headerImage ? escapeHtml(g.headerImage) : null;
+        const fallbackStoreUrl = appId
+          ? `https://store.steampowered.com/app/${appId}/`
+          : `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title || "")}`;
+        const rawStoreUrl = isValidSteamStoreUrl(g.storeUrl) ? g.storeUrl.trim() : fallbackStoreUrl;
+        const safeStoreUrl = escapeHtml(rawStoreUrl);
+        const rawHeaderImg = isValidSteamCdnUrl(g.headerImage) ? g.headerImage.trim() : null;
 
         const isUnverified = g.verified === false && !appId;
         const discountBadgeHtml =
@@ -1462,19 +1490,19 @@ function formatBotContent(raw) {
             developer: g.developer,
             genres: g.genres,
             verified: g.verified,
-            storeUrl,
-            headerImage: headerImg,
+            storeUrl: rawStoreUrl,
+            headerImage: rawHeaderImg,
             pricing: g.pricing,
             whyFit: g.whyFit,
             specsAndBudget: g.specsAndBudget,
           });
         }
         const isCompared = isGameInComparison(selectedComparisonGames, { appId, title: g.title });
-        const thumbImgHtml = !isUnverified && headerImg
-          ? renderCoverImage(headerImg, `Sampul ${g.title || "Game Steam"}`, "game-card-thumb-img")
+        const thumbImgHtml = !isUnverified && rawHeaderImg
+          ? renderCoverImage(rawHeaderImg, `Sampul ${g.title || "Game Steam"}`, "game-card-thumb-img")
           : "";
-        const thumbHtml = !isUnverified && headerImg
-          ? `<div class="game-card-thumb" data-header-image="${headerImg}" data-game-title="${title}">${thumbImgHtml}</div>`
+        const thumbHtml = !isUnverified && rawHeaderImg
+          ? `<div class="game-card-thumb" data-header-image="${escapeHtml(rawHeaderImg)}" data-game-title="${title}">${thumbImgHtml}</div>`
           : "";
 
         html += `
@@ -1497,7 +1525,7 @@ function formatBotContent(raw) {
                 ${g.specsAndBudget ? `<p class="game-card-specs"><strong>Spek & budget:</strong> ${inline(g.specsAndBudget)}</p>` : ""}
               </div>
               <div class="game-card-actions">
-                <a href="${storeUrl}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="${btnAriaLabel}">
+                <a href="${safeStoreUrl}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="${btnAriaLabel}">
                   <span>${btnLabel}</span>
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -1510,7 +1538,7 @@ function formatBotContent(raw) {
                   class="btn-wishlist-toggle"
                   data-appid="${appId ? escapeHtml(String(appId)) : ""}"
                   data-title="${title}"
-                  data-store-url="${storeUrl}"
+                  data-store-url="${safeStoreUrl}"
                   data-genres="${Array.isArray(g.genres) ? escapeHtml(g.genres.join(",")) : ""}"
                   aria-pressed="false"
                   aria-label="Simpan ${title} ke wishlist"
@@ -2549,18 +2577,9 @@ function createWishlistItemElement(item, idx, onRemove) {
   link.rel = "noopener noreferrer";
   link.setAttribute("aria-label", `Buka ${titleText} di Steam Store`);
 
-  // Validasi URL ketat: hanya izinkan skema http: atau https:
+  // Validasi URL ketat: hanya izinkan URL HTTPS resmi Steam Store
   const rawUrl = typeof item.storeUrl === "string" ? item.storeUrl.trim() : "";
-  let isHttp = false;
-  try {
-    const parsed = new URL(rawUrl);
-    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-      isHttp = true;
-    }
-  } catch (_) {
-    isHttp = false;
-  }
-  if (isHttp) {
+  if (isValidSteamStoreUrl(rawUrl)) {
     link.href = rawUrl;
   }
 
@@ -3030,7 +3049,11 @@ window.addEventListener("storage", (e) => {
       if (isFocusInItems && !els.wishlistPanel.hidden) {
         const deleteBtns = Array.from(els.wishlistItems.querySelectorAll(".btn-item-delete"));
         if (focusedKey) {
-          const matchingBtn = els.wishlistItems.querySelector(`.btn-item-delete[data-key="${focusedKey}"]`);
+          const escapedKey =
+            typeof CSS !== "undefined" && typeof CSS.escape === "function"
+              ? CSS.escape(focusedKey)
+              : focusedKey.replace(/["\\]/g, "\\$&");
+          const matchingBtn = els.wishlistItems.querySelector(`.btn-item-delete[data-key="${escapedKey}"]`);
           if (matchingBtn) {
             matchingBtn.focus();
             return;
@@ -3638,7 +3661,7 @@ document.addEventListener(
     const target = e.target;
     if (target && target.tagName === "IMG") {
       const src = target.src || "";
-      // Cegah perulangan jika placeholder lokal pun mengalami kegagalan atau fallback sudah diterapkan
+      // Early return mutlak jika fallback sudah diterapkan atau /icon.svg sendiri gagal dimuat
       if (target.dataset.fallbackApplied === "true" || src.endsWith("/icon.svg") || src.endsWith("icon.svg")) {
         const banner = target.closest(".game-card-banner, .game-card-thumb");
         if (banner) {
@@ -3648,21 +3671,27 @@ document.addEventListener(
         }
         return;
       }
-      // Coba beralih ke CDN cadangan Steam jika simpul awal gagal dimuat
-      if (src.includes("fastly.steamstatic.com")) {
-        target.src = src.replace("shared.fastly.steamstatic.com/store_item_assets", "cdn.akamai.steamstatic.com");
-        return;
+
+      const step = Number.parseInt(target.dataset.fallbackStep || "0", 10) || 0;
+      let nextSrc = "";
+
+      if (step < 3) {
+        if (src.includes("shared.fastly.steamstatic.com/store_item_assets")) {
+          nextSrc = src.replace("shared.fastly.steamstatic.com/store_item_assets", "cdn.akamai.steamstatic.com");
+        } else if (src.includes("cdn.akamai.steamstatic.com")) {
+          nextSrc = src.replace("cdn.akamai.steamstatic.com", "shared.cloudflare.steamstatic.com/store_item_assets");
+        } else if (src.includes("shared.cloudflare.steamstatic.com/store_item_assets")) {
+          nextSrc = src.replace("shared.cloudflare.steamstatic.com/store_item_assets", "steamcdn-a.akamaihd.net");
+        }
       }
-      if (src.includes("akamai.steamstatic.com") && !src.includes("cloudflare")) {
-        target.src = src.replace("cdn.akamai.steamstatic.com", "shared.cloudflare.steamstatic.com/store_item_assets");
-        return;
-      }
-      if (src.includes("cloudflare.steamstatic.com")) {
-        target.src = src.replace("shared.cloudflare.steamstatic.com/store_item_assets", "steamcdn-a.akamaihd.net");
+
+      if (nextSrc && nextSrc !== src) {
+        target.dataset.fallbackStep = String(step + 1);
+        target.src = nextSrc;
         return;
       }
 
-      // Jika seluruh CDN gagal, tandai fallback dan alihkan ke placeholder SVG lokal
+      // Jika seluruh CDN gagal atau URL tidak cocok pola mirror, tandai fallback dan alihkan ke placeholder SVG lokal
       target.dataset.fallbackApplied = "true";
       target.src = "/icon.svg";
     }

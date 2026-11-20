@@ -8,6 +8,13 @@ const __dirname = path.dirname(__filename);
 const fontsFixtureDir = path.resolve(__dirname, '../fixtures/fonts');
 const fontsCssPath = path.join(fontsFixtureDir, 'fonts.css');
 const fontsCssContent = fs.existsSync(fontsCssPath) ? fs.readFileSync(fontsCssPath, 'utf8') : '';
+const E2E_STABILIZE_CSS = `
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    caret-color: transparent !important;
+  }
+`;
 
 /**
  * Memasang proteksi jaringan (network guards) pada halaman pengujian Playwright.
@@ -111,6 +118,15 @@ export async function installNetworkGuards(page) {
           result: JSON.stringify(visualFixtures.chatRecommendation),
           data: visualFixtures.chatRecommendation,
         }),
+      });
+    }
+
+    // CSS stabilisasi E2E disajikan same-origin agar patuh CSP style-src 'self' tanpa unsafe-inline
+    if (url.pathname === '/__e2e_stabilize.css') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'text/css; charset=utf-8',
+        body: E2E_STABILIZE_CSS,
       });
     }
 

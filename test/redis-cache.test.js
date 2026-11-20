@@ -67,25 +67,74 @@ test('DailyCapLimiter: operasi atomik via Redis pipeline dan penegakan batas', a
     getTime: () => new Date('2026-10-21T12:00:00Z'),
   });
 
-  // Request 1: diizinkan
+  // Request 1: diizinkan (pipeline 1 cek IP, pipeline 2 cek global)
   const res1 = await limiter.consume('192.168.1.100');
   assert.equal(res1.allowed, true);
 
-  // Verifikasi struktur key dan TTL 86400
-  assert.equal(pipelineCalls.length, 1);
-  const ops = pipelineCalls[0];
-  assert.equal(ops[0].key, 'dailycap:2026-10-21:global');
-  assert.equal(ops[1].seconds, 86400);
-  assert.equal(ops[2].key, 'dailycap:2026-10-21:ip:192.168.1.100');
-  assert.equal(ops[3].seconds, 86400);
+  // Verifikasi struktur key dan TTL 86400: IP dicek lebih dulu daripada global
+  assert.equal(pipelineCalls.length, 2);
+  assert.equal(pipelineCalls[0][0].key, 'dailycap:2026-10-21:ip:192.168.1.100');
+  assert.equal(pipelineCalls[0][1].seconds, 86400);
+  assert.equal(pipelineCalls[1][0].key, 'dailycap:2026-10-21:global');
+  assert.equal(pipelineCalls[1][1].seconds, 86400);
 
   // Request 2: masih diizinkan
   const res2 = await limiter.consume('192.168.1.100');
   assert.equal(res2.allowed, true);
 
-  // Request 3: ditolak karena melebihi batas ipCap dan globalCap
+  // Request 3: ditolak karena melebihi batas ipCap tanpa menaikkan globalKey
   const res3 = await limiter.consume('192.168.1.100');
   assert.equal(res3.allowed, false);
+  assert.equal(res3.reason, 'ip');
+  assert.equal(mockStorage.get('dailycap:2026-10-21:global'), 2);
+});
+
+test('DailyCapLimiter (H-03): satu IP yang melampaui ipCap tidak dapat menguras kuota global di Redis', async () => {
+  const mockStorage = new Map();
+  const mockRedis = {
+    pipeline() {
+      const ops = [];
+      return {
+        incr(key) { ops.push({ op: 'incr', key }); },
+        expire(key, seconds) { ops.push({ op: 'expire', key, seconds }); },
+        async exec() {
+          const results = [];
+          for (const item of ops) {
+            if (item.op === 'incr') {
+              const val = (mockStorage.get(item.key) || 0) + 1;
+              mockStorage.set(item.key, val);
+              results.push(val);
+            } else {
+              results.push('OK');
+            }
+          }
+          return results;
+        },
+      };
+    },
+  };
+
+  const limiter = new DailyCapLimiter({
+    globalCap: 4,
+    ipCap: 2,
+    redis: mockRedis,
+    getTime: () => new Date('2026-10-21T12:00:00Z'),
+  });
+
+  // IP penyerang mengirim 6 request berturut-turut
+  assert.equal((await limiter.consume('10.0.0.99')).allowed, true);
+  assert.equal((await limiter.consume('10.0.0.99')).allowed, true);
+  for (let i = 0; i < 4; i++) {
+    const blocked = await limiter.consume('10.0.0.99');
+    assert.equal(blocked.allowed, false);
+    assert.equal(blocked.reason, 'ip');
+  }
+
+  // Global counter harus tetap 2 (bukan 6) sehingga IP sah lain tetap diizinkan
+  assert.equal(mockStorage.get('dailycap:2026-10-21:global'), 2);
+  assert.equal((await limiter.consume('10.0.0.50')).allowed, true);
+  assert.equal((await limiter.consume('10.0.0.50')).allowed, true);
+  assert.equal(mockStorage.get('dailycap:2026-10-21:global'), 4);
 });
 
 test('DailyCapLimiter: fallback ke in-memory saat Redis melempar error koneksi', async () => {

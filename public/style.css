@@ -29,6 +29,7 @@
 *::after { box-sizing: border-box; }
 
 [hidden] { display: none !important; }
+.svg-sprite-defs { display: none; }
 
 /* Penguncian Penuh Viewport (Anti Page-Scroll) */
 html, body {

@@ -52,6 +52,7 @@ export class GeminiKeyPool {
     this.currentIndex = 0;
 
     let parsedKeys = parseApiKeys(keys, fallbackKey);
+    this.isConfigured = parsedKeys.length > 0;
 
     // Default cadangan untuk pengujian unit atau saat startup tanpa API key
     if (parsedKeys.length === 0) {

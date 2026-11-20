@@ -111,6 +111,28 @@ test("comparisonCore: sanitizeComparisonGame fallback ke judul normalisasi jika 
   assert.equal(sanitized.headerImage, null);
 });
 
+test("comparisonCore (M-02): sanitizeComparisonGame menolak domain non-Steam, port kustom, dan kredensial pada URL", () => {
+  const raw = {
+    title: "Hades",
+    appId: 1145360,
+    storeUrl: "https://evil.example/app/1145360/",
+    headerImage: "https://evil.example/tracker.png",
+  };
+  const sanitized = sanitizeComparisonGame(raw);
+  assert.equal(sanitized.storeUrl, "https://store.steampowered.com/app/1145360/");
+  assert.equal(sanitized.headerImage, null);
+
+  const rawWithPort = {
+    title: "Hades",
+    appId: 1145360,
+    storeUrl: "https://store.steampowered.com:8443/app/1145360/",
+    headerImage: "https://cdn.akamai.steamstatic.com:444/steam/apps/1145360/header.jpg",
+  };
+  const sanitizedPort = sanitizeComparisonGame(rawWithPort);
+  assert.equal(sanitizedPort.storeUrl, "https://store.steampowered.com/app/1145360/");
+  assert.equal(sanitizedPort.headerImage, null);
+});
+
 test("comparisonCore: isGameInComparison mencocokkan berdasarkan getItemKey secara konsisten", () => {
   const list = [
     sanitizeComparisonGame({ appId: 105600, title: "Terraria" }),
