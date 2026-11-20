@@ -17,6 +17,11 @@
 export const WISHLIST_STORAGE_KEY = 'sobatsteam_wishlist';
 export const LEGACY_WISHLIST_STORAGE_KEY = 'steamscout_wishlist';
 export const MAX_WISHLIST_ITEMS = 50;
+export const MAX_IMPORT_JSON_BYTES = 256 * 1024;
+export const MAX_IMPORT_RAW_ITEMS = 500;
+export const MAX_TITLE_LENGTH = 200;
+export const MAX_GENRES_PER_ITEM = 15;
+export const MAX_GENRE_LENGTH = 50;
 
 const ALLOWED_STEAM_STORE_HOST = 'store.steampowered.com';
 const ALLOWED_STEAM_CDN_EXACT_HOSTS = new Set(['steamcdn-a.akamaihd.net']);
@@ -176,7 +181,10 @@ export function getItemKey(item) {
 export function sanitizeWishlistItem(raw, options) {
   const stampMissing = Boolean(options && typeof options === 'object' && options.stampMissing === true);
   const item = raw && typeof raw === 'object' ? raw : {};
-  const title = typeof item.title === 'string' ? item.title.trim() : 'Game Steam';
+  const rawTitle = typeof item.title === 'string' ? item.title.trim() : 'Game Steam';
+  const title = rawTitle.length > MAX_TITLE_LENGTH
+    ? Array.from(rawTitle).slice(0, MAX_TITLE_LENGTH).join('').trim()
+    : rawTitle;
 
   let appId = null;
   if (item.appId !== undefined && item.appId !== null && String(item.appId).trim() !== '') {
@@ -218,12 +226,16 @@ export function sanitizeWishlistItem(raw, options) {
   if (Array.isArray(item.genres)) {
     genres = item.genres
       .map((g) => (typeof g === 'string' ? g.trim() : ''))
-      .filter((g) => g.length > 0);
+      .filter((g) => g.length > 0)
+      .slice(0, MAX_GENRES_PER_ITEM)
+      .map((g) => (g.length > MAX_GENRE_LENGTH ? Array.from(g).slice(0, MAX_GENRE_LENGTH).join('').trim() : g));
   } else if (typeof item.genres === 'string' && item.genres.trim()) {
     genres = item.genres
       .split(',')
       .map((g) => g.trim())
-      .filter((g) => g.length > 0);
+      .filter((g) => g.length > 0)
+      .slice(0, MAX_GENRES_PER_ITEM)
+      .map((g) => (g.length > MAX_GENRE_LENGTH ? Array.from(g).slice(0, MAX_GENRE_LENGTH).join('').trim() : g));
   }
 
   return {
@@ -856,6 +868,17 @@ export function parseAndValidateImportData(jsonString, currentWishlist = [], max
     };
   }
 
+  const byteLength = new TextEncoder().encode(jsonString).length;
+  if (byteLength > MAX_IMPORT_JSON_BYTES) {
+    return {
+      success: false,
+      list: Array.isArray(currentWishlist) ? currentWishlist.map((item) => sanitizeWishlistItem(item)) : [],
+      addedCount: 0,
+      upgradedCount: 0,
+      error: 'Ukuran berkas impor melebihi batas maksimal 256 KB.',
+    };
+  }
+
   let parsed;
   try {
     parsed = JSON.parse(jsonString);
@@ -895,8 +918,11 @@ export function parseAndValidateImportData(jsonString, currentWishlist = [], max
     };
   }
 
+  // Batasi jumlah item mentah sebelum sanitasi untuk mencegah DoS CPU/memori
+  const boundedRawItems = rawItems.slice(0, MAX_IMPORT_RAW_ITEMS);
+
   // Sanitasi item impor
-  const validImported = rawItems
+  const validImported = boundedRawItems
     .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
     .map((item) => sanitizeWishlistItem(item, { stampMissing: true }))
     .filter((item) => {
@@ -924,6 +950,11 @@ export function parseAndValidateImportData(jsonString, currentWishlist = [], max
   let upgradedCount = 0;
 
   for (const importedItem of validImported) {
+    const canUpgradeAny = baseList.some((item) => !item.appId);
+    if (baseList.length >= maxItems && !canUpgradeAny) {
+      break;
+    }
+
     const existingIndex = baseList.findIndex((item) => isSameGame(item, importedItem));
 
     if (existingIndex !== -1) {
@@ -979,8 +1010,10 @@ export function importWishlistFromJSON(storage = globalThis.localStorage, jsonSt
   const result = parseAndValidateImportData(jsonString, currentWishlist, maxItems);
 
   if (result.success && (result.addedCount > 0 || result.upgradedCount > 0)) {
-    const saveResult = saveWishlist(storage, result.list);
-    if (!saveResult) {
+    try {
+      saveWishlist(storage, result.list);
+    } catch (err) {
+      console.warn('Gagal menyimpan hasil impor wishlist ke storage:', err);
       return {
         success: false,
         list: currentWishlist,

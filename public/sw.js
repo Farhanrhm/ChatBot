@@ -1,4 +1,4 @@
-const CACHE_NAME = "sobatsteam-shell-v7";
+const CACHE_NAME = "sobatsteam-shell-v8";
 
 const PRECACHE_ASSETS = [
   "/",
@@ -13,6 +13,8 @@ const PRECACHE_ASSETS = [
   "/icon.svg",
   "/placeholder-game.svg",
 ];
+
+const PRECACHE_ASSET_SET = new Set(PRECACHE_ASSETS);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -51,8 +53,13 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(event.request.url);
 
-  // 2. Strict Network-Only untuk endpoint API SobatSteam
-  if (url.pathname.startsWith("/api/")) {
+  // 2. Strict Network-Only untuk endpoint API dan rute diagnostik server
+  if (
+    url.pathname === "/api" ||
+    url.pathname.startsWith("/api/") ||
+    url.pathname === "/health" ||
+    url.pathname === "/debug-sentry"
+  ) {
     return;
   }
 
@@ -78,6 +85,8 @@ self.addEventListener("fetch", (event) => {
               networkResponse &&
               networkResponse.status === 200 &&
               networkResponse.type === "basic" &&
+              url.search === "" &&
+              PRECACHE_ASSET_SET.has(url.pathname) &&
               (event.request.url.startsWith("http://") || event.request.url.startsWith("https://"))
             ) {
               const responseToCache = networkResponse.clone();

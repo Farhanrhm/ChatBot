@@ -630,7 +630,8 @@ async function switchSession(id) {
     if (history.length > 0) {
       setWelcomeVisible(false);
       history.forEach((msg) => {
-        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+        if (!msg || typeof msg !== "object") return;
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text ?? "");
       });
     } else {
       setWelcomeVisible(true);
@@ -1144,7 +1145,8 @@ async function initChatSessions() {
     if (history.length > 0) {
       setWelcomeVisible(false);
       history.forEach((msg) => {
-        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+        if (!msg || typeof msg !== "object") return;
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text ?? "");
       });
     } else {
       setWelcomeVisible(true);
@@ -1157,7 +1159,8 @@ async function initChatSessions() {
     if (history.length > 0) {
       setWelcomeVisible(false);
       history.forEach((msg) => {
-        addMessage(msg.role === "user" ? "user" : "bot", msg.text);
+        if (!msg || typeof msg !== "object") return;
+        addMessage(msg.role === "user" ? "user" : "bot", msg.text ?? "");
       });
     } else {
       setWelcomeVisible(true);
@@ -1248,7 +1251,7 @@ function setWelcomeVisible(visible) {
 
 /* Parser Markdown aman (escape HTML dan link sanitasi) */
 function escapeHtml(str) {
-  return str
+  return String(str ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -1287,7 +1290,7 @@ function inline(str) {
 }
 
 function formatMarkdown(text) {
-  const lines = text.replace(/\r/g, "").split("\n");
+  const lines = String(text ?? "").replace(/\r/g, "").split("\n");
   let html = "";
   let list = null;
 
@@ -1396,6 +1399,7 @@ function formatBotContent(raw) {
     if (Array.isArray(structured.games) && structured.games.length > 0) {
       html += `<div class="game-cards">`;
       structured.games.forEach((g) => {
+        if (!g || typeof g !== "object") return;
         let appId = g.appId ? Number.parseInt(String(g.appId).trim(), 10) : null;
         if (!Number.isInteger(appId) || appId <= 0) {
           appId = null;
@@ -3045,7 +3049,11 @@ window.addEventListener("storage", (e) => {
       if (isFocusInItems && !els.wishlistPanel.hidden) {
         const deleteBtns = Array.from(els.wishlistItems.querySelectorAll(".btn-item-delete"));
         if (focusedKey) {
-          const matchingBtn = els.wishlistItems.querySelector(`.btn-item-delete[data-key="${focusedKey}"]`);
+          const escapedKey =
+            typeof CSS !== "undefined" && typeof CSS.escape === "function"
+              ? CSS.escape(focusedKey)
+              : focusedKey.replace(/["\\]/g, "\\$&");
+          const matchingBtn = els.wishlistItems.querySelector(`.btn-item-delete[data-key="${escapedKey}"]`);
           if (matchingBtn) {
             matchingBtn.focus();
             return;
@@ -3653,7 +3661,7 @@ document.addEventListener(
     const target = e.target;
     if (target && target.tagName === "IMG") {
       const src = target.src || "";
-      // Cegah perulangan jika placeholder lokal pun mengalami kegagalan atau fallback sudah diterapkan
+      // Early return mutlak jika fallback sudah diterapkan atau /icon.svg sendiri gagal dimuat
       if (target.dataset.fallbackApplied === "true" || src.endsWith("/icon.svg") || src.endsWith("icon.svg")) {
         const banner = target.closest(".game-card-banner, .game-card-thumb");
         if (banner) {
@@ -3663,21 +3671,27 @@ document.addEventListener(
         }
         return;
       }
-      // Coba beralih ke CDN cadangan Steam jika simpul awal gagal dimuat
-      if (src.includes("fastly.steamstatic.com")) {
-        target.src = src.replace("shared.fastly.steamstatic.com/store_item_assets", "cdn.akamai.steamstatic.com");
-        return;
+
+      const step = Number.parseInt(target.dataset.fallbackStep || "0", 10) || 0;
+      let nextSrc = "";
+
+      if (step < 3) {
+        if (src.includes("shared.fastly.steamstatic.com/store_item_assets")) {
+          nextSrc = src.replace("shared.fastly.steamstatic.com/store_item_assets", "cdn.akamai.steamstatic.com");
+        } else if (src.includes("cdn.akamai.steamstatic.com")) {
+          nextSrc = src.replace("cdn.akamai.steamstatic.com", "shared.cloudflare.steamstatic.com/store_item_assets");
+        } else if (src.includes("shared.cloudflare.steamstatic.com/store_item_assets")) {
+          nextSrc = src.replace("shared.cloudflare.steamstatic.com/store_item_assets", "steamcdn-a.akamaihd.net");
+        }
       }
-      if (src.includes("akamai.steamstatic.com") && !src.includes("cloudflare")) {
-        target.src = src.replace("cdn.akamai.steamstatic.com", "shared.cloudflare.steamstatic.com/store_item_assets");
-        return;
-      }
-      if (src.includes("cloudflare.steamstatic.com")) {
-        target.src = src.replace("shared.cloudflare.steamstatic.com/store_item_assets", "steamcdn-a.akamaihd.net");
+
+      if (nextSrc && nextSrc !== src) {
+        target.dataset.fallbackStep = String(step + 1);
+        target.src = nextSrc;
         return;
       }
 
-      // Jika seluruh CDN gagal, tandai fallback dan alihkan ke placeholder SVG lokal
+      // Jika seluruh CDN gagal atau URL tidak cocok pola mirror, tandai fallback dan alihkan ke placeholder SVG lokal
       target.dataset.fallbackApplied = "true";
       target.src = "/icon.svg";
     }
