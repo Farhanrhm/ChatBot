@@ -937,4 +937,101 @@ test.describe('Chat Flow & Perilaku SobatSteam', () => {
     expect(cspErrors).toEqual([]);
     expect(pageErrors).toEqual([]);
   });
+
+  // ==========================================================================
+  // [C10] Ketahanan Data Storage Korup (M-03) & Anti Infinite Loop Fallback CDN (L-01)
+  // ==========================================================================
+  test('[C10] Riwayat korup/non-string tidak memicu crash dan fallback gambar CDN berhenti aman tanpa loop', async ({ page }) => {
+    const pageErrors = [];
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+
+    await page.goto('/');
+
+    // 1. Suntikkan data sesi korup (elemen null, year angka, title/intro angka, games berisi null)
+    await page.evaluate(async () => {
+      const weirdReply = JSON.stringify({
+        intro: 12345,
+        games: [
+          null,
+          'invalid-entry',
+          {
+            appId: 367520,
+            title: 98765,
+            year: 2024,
+            developer: 42,
+            genres: [111, 'Action'],
+            verified: true,
+            whyFit: 2025,
+            specsAndBudget: 100000,
+          },
+        ],
+        followUp: 999,
+      });
+
+      const session = {
+        id: 'session_corrupt_test',
+        title: 'Sesi Data Korup',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [
+          null,
+          { role: 'user', text: 'Halo' },
+          { role: 'model', text: weirdReply },
+        ],
+      };
+
+      const db = await new Promise((resolve, reject) => {
+        const req = indexedDB.open('SteamScoutDB', 1);
+        req.onupgradeneeded = (ev) => {
+          const d = ev.target.result;
+          if (!d.objectStoreNames.contains('chat_sessions')) {
+            const st = d.createObjectStore('chat_sessions', { keyPath: 'id' });
+            st.createIndex('updatedAt', 'updatedAt', { unique: false });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('chat_sessions', 'readwrite');
+        tx.objectStore('chat_sessions').put(session);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+
+      sessionStorage.setItem('sobatsteam_active_session_id', 'session_corrupt_test');
+      sessionStorage.setItem('sobatsteam_chat_history', JSON.stringify(session.messages));
+    });
+
+    await page.reload();
+    await expect(page.locator('.game-card')).toHaveCount(1);
+    await expect(page.locator('.game-card-title').first()).toHaveText('98765');
+    expect(pageErrors).toEqual([]);
+
+    // 2. Uji anti infinite error loop (L-01) pada host shared.akamai.steamstatic.com yang tidak cocok pola mirror
+    await page.route('**/*steamstatic.com/**', (route) => route.abort());
+    await page.evaluate(() => {
+      window.__imgErrorCount = 0;
+      const wrap = document.createElement('div');
+      wrap.className = 'game-card-thumb';
+      wrap.id = 'test-l01-wrap';
+      const img = document.createElement('img');
+      img.id = 'test-l01-img';
+      img.addEventListener('error', () => {
+        window.__imgErrorCount++;
+      });
+      img.src = 'https://shared.akamai.steamstatic.com/missing.jpg';
+      wrap.appendChild(img);
+      document.body.appendChild(wrap);
+    });
+
+    const imgLoc = page.locator('#test-l01-img');
+    await expect(imgLoc).toHaveAttribute('src', /\/icon\.svg$/);
+    await expect(imgLoc).toHaveAttribute('data-fallback-applied', 'true');
+
+    const errorCount = await page.evaluate(() => window.__imgErrorCount);
+    expect(errorCount).toBeLessThanOrEqual(3);
+    expect(pageErrors).toEqual([]);
+  });
 });

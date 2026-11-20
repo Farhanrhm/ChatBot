@@ -938,5 +938,47 @@ test.describe('Komparasi', () => {
     await expect(page.locator('.btn-compare-toggle.is-selected')).toHaveCount(0);
     await expect(page.locator('#comparison-dialog')).toBeHidden();
   });
+
+  // ==========================================================================
+  // [B36] Keamanan Selector CSS.escape pada Sinkronisasi Fokus Storage Event (L-02)
+  // ==========================================================================
+  test('[B36] Storage event dengan judul wishlist berkarakter backslash tidak memicu error selector CSS', async ({ page }) => {
+    const consoleWarnings = [];
+    const pageErrors = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error' || (msg.type() === 'warning' && /wishlist|selector|SyntaxError/i.test(msg.text()))) {
+        consoleWarnings.push(msg.text());
+      }
+    });
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+
+    await installNetworkGuards(page);
+    await page.goto('/');
+
+    await page.evaluate(() => {
+      const items = [
+        { title: 'Game\\Backslash', storeUrl: 'https://store.steampowered.com/search/?term=Game%5CBackslash' },
+        { title: 'Stardew Valley', appId: 413150, storeUrl: 'https://store.steampowered.com/app/413150/' },
+      ];
+      localStorage.setItem('sobatsteam_wishlist', JSON.stringify(items));
+    });
+
+    await page.locator('#wishlist-btn').click();
+    const deleteBtns = page.locator('#wishlist-items .btn-item-delete');
+    await expect(deleteBtns).toHaveCount(2);
+
+    // Fokuskan tombol hapus item yang key-nya mengandung karakter backslash
+    await deleteBtns.first().focus();
+    await expect(deleteBtns.first()).toBeFocused();
+
+    // Picu event storage lintas tab
+    await page.evaluate(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: 'sobatsteam_wishlist' }));
+    });
+
+    await expect(deleteBtns.first()).toBeFocused();
+    expect(consoleWarnings).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
 });
 
