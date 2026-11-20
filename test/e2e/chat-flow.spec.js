@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import fs from 'fs';
 import path from 'path';
 import { installNetworkGuards } from './helpers/network.js';
@@ -309,16 +310,19 @@ test.describe('Chat Flow & Perilaku SobatSteam', () => {
     await page.locator('#send-btn').click();
     await expect(page.locator('.msg.bot')).toBeVisible();
 
-    // 2. Ubah Nama Sesi melalui prompt
-    page.once('dialog', async (dialog) => {
-      expect(dialog.type()).toBe('prompt');
-      await dialog.accept('Koleksi Roguelite Seru');
-    });
-
+    // 2. Ubah Nama Sesi melalui modal kustom aplikasi
     const activeItem = page.locator('#sessions-list .session-item.is-active');
     const renameBtn = activeItem.locator('.btn-session-rename');
     await renameBtn.click();
 
+    const actionDialog = page.locator('#session-action-dialog');
+    const renameInput = page.locator('#session-rename-input');
+    await expect(actionDialog).toBeVisible();
+    await expect(renameInput).toBeFocused();
+    await renameInput.fill('Koleksi Roguelite Seru');
+    await page.locator('#session-action-confirm-btn').click();
+
+    await expect(actionDialog).toBeHidden();
     await expect(activeItem.locator('.session-item-title')).toContainText('Koleksi Roguelite Seru');
 
     // 3. Tombol Salin Pesan Bot
@@ -601,5 +605,220 @@ test.describe('Chat Flow & Perilaku SobatSteam', () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await expect(rail).toBeHidden();
     await expect(topbarTitle).toBeVisible();
+  });
+
+  // ==========================================================================
+  // [C04] Toolbar Sesi Aktif Menyembunyikan Preset Saran (#chips) & Divider
+  // ==========================================================================
+  test('[C04] Toolbar menyembunyikan saran cepat (#chips) saat sesi chat aktif dan mengembalikannya saat reset/sesi baru', async ({ page }) => {
+    await page.goto('/');
+
+    const chips = page.locator('#chips');
+    const divider = page.locator('#toolbar-divider');
+    const filterGroups = page.locator('#filter-groups');
+    const quickToolbar = page.locator('#quick-toolbar');
+    const toggleBtn = page.locator('#filter-toggle-btn');
+
+    // Layar awal (#welcome aktif): kedua grup tampil
+    await expect(chips).toBeVisible();
+    await expect(divider).toBeVisible();
+    await expect(filterGroups).toBeVisible();
+
+    await mockChatSuccess(page);
+    await page.locator('#user-input').fill('Rekomendasi game roguelite ringan');
+    await page.locator('#send-btn').click();
+    await expect(page.locator('.game-card')).toHaveCount(2);
+
+    // Buka kembali toolbar pada sesi aktif: hanya #filter-groups yang tampil
+    const isExpanded = await toggleBtn.getAttribute('aria-expanded');
+    if (isExpanded === 'false') {
+      await toggleBtn.click();
+    }
+    await expect(filterGroups).toBeVisible();
+    await expect(chips).toBeHidden();
+    await expect(divider).toBeHidden();
+    await expect(quickToolbar).toHaveAttribute('aria-label', 'Filter preferensi');
+
+    // Memulai sesi baru memulihkan layar awal beserta #chips dan divider
+    await page.locator('#new-session-btn').click();
+    await expect(page.locator('#welcome')).toBeVisible();
+    await expect(chips).toBeVisible();
+    await expect(divider).toBeVisible();
+    await expect(quickToolbar).toHaveAttribute('aria-label', 'Filter preferensi dan saran cepat');
+  });
+
+  // ==========================================================================
+  // [C05] Thumbnail Kapsul Mini Kartu Game & Sinkronisasi Mode Hemat Data
+  // ==========================================================================
+  test('[C05] Kartu rekomendasi menampilkan thumbnail kapsul mini dan mematuhi toggle Mode Hemat Data secara langsung', async ({ page }) => {
+    await page.goto('/');
+    await mockChatSuccess(page);
+
+    await page.locator('#user-input').fill('Carikan game pixel indie seru');
+    await page.locator('#send-btn').click();
+
+    const firstThumb = page.locator('.game-card .game-card-thumb').first();
+    const firstImg = firstThumb.locator('img');
+    await expect(firstThumb).toBeVisible();
+    await expect(firstImg).toBeVisible();
+    await expect(firstImg).toHaveAttribute('src', /steamstatic\.com/);
+
+    // Aktifkan Mode Hemat Data: thumbnail di chat langsung disembunyikan
+    const dataSaverBtn = page.locator('#data-saver-btn');
+    await dataSaverBtn.click();
+    await expect(page.locator('body')).toHaveClass(/data-saver-active/);
+    await expect(firstThumb).toBeHidden();
+
+    // Matikan Mode Hemat Data: thumbnail kembali tampil tanpa muat ulang halaman
+    await dataSaverBtn.click();
+    await expect(page.locator('body')).not.toHaveClass(/data-saver-active/);
+    await expect(firstThumb).toBeVisible();
+
+    // Mulai obrolan baru dengan Mode Hemat Data aktif terlebih dahulu -> hidrasi saat dimatikan
+    await page.locator('#new-session-btn').click();
+    await dataSaverBtn.click();
+    await expect(page.locator('body')).toHaveClass(/data-saver-active/);
+
+    await page.locator('#user-input').fill('Game strategi ringan hemat data');
+    await page.locator('#send-btn').click();
+
+    const hiddenThumb = page.locator('.game-card .game-card-thumb').first();
+    await expect(hiddenThumb).toBeHidden();
+    await expect(hiddenThumb.locator('.cover-placeholder')).toHaveCount(1);
+
+    await dataSaverBtn.click();
+    await expect(hiddenThumb).toBeVisible();
+    await expect(hiddenThumb.locator('img')).toBeVisible();
+  });
+
+  // ==========================================================================
+  // [C06] Tooltip Prompt Penuh Riwayat Sesi Tanpa Label Tanggal/Waktu
+  // ==========================================================================
+  test('[C06] Item riwayat sesi menampilkan tooltip teks prompt lengkap tanpa tanggal atau waktu', async ({ page }) => {
+    await page.goto('/');
+    await mockChatSuccess(page);
+
+    const longPrompt = 'Carikan game cozy santai bertani di desa dengan spesifikasi laptop kentang budget di bawah 100 ribu';
+    await page.locator('#user-input').fill(longPrompt);
+    await page.locator('#send-btn').click();
+
+    const activeItem = page.locator('#sessions-list .session-item.is-active');
+    const titleBtn = activeItem.locator('.session-item-title');
+
+    await expect(activeItem).toHaveCount(1);
+    await expect(activeItem.locator('.session-item-time')).toHaveCount(0);
+    await expect(titleBtn).toHaveAttribute('title', longPrompt);
+  });
+
+  // ==========================================================================
+  // [C07] Modal Kustom Ubah Nama Sesi (Validasi, Counter, Keyboard, & A11y)
+  // ==========================================================================
+  test('[C07] Modal ubah nama sesi menyediakan input praisi, validasi kosong, Escape cancel, dan lulus axe-core', async ({ page }) => {
+    await page.goto('/');
+    await mockChatSuccess(page);
+
+    const longPrompt = 'Carikan game cozy santai pelepas stres untuk laptop kentang harga terjangkau';
+    await page.locator('#user-input').fill(longPrompt);
+    await page.locator('#send-btn').click();
+
+    const activeItem = page.locator('#sessions-list .session-item.is-active');
+    const renameBtn = activeItem.locator('.btn-session-rename');
+    await renameBtn.click();
+
+    const dialog = page.locator('#session-action-dialog');
+    const input = page.locator('#session-rename-input');
+    const counter = page.locator('#session-rename-counter');
+    const errorEl = page.locator('#session-action-error');
+    const confirmBtn = page.locator('#session-action-confirm-btn');
+
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('role', 'dialog');
+    await expect(input).toBeFocused();
+    // Elipsis bawaan hasil pemotongan otomatis dibersihkan agar counter 35/35 akurat
+    await expect(input).toHaveValue(longPrompt.slice(0, 35));
+    await expect(counter).toHaveText('35/35');
+
+    // Audit aksesibilitas axe-core saat modal rename terbuka
+    const axeResults = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    const serious = axeResults.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+    expect(serious).toEqual([]);
+
+    // Validasi input kosong menahan dialog tetap terbuka dan menampilkan pesan error
+    await input.fill('   ');
+    await expect(counter).toHaveText('3/35');
+    await confirmBtn.click();
+    await expect(dialog).toBeVisible();
+    await expect(errorEl).toBeVisible();
+    await expect(errorEl).toContainText('Nama sesi tidak boleh kosong');
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+
+    // Penekanan Escape membatalkan tanpa mengubah nama sesi dan memulihkan fokus
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(activeItem.locator('.session-item-name')).toContainText(longPrompt.slice(0, 35));
+
+    // Buka ulang dan simpan nama baru via Enter
+    await renameBtn.click();
+    await input.fill('Cozy Laptop Hemat');
+    await expect(counter).toHaveText('17/35');
+    await input.press('Enter');
+
+    await expect(dialog).toBeHidden();
+    await expect(activeItem.locator('.session-item-name')).toHaveText('Cozy Laptop Hemat');
+  });
+
+  // ==========================================================================
+  // [C08] Modal Konfirmasi Hapus Sesi (Desktop & Drawer Mobile 375px)
+  // ==========================================================================
+  test('[C08] Modal konfirmasi hapus sesi aman secara fokus dan berfungsi di desktop maupun drawer mobile', async ({ page }) => {
+    await page.goto('/');
+    await mockChatSuccess(page);
+
+    // 1. Desktop: buat sesi dan buka dialog hapus
+    await page.locator('#user-input').fill('Rekomendasi game RPG santai');
+    await page.locator('#send-btn').click();
+
+    const activeItem = page.locator('#sessions-list .session-item.is-active');
+    const delBtn = activeItem.locator('.btn-session-delete');
+    await delBtn.click();
+
+    const dialog = page.locator('#session-action-dialog');
+    const cancelBtn = page.locator('#session-action-cancel-btn');
+    const confirmBtn = page.locator('#session-action-confirm-btn');
+
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('role', 'alertdialog');
+    await expect(dialog).toContainText('Rekomendasi game RPG santai');
+    // Pengaman destruktif: fokus awal harus berada di tombol Batal
+    await expect(cancelBtn).toBeFocused();
+
+    // Batal menjaga sesi tetap tersimpan
+    await cancelBtn.click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('#sessions-list .session-item')).toHaveCount(1);
+
+    // 2. Mobile Drawer (375x667): uji penghapusan dari dalam drawer mobile
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.locator('#sessions-btn').click();
+    const drawer = page.locator('#sessions-panel');
+    await expect(drawer).toBeVisible();
+
+    await page.locator('#drawer-sessions-list .btn-session-delete').first().click();
+    await expect(dialog).toBeVisible();
+    await expect(cancelBtn).toBeFocused();
+    await expect(drawer).toHaveAttribute('inert', '');
+
+    // Pastikan 0px horizontal overflow dan lolos axe-core pada mobile dengan dialog terbuka
+    const hasOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    expect(hasOverflow).toBe(false);
+
+    const axeMobile = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    expect(axeMobile.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')).toEqual([]);
+
+    await confirmBtn.click();
+    await expect(dialog).toBeHidden();
+    await expect(drawer).not.toHaveAttribute('inert');
+    await expect(page.locator('#sessions-empty')).toBeVisible();
+    await expect(page.locator('#drawer-new-session-btn')).toBeFocused();
   });
 });

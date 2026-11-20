@@ -105,3 +105,101 @@ export const visualFixtures = {
     },
   ],
 };
+
+/**
+ * Menyusun markup HTML satu kartu game rekomendasi terpusat (konsisten dengan formatBotContent).
+ * @param {object} g - Data fixture game
+ * @param {{ isDataSaver?: boolean }} [options]
+ * @returns {string} HTML kartu game
+ */
+export function buildMockGameCardHtml(g, { isDataSaver = false } = {}) {
+  const thumbImgHtml = g.headerImage
+    ? isDataSaver
+      ? `<div class="cover-placeholder game-card-thumb-img" aria-label="Gambar dinonaktifkan (Mode Hemat Data)"><img src="/icon.svg" alt="" width="24" height="24" loading="lazy"></div>`
+      : `<img src="${g.headerImage}" alt="Sampul ${g.title}" class="game-card-thumb-img" loading="lazy">`
+    : '';
+  const thumbHtml = g.headerImage
+    ? `<div class="game-card-thumb" data-header-image="${g.headerImage}" data-game-title="${g.title}">${thumbImgHtml}</div>`
+    : '';
+
+  return `
+            <div class="game-card">
+              <div class="game-card-inner">
+                <div class="game-card-head">
+                  ${thumbHtml}
+                  <div class="game-card-head-text">
+                    <div class="game-card-title-group"><h4 class="game-card-title">${g.title}</h4></div>
+                    <span class="game-card-meta">${g.year} • ${g.developer}</span>
+                  </div>
+                </div>
+                <div class="game-price-row">
+                  ${g.pricing.onSale ? `<span class="discount-badge" aria-label="Diskon ${g.pricing.discountPercent} persen">-${g.pricing.discountPercent}%</span>` : ''}
+                  ${g.pricing.onSale ? `<del class="price-original">${g.pricing.initialFormatted}</del>` : ''}
+                  <span class="price-current">${g.pricing.finalFormatted}</span>
+                </div>
+                <div class="game-card-tags">
+                  ${g.genres.map((t) => `<span class="game-tag">${t}</span>`).join('')}
+                </div>
+                <div class="game-card-body">
+                  <p><strong>Kenapa cocok:</strong> ${g.whyFit}</p>
+                  <p><strong>Spek & budget:</strong> ${g.specsAndBudget}</p>
+                </div>
+                <div class="game-card-actions">
+                  <a href="${g.storeUrl}" target="_blank" rel="noopener noreferrer" class="steam-store-card-btn" aria-label="Buka ${g.title} di Steam">
+                    <span>Buka di Steam Store</span>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                  </a>
+                  <button type="button" class="btn-wishlist-toggle"><span class="wishlist-btn-text">Wishlist</span></button>
+                  <button
+                    type="button"
+                    class="btn-compare-toggle"
+                    data-key="app:${g.appId}"
+                    data-appid="${g.appId}"
+                    data-title="${g.title}"
+                    data-store-url="${g.storeUrl}"
+                    data-header-image="${g.headerImage}"
+                    data-year="${g.year}"
+                    data-developer="${g.developer}"
+                    data-genres="${g.genres.join(',')}"
+                    data-whyfit="${g.whyFit}"
+                    data-specs="${g.specsAndBudget}"
+                    aria-pressed="false"
+                    aria-label="Pilih ${g.title} untuk dibandingkan"
+                  >
+                    <span class="compare-btn-text">Bandingkan</span>
+                  </button>
+                </div>
+              </div>
+            </div>`;
+}
+
+/**
+ * Menyusun HTML bubble pesan bot berisi rekomendasi kartu game dari fixture terpusat.
+ * @param {object} [fixture]
+ * @param {{ isDataSaver?: boolean }} [options]
+ * @returns {string} HTML bubble pesan bot
+ */
+export function buildMockChatRecommendationHtml(
+  fixture = visualFixtures.chatRecommendation,
+  { isDataSaver = false } = {}
+) {
+  const intro = fixture.text || fixture.intro || '';
+  const gamesHtml = Array.isArray(fixture.games)
+    ? fixture.games.map((g) => buildMockGameCardHtml(g, { isDataSaver })).join('')
+    : '';
+  const followUp = fixture.followUp ? `<p class="bot-followup">${fixture.followUp}</p>` : '';
+
+  return `
+      <div class="avatar">AI</div>
+      <div class="bubble">
+        <p class="bot-intro">${intro}</p>
+        <div class="game-cards">
+          ${gamesHtml}
+        </div>
+        ${followUp}
+      </div>`;
+}
