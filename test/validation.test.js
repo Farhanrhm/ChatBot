@@ -2181,6 +2181,69 @@ test('Security URL Validation (H-01 & M-02): validasi ketat host/port/kredensial
   assert.ok(!queryCover.includes('&amp;amp;'));
 });
 
+test('Wishlist Import DoS & Quota Protection (M-03): batas byte UTF-8, batas raw items, batas field, dan QuotaExceededError', async () => {
+  const {
+    parseAndValidateImportData,
+    importWishlistFromJSON,
+    sanitizeWishlistItem,
+    MAX_IMPORT_JSON_BYTES,
+    MAX_TITLE_LENGTH,
+    MAX_GENRES_PER_ITEM,
+    MAX_GENRE_LENGTH,
+  } = await import('../public/wishlistCore.js');
+
+  // 1. Tolak payload melebihi MAX_IMPORT_JSON_BYTES berdasarkan ukuran byte UTF-8 nyata
+  // Karakter 'é' (2 byte UTF-8): 140.000 karakter = 280.000 byte > 256 KB
+  const multibyteOverLimit = JSON.stringify({ items: [{ title: 'é'.repeat(140000) }] });
+  assert.ok(new TextEncoder().encode(multibyteOverLimit).length > MAX_IMPORT_JSON_BYTES);
+  const resTooLarge = parseAndValidateImportData(multibyteOverLimit, []);
+  assert.equal(resTooLarge.success, false);
+  assert.ok(resTooLarge.error.includes('256 KB'));
+
+  // 2. Pembatasan panjang title dan jumlah/panjang genres
+  const longItem = sanitizeWishlistItem({
+    appId: 105600,
+    title: 'A'.repeat(300),
+    genres: Array.from({ length: 30 }, (_, i) => `Genre_${i}_${'Z'.repeat(80)}`),
+  });
+  assert.equal(longItem.title.length, MAX_TITLE_LENGTH);
+  assert.equal(longItem.genres.length, MAX_GENRES_PER_ITEM);
+  assert.ok(longItem.genres.every((g) => g.length <= MAX_GENRE_LENGTH));
+
+  // 3. Pembatasan raw items > 500 tetap cepat dan menghormati maxItems=50
+  const manyItems = Array.from({ length: 650 }, (_, i) => ({ appId: i + 1, title: `G${i}` }));
+  const resMany = parseAndValidateImportData(JSON.stringify(manyItems), [], 50);
+  assert.equal(resMany.success, true);
+  assert.equal(resMany.list.length, 50);
+
+  // 4. importWishlistFromJSON menangkap QuotaExceededError tanpa crash
+  const quotaStorage = {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error('QuotaExceededError');
+    },
+  };
+  const resQuota = importWishlistFromJSON(
+    quotaStorage,
+    JSON.stringify({ version: '1.0', items: [{ appId: 105600, title: 'Terraria' }] })
+  );
+  assert.equal(resQuota.success, false);
+  assert.ok(resQuota.error.includes('Gagal menyimpan'));
+});
+
+test('Service Worker Hardening (L-03): v8, bypass /health dan /debug-sentry, serta guard PRECACHE_ASSET_SET tanpa query string', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const swContent = fs.readFileSync(path.resolve('public/sw.js'), 'utf8');
+
+  assert.ok(swContent.includes('sobatsteam-shell-v8'), 'CACHE_NAME harus diperbarui ke sobatsteam-shell-v8');
+  assert.ok(swContent.includes('url.pathname === "/api"'));
+  assert.ok(swContent.includes('url.pathname === "/health"'));
+  assert.ok(swContent.includes('url.pathname === "/debug-sentry"'));
+  assert.ok(swContent.includes('url.search === ""'));
+  assert.ok(swContent.includes('PRECACHE_ASSET_SET.has(url.pathname)'));
+});
+
 
 
 

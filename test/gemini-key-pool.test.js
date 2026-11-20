@@ -135,3 +135,20 @@ test('callGeminiWithRetry: failover otomatis ke kunci berikutnya saat kuota habi
   assert.equal(key2Attempts, 1, 'Kunci kedua harus berhasil dipanggil saat failover');
   assert.equal(pool.getActiveKeyCount(), 1, 'Kunci pertama harus berstatus cooldown');
 });
+
+test('GeminiKeyPool (L-04): menandai isConfigured secara akurat untuk pool kosong vs terkonfigurasi', () => {
+  const unconfigured = new GeminiKeyPool({
+    keys: '',
+    fallbackKey: '',
+    clientFactory: (k) => ({ mockKey: k }),
+  });
+  assert.equal(unconfigured.isConfigured, false);
+  assert.equal(unconfigured.getClient().key, 'TEST_DUMMY_KEY');
+
+  const configured = new GeminiKeyPool({
+    keys: 'KEY_VALID_1',
+    fallbackKey: '',
+    clientFactory: (k) => ({ mockKey: k }),
+  });
+  assert.equal(configured.isConfigured, true);
+});
