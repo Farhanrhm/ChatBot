@@ -923,17 +923,17 @@ test.describe('Komparasi', () => {
     const bar = page.locator('#comparison-bar');
     await expect(bar).toBeVisible();
 
-    // Tangani dialog konfirmasi reset obrolan
-    let dialogHandled = false;
-    page.once('dialog', async (dialog) => {
-      dialogHandled = true;
-      expect(dialog.type()).toBe('confirm');
-      await dialog.accept();
-    });
-
     await page.locator('#reset-btn').click();
 
-    expect(dialogHandled).toBe(true);
+    // Konfirmasi reset melalui modal kustom aplikasi (fokus aman pada tombol Batal)
+    const dialog = page.locator('#session-action-dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('role', 'alertdialog');
+    await expect(page.locator('#session-action-cancel-btn')).toBeFocused();
+
+    await page.locator('#session-action-confirm-btn').click();
+
+    await expect(dialog).toBeHidden();
     await expect(bar).toBeHidden();
     await expect(page.locator('.btn-compare-toggle.is-selected')).toHaveCount(0);
     await expect(page.locator('#comparison-dialog')).toBeHidden();

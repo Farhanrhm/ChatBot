@@ -14,32 +14,46 @@ To update antislop later: `npx antislop-ai --update`, or run `npx antislop-ai` a
 <!-- antislop:end -->
 
 ## SobatSteam Architecture Guidelines
-SobatSteam adalah kurator dan teman ngobrol pencarian game PC di ekosistem Steam.
+SobatSteam adalah chatbot AI kurator pencarian game PC di ekosistem Steam berbahasa Indonesia.
+- **Peran Agent:** Bertugas sebagai **Fullstack Developer sekaligus QA Engineer**.
+- **Peta Direktori Utama:**
+  - `index.js` & `api/index.js`: Backend Express ES Modules (endpoint `/api/chat`, SSE `/api/chat/stream`, CSP Helmet, rate limiter, kuota harian, validasi payload, entry Vercel).
+  - `public/`: Frontend Vanilla HTML/CSS/JS tanpa build step (`index.html`, `style.css`, `script.js`, modul `*Core.js`, dan PWA Service Worker `sw.js`).
+  - `services/`: Rotasi key Gemini (`geminiKeyPool.js`), verifikasi & cache Steam Store (`steamStore.js`), kuota harian & Redis client (`dailyCap.js`, `redisClient.js`).
+  - `prompts/`: System prompt persona & skema kurasi (`systemPrompt.js`).
+  - `eval/`: Skrip dan pustaka evaluasi kualitas AI (`run-eval.mjs`, `questions.json`, `lib/`).
+  - `test/`: Unit test (`test/*.test.js`), E2E & visual Playwright (`test/e2e/`), dan fixture API/font (`test/fixtures/`, `test/e2e/fixtures/`).
+
+### Perintah Aplikasi & Pengujian (`package.json`)
+- Jalankan server produksi: `npm start`
+- Jalankan server pengembangan (watch mode): `npm run dev`
+- Jalankan unit test: `npm run test:unit` (alias: `npm test`)
+- Jalankan pengujian E2E Playwright: `npm run test:e2e`
+- Jalankan seluruh suite pengujian: `npm run test:all`
+- Jalankan skrip evaluasi AI: `npm run eval`
+- Buka laporan HTML & trace Playwright: `npx playwright show-report`
+
+### Prinsip Khusus Chatbot AI
+- Output LLM tidak deterministik: pengujian otomatis wajib menggunakan mock/fixture deterministik dan tidak boleh bergantung pada respons LLM live.
+- Input pengguna dan output model diperlakukan sebagai data tidak tepercaya: wajib disanitasi terhadap XSS saat dirender serta dilindungi dari prompt injection di backend.
+- API key (`GEMINI_API_KEY`, `GEMINI_API_KEYS`, kredensial Redis/Sentry) hanya berada di environment server dan dilarang keras masuk ke `public/` maupun repositori git.
+
+### Aturan QA & Batasan Kerja
+- Tulis atau perbarui test sebelum menyatakan tugas selesai; setiap perbaikan bug wajib menyertakan regression test.
+- Dilarang melemahkan atau menghapus assertion agar test lulus; laporkan hanya hasil test yang benar-benar dijalankan pasca-edit terakhir.
+- Lakukan perubahan seminimal mungkin sesuai cakupan permintaan tanpa refactor di luar tugas.
+- Dilarang menjalankan `git commit` atau `git push` tanpa instruksi eksplisit pengguna.
 
 ### Aturan Tipografi & Bahasa
 - Seluruh teks UI, komentar berkas, dan string prompt dilarang menggunakan karakter em-dash; wajib menggunakan tanda hubung standar (`-`).
 - Gunakan kosakata "dikurangi", jangan pernah menggunakan kata "dieliminasi".
 
 ### Kepatuhan Tata Letak
-- Wajib mempertahankan `0px` page scroll overflow pada seluruh 5 viewport pengujian (1366x768, 1024x575, 1920x1080, 375x667, 412x915).
+- Wajib mempertahankan `0px` page scroll overflow pada seluruh 5 viewport pengujian (`1366x768`, `1024x575`, `1920x1080`, `375x667`, `412x915`).
 
 ### Penyimpanan & Kompatibilitas Mundur
 - Kunci penyimpanan wishlist utama: `sobatsteam_wishlist` (dengan fallback otomatis membaca data lama `steamscout_wishlist`).
 - Kunci sesi aktif: `sobatsteam_active_session_id` (dengan fallback otomatis membaca data lama `steamscout_active_session_id`).
-
-### Aturan & Panduan Pengujian E2E (Playwright)
-- Seluruh pengujian E2E dijalankan melalui Playwright Test Suite (`npm run test:e2e`). Total suite mencakup 153 unit test dan 79 skenario E2E:
-  - 22 tes metrik tata letak & aksesibilitas (`test/e2e/layout-and-a11y.spec.js`)
-  - 20 tes regresi visual snapshot pada 5 viewport (`test/e2e/layout-visual.spec.js`)
-  - 13 tes alur chat, streaming SSE, watchdog, offline, dan data saver (`test/e2e/chat-flow.spec.js`)
-  - 24 tes wishlist interaktif & komparasi berdampingan (`test/e2e/wishlist-and-compare.spec.js`)
-- **Isolasi Jaringan Hermetik (Network Guard)**: Setiap tes wajib memanggil `installNetworkGuards(page)`. Dilarang membiarkan request lolos ke domain eksternal tanpa mocking atau stub fixture.
-- **Tanpa Jeda Waktu Arbitrer**: Dilarang menggunakan `waitForTimeout()`. Seluruh penantian wajib menggunakan web-first assertions (`expect(locator)...`), `expect.poll()`, atau manipulasi timer deterministik `page.clock`.
-- **Independensi Tes**: Setiap tes harus independen dan terisolasi, tidak boleh mengasumsikan state atau urutan dari tes sebelumnya.
-- **Integritas Baseline Visual**: File PNG baseline di `test/e2e/__screenshots__/` dilarang diperbarui otomatis (`--update-snapshots`) tanpa persetujuan eksplisit pengguna.
-- **Browser Channel Khusus Visual**: Pengujian visual pada `test/e2e/layout-visual.spec.js` wajib menggunakan Google Chrome stabil (`channel: 'chrome'`) agar hasil rasterisasi dan antialiasing font cocok dengan baseline.
-- **Penyajian Font Lokal**: Font Google Fonts disajikan secara hermetik dari fixture lokal di `test/e2e/fixtures/fonts/`.
-- **Inspeksi Laporan**: Untuk melihat laporan pengujian interaktif HTML dan jejak kegagalan, jalankan `npx playwright show-report`.
 
 ## Proteksi Keamanan Berkas Sensitif & Kredensial (Strict Security Boundary)
 AI agent dilarang keras membuka, membaca, mengekstrak, atau menampilkan isi berkas sensitif dan kredensial dalam kondisi apa pun.

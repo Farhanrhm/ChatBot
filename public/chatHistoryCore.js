@@ -74,6 +74,24 @@ export function sanitizeSessionTitle(text, maxLength = 35) {
 }
 
 /**
+ * Menyiapkan judul sesi untuk form edit agar judul otomatis yang terpotong elipsis
+ * di indeks ke-36 tidak meninggalkan karakter "…" saat diedit ulang oleh pengguna.
+ * @param {string} title - Judul sesi tersimpan
+ * @param {number} [maxLength=35] - Batas karakter judul
+ * @returns {string} Judul awal yang bersih untuk input rename
+ */
+export function prepareEditableSessionTitle(title, maxLength = 35) {
+  if (typeof title !== "string") return "";
+  const cleaned = title.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  const chars = Array.from(cleaned);
+  if (chars.length > maxLength && cleaned.endsWith("…")) {
+    return chars.slice(0, maxLength).join("").trimEnd();
+  }
+  return cleaned;
+}
+
+/**
  * Membuat objek sesi baru dan menyimpannya ke basis data.
  * @param {object} [options]
  * @param {string} [options.title='Obrolan Baru']
@@ -305,6 +323,38 @@ export async function migrateFromLegacyStorage(storage, storageKey = "sobatsteam
     console.warn("Gagal migrasi riwayat lawas ke IndexedDB:", err);
     return null;
   }
+}
+
+/**
+ * Menyusun tooltip penuh untuk item riwayat sesi dari prompt user pertama,
+ * dengan fallback aman ke judul sesi bila daftar pesan kosong.
+ * @param {object} session - Objek sesi obrolan
+ * @returns {string} Teks tooltip penuh
+ */
+export function extractSessionTooltip(session) {
+  const baseTitle =
+    session && typeof session.title === "string" && session.title.trim()
+      ? session.title.trim()
+      : "Obrolan Baru";
+
+  if (!session || !Array.isArray(session.messages) || session.messages.length === 0) {
+    return baseTitle;
+  }
+
+  const firstUserMsg = session.messages.find(
+    (m) => m && m.role === "user" && typeof m.text === "string" && m.text.trim()
+  );
+  if (!firstUserMsg) {
+    return baseTitle;
+  }
+
+  const fullPrompt = firstUserMsg.text.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim();
+  const defaultTruncatedTitle = sanitizeSessionTitle(fullPrompt);
+  if (baseTitle === "Obrolan Baru" || baseTitle === defaultTruncatedTitle) {
+    return fullPrompt;
+  }
+
+  return `${baseTitle} - Prompt: ${fullPrompt}`;
 }
 
 /**

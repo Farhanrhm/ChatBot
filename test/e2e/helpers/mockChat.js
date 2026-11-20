@@ -1,4 +1,35 @@
-import { visualFixtures } from './visualFixtures.js';
+import { visualFixtures, buildMockChatRecommendationHtml } from './visualFixtures.js';
+
+/**
+ * Menyuntikkan kartu rekomendasi chat deterministik dari fixture terpusat ke area pesan.
+ * Mematuhi status Mode Hemat Data serta menyinkronkan visibilitas #welcome, #chips, dan divider.
+ * @param {import('@playwright/test').Page} page
+ * @param {object} [customData]
+ */
+export async function renderMockChatRecommendation(page, customData = null) {
+  const data = customData || visualFixtures.chatRecommendation;
+  const isDataSaver = await page.evaluate(() =>
+    Boolean(document.body && document.body.classList.contains('data-saver-active'))
+  );
+  const bubbleHtml = buildMockChatRecommendationHtml(data, { isDataSaver });
+
+  await page.evaluate((html) => {
+    const messages = document.getElementById('messages');
+    const welcome = document.getElementById('welcome');
+    const chips = document.getElementById('chips');
+    const divider = document.getElementById('toolbar-divider');
+    const quickToolbar = document.getElementById('quick-toolbar');
+    if (welcome) welcome.hidden = true;
+    if (chips) chips.hidden = true;
+    if (divider) divider.hidden = true;
+    if (quickToolbar) quickToolbar.setAttribute('aria-label', 'Filter preferensi');
+
+    const botMsg = document.createElement('div');
+    botMsg.className = 'msg bot';
+    botMsg.innerHTML = html;
+    messages.appendChild(botMsg);
+  }, bubbleHtml);
+}
 
 /**
  * Mock respons sukses untuk /api/chat/stream (SSE) dan /api/chat (JSON).

@@ -36,6 +36,8 @@ import {
   deleteSession,
   clearAllSessions,
   sanitizeSessionTitle,
+  prepareEditableSessionTitle,
+  extractSessionTooltip,
   migrateFromLegacyStorage,
 } from "./chatHistoryCore.js";
 
@@ -293,6 +295,7 @@ const els = {
   quickToolbar: $("#quick-toolbar"),
   filterToggleBtn: $("#filter-toggle-btn"),
   filterActiveCountBadge: $("#filter-active-count-badge"),
+  toolbarDivider: $("#toolbar-divider"),
   chips: $("#chips"),
   form: $("#chat-form"),
   input: $("#user-input"),
@@ -327,6 +330,9 @@ const els = {
   comparisonTabBLabel: $("#comparison-tab-b-label"),
   comparisonContent: $("#comparison-content"),
   sessionsSidebar: $(".sessions-sidebar"),
+  sessionsSidebarEmpty: $("#sessions-sidebar-empty"),
+  sessionsSidebarError: $("#sessions-sidebar-error"),
+  sessionsRetryBtn: $("#sessions-retry-btn"),
   newSessionBtn: $("#new-session-btn"),
   sessionsList: $("#sessions-list"),
   sessionsBtn: $("#sessions-btn"),
@@ -337,6 +343,20 @@ const els = {
   drawerNewSessionBtn: $("#drawer-new-session-btn"),
   drawerSessionsList: $("#drawer-sessions-list"),
   sessionsEmpty: $("#sessions-empty"),
+  sessionActionBackdrop: $("#session-action-backdrop"),
+  sessionActionDialog: $("#session-action-dialog"),
+  sessionActionIcon: $("#session-action-icon"),
+  sessionActionTitle: $("#session-action-title"),
+  sessionActionCloseBtn: $("#session-action-close-btn"),
+  sessionActionForm: $("#session-action-form"),
+  sessionActionDesc: $("#session-action-desc"),
+  sessionActionSubnote: $("#session-action-subnote"),
+  sessionRenameField: $("#session-rename-field"),
+  sessionRenameInput: $("#session-rename-input"),
+  sessionRenameCounter: $("#session-rename-counter"),
+  sessionActionError: $("#session-action-error"),
+  sessionActionCancelBtn: $("#session-action-cancel-btn"),
+  sessionActionConfirmBtn: $("#session-action-confirm-btn"),
 };
 
 /* State Riwayat Obrolan Multi-Sesi (Modul P4) */
@@ -479,6 +499,8 @@ function clearHistoryStorage() {
 
 /* Manajemen Sesi Obrolan Multi-Sesi IndexedDB (Modul P4) */
 async function renderSessionsList() {
+  if (els.sessionsSidebarError) els.sessionsSidebarError.hidden = true;
+
   try {
     const rawSessions = await getAllSessions();
     // Hanya tampilkan sesi yang memiliki riwayat percakapan (tidak kosong)
@@ -497,10 +519,12 @@ async function renderSessionsList() {
 
       if (sessions.length === 0) {
         if (isDrawer && els.sessionsEmpty) els.sessionsEmpty.hidden = false;
+        if (!isDrawer && els.sessionsSidebarEmpty) els.sessionsSidebarEmpty.hidden = false;
         return;
       }
 
       if (isDrawer && els.sessionsEmpty) els.sessionsEmpty.hidden = true;
+      if (!isDrawer && els.sessionsSidebarEmpty) els.sessionsSidebarEmpty.hidden = true;
 
       sessions.forEach((sess) => {
         const li = document.createElement("li");
@@ -508,12 +532,20 @@ async function renderSessionsList() {
         li.className = `session-item${isActive ? " is-active" : ""}`;
         li.dataset.id = sess.id;
 
+        const titleText = sess.title || "Obrolan Baru";
+        const fullTooltip = extractSessionTooltip(sess);
+
         const titleBtn = document.createElement("button");
         titleBtn.type = "button";
         titleBtn.className = "session-item-title";
-        titleBtn.textContent = sess.title || "Obrolan Baru";
-        titleBtn.title = sess.title || "Obrolan Baru";
-        titleBtn.setAttribute("aria-label", `Buka sesi: ${sess.title || "Obrolan Baru"}`);
+        titleBtn.title = fullTooltip;
+        titleBtn.setAttribute("aria-label", `Buka sesi: ${titleText}`);
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "session-item-name";
+        nameSpan.textContent = titleText;
+        titleBtn.appendChild(nameSpan);
+
         titleBtn.addEventListener("click", () => switchSession(sess.id));
 
         const actionsWrap = document.createElement("div");
@@ -532,7 +564,7 @@ async function renderSessionsList() {
         `;
         renameBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          renameSessionPrompt(sess.id, sess.title || "Obrolan Baru");
+          renameSessionPrompt(sess.id, sess.title || "Obrolan Baru", renameBtn);
         });
 
         const delBtn = document.createElement("button");
@@ -548,7 +580,7 @@ async function renderSessionsList() {
         `;
         delBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          deleteSessionPrompt(sess.id, sess.title || "Obrolan Baru");
+          deleteSessionPrompt(sess.id, sess.title || "Obrolan Baru", delBtn);
         });
 
         actionsWrap.appendChild(renameBtn);
@@ -561,6 +593,8 @@ async function renderSessionsList() {
     });
   } catch (err) {
     console.warn("Gagal merender daftar sesi:", err);
+    if (els.sessionsSidebarEmpty) els.sessionsSidebarEmpty.hidden = true;
+    if (els.sessionsSidebarError) els.sessionsSidebarError.hidden = false;
   }
 }
 
@@ -641,9 +675,302 @@ async function handleNewSession() {
   els.input.focus({ preventScroll: true });
 }
 
-async function deleteSessionPrompt(id, title) {
-  if (!confirm(`Hapus sesi obrolan "${title}"?`)) return;
+const SESSION_RENAME_SVG = `
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 20h9"></path>
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+  </svg>
+`;
 
+const SESSION_DANGER_SVG = `
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+    <line x1="12" y1="9" x2="12" y2="13"></line>
+    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+  </svg>
+`;
+
+let sessionActionModalState = {
+  isOpen: false,
+  isSubmitting: false,
+  mode: "confirm",
+  triggerEl: null,
+  appliedInertToDrawer: false,
+  onConfirm: null,
+  getPostActionFocusEl: null,
+};
+
+function updateSessionRenameCounter() {
+  if (!els.sessionRenameInput || !els.sessionRenameCounter) return;
+  const len = Array.from(els.sessionRenameInput.value).length;
+  els.sessionRenameCounter.textContent = `${len}/35`;
+  els.sessionRenameCounter.classList.toggle("is-limit", len >= 35);
+}
+
+function setSessionActionError(message) {
+  if (!els.sessionActionError) return;
+  if (message) {
+    els.sessionActionError.textContent = message;
+    els.sessionActionError.hidden = false;
+    if (els.sessionRenameInput) {
+      els.sessionRenameInput.setAttribute("aria-invalid", "true");
+    }
+  } else {
+    els.sessionActionError.textContent = "";
+    els.sessionActionError.hidden = true;
+    if (els.sessionRenameInput) {
+      els.sessionRenameInput.removeAttribute("aria-invalid");
+    }
+  }
+}
+
+function closeSessionActionModal({ restoreFocus = true, focusTarget = null } = {}) {
+  if (!sessionActionModalState.isOpen || !els.sessionActionDialog) return;
+
+  const { triggerEl, appliedInertToDrawer } = sessionActionModalState;
+  sessionActionModalState = {
+    isOpen: false,
+    isSubmitting: false,
+    mode: "confirm",
+    triggerEl: null,
+    appliedInertToDrawer: false,
+    onConfirm: null,
+    getPostActionFocusEl: null,
+  };
+
+  els.sessionActionDialog.hidden = true;
+  if (els.sessionActionBackdrop) els.sessionActionBackdrop.hidden = true;
+  if (els.sessionActionConfirmBtn) els.sessionActionConfirmBtn.disabled = false;
+  if (els.sessionActionCancelBtn) els.sessionActionCancelBtn.disabled = false;
+  setSessionActionError("");
+
+  const appEl = document.querySelector(".app");
+  if (appEl) appEl.removeAttribute("inert");
+  if (appliedInertToDrawer && els.sessionsPanel) {
+    els.sessionsPanel.removeAttribute("inert");
+  }
+
+  document.body.style.overflow = isSessionsDrawerOpen ? "hidden" : "";
+
+  if (focusTarget && document.contains(focusTarget) && typeof focusTarget.focus === "function") {
+    focusTarget.focus({ preventScroll: true });
+    return;
+  }
+
+  if (restoreFocus) {
+    if (triggerEl && document.contains(triggerEl) && typeof triggerEl.focus === "function") {
+      triggerEl.focus({ preventScroll: true });
+      return;
+    }
+    const fallbackEl = isSessionsDrawerOpen ? els.drawerNewSessionBtn : els.newSessionBtn || els.input;
+    if (fallbackEl && typeof fallbackEl.focus === "function") {
+      fallbackEl.focus({ preventScroll: true });
+    }
+  }
+}
+
+function openSessionActionModal(options = {}) {
+  if (!els.sessionActionDialog || !els.sessionActionForm) return false;
+  if (sessionActionModalState.isOpen) {
+    closeSessionActionModal({ restoreFocus: false });
+  }
+
+  const mode = options.mode === "rename" ? "rename" : "confirm";
+  const isDanger = Boolean(options.isDanger);
+  const triggerEl = options.triggerEl || document.activeElement;
+
+  const appEl = document.querySelector(".app");
+  if (appEl) appEl.setAttribute("inert", "");
+
+  let appliedInertToDrawer = false;
+  if (isSessionsDrawerOpen && els.sessionsPanel) {
+    els.sessionsPanel.setAttribute("inert", "");
+    appliedInertToDrawer = true;
+  }
+
+  document.body.style.overflow = "hidden";
+
+  els.sessionActionDialog.setAttribute("role", mode === "confirm" ? "alertdialog" : "dialog");
+
+  if (els.sessionActionIcon) {
+    els.sessionActionIcon.className = `session-action-icon${isDanger ? " is-danger" : ""}`;
+    els.sessionActionIcon.innerHTML = isDanger ? SESSION_DANGER_SVG : SESSION_RENAME_SVG;
+  }
+  if (els.sessionActionTitle) {
+    els.sessionActionTitle.textContent = options.title || "Konfirmasi";
+  }
+  if (els.sessionActionDesc) {
+    els.sessionActionDesc.textContent = options.description || "";
+  }
+  if (els.sessionActionSubnote) {
+    if (options.subnote) {
+      els.sessionActionSubnote.textContent = options.subnote;
+      els.sessionActionSubnote.hidden = false;
+    } else {
+      els.sessionActionSubnote.textContent = "";
+      els.sessionActionSubnote.hidden = true;
+    }
+  }
+
+  if (els.sessionRenameField && els.sessionRenameInput) {
+    if (mode === "rename") {
+      els.sessionRenameField.hidden = false;
+      els.sessionRenameInput.value = options.initialValue || "";
+      updateSessionRenameCounter();
+    } else {
+      els.sessionRenameField.hidden = true;
+      els.sessionRenameInput.value = "";
+    }
+  }
+
+  if (els.sessionActionConfirmBtn) {
+    els.sessionActionConfirmBtn.textContent = options.confirmLabel || "Konfirmasi";
+    els.sessionActionConfirmBtn.className = isDanger ? "btn-modal-danger" : "btn-modal-primary";
+    els.sessionActionConfirmBtn.disabled = false;
+  }
+  if (els.sessionActionCancelBtn) {
+    els.sessionActionCancelBtn.disabled = false;
+  }
+  setSessionActionError("");
+
+  sessionActionModalState = {
+    isOpen: true,
+    isSubmitting: false,
+    mode,
+    triggerEl,
+    appliedInertToDrawer,
+    onConfirm: typeof options.onConfirm === "function" ? options.onConfirm : null,
+    getPostActionFocusEl: typeof options.getPostActionFocusEl === "function" ? options.getPostActionFocusEl : null,
+  };
+
+  if (els.sessionActionBackdrop) els.sessionActionBackdrop.hidden = false;
+  els.sessionActionDialog.hidden = false;
+
+  if (mode === "rename" && els.sessionRenameInput) {
+    els.sessionRenameInput.focus();
+    els.sessionRenameInput.select();
+  } else if (els.sessionActionCancelBtn) {
+    els.sessionActionCancelBtn.focus();
+  }
+
+  if (options.announceText) {
+    announceMessage(options.announceText);
+  }
+  return true;
+}
+
+if (els.sessionRenameInput) {
+  els.sessionRenameInput.addEventListener("input", () => {
+    updateSessionRenameCounter();
+    if (els.sessionActionError && !els.sessionActionError.hidden && els.sessionRenameInput.value.trim()) {
+      setSessionActionError("");
+    }
+  });
+}
+
+if (els.sessionActionCloseBtn) {
+  els.sessionActionCloseBtn.addEventListener("click", () => closeSessionActionModal());
+}
+
+if (els.sessionActionCancelBtn) {
+  els.sessionActionCancelBtn.addEventListener("click", () => closeSessionActionModal());
+}
+
+if (els.sessionActionBackdrop) {
+  els.sessionActionBackdrop.addEventListener("click", () => closeSessionActionModal());
+}
+
+if (els.sessionActionForm) {
+  els.sessionActionForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!sessionActionModalState.isOpen || sessionActionModalState.isSubmitting) return;
+
+    let submittedValue = null;
+    if (sessionActionModalState.mode === "rename" && els.sessionRenameInput) {
+      const normalized = els.sessionRenameInput.value.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim();
+      if (!normalized) {
+        setSessionActionError("Nama sesi tidak boleh kosong.");
+        els.sessionRenameInput.focus();
+        return;
+      }
+      submittedValue = normalized;
+    }
+
+    sessionActionModalState.isSubmitting = true;
+    if (els.sessionActionConfirmBtn) els.sessionActionConfirmBtn.disabled = true;
+    if (els.sessionActionCancelBtn) els.sessionActionCancelBtn.disabled = true;
+
+    try {
+      const result = sessionActionModalState.onConfirm
+        ? await sessionActionModalState.onConfirm(submittedValue)
+        : true;
+      if (result === false) {
+        sessionActionModalState.isSubmitting = false;
+        if (els.sessionActionConfirmBtn) els.sessionActionConfirmBtn.disabled = false;
+        if (els.sessionActionCancelBtn) els.sessionActionCancelBtn.disabled = false;
+        return;
+      }
+      const postFocusEl = sessionActionModalState.getPostActionFocusEl
+        ? sessionActionModalState.getPostActionFocusEl()
+        : null;
+      closeSessionActionModal({ restoreFocus: !postFocusEl, focusTarget: postFocusEl });
+    } catch (err) {
+      console.warn("Gagal memproses aksi dialog sesi:", err);
+      sessionActionModalState.isSubmitting = false;
+      if (els.sessionActionConfirmBtn) els.sessionActionConfirmBtn.disabled = false;
+      if (els.sessionActionCancelBtn) els.sessionActionCancelBtn.disabled = false;
+      closeSessionActionModal();
+    }
+  });
+}
+
+if (els.sessionActionDialog) {
+  els.sessionActionDialog.addEventListener("keydown", (e) => {
+    if (!sessionActionModalState.isOpen) return;
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSessionActionModal();
+      return;
+    }
+
+    if (e.key === "Tab") {
+      const focusables = Array.from(
+        els.sessionActionDialog.querySelectorAll(
+          'button:not([disabled]):not([hidden]), input:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => {
+        if (el === els.sessionActionCloseBtn) return true;
+        return el.closest("[hidden]") === null && (el.offsetParent !== null || el.getClientRects().length > 0);
+      });
+
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      if (focusables.length === 1) {
+        e.preventDefault();
+        focusables[0].focus();
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  });
+}
+
+async function performDeleteSession(id, title) {
   try {
     await deleteSession(id);
     announceMessage(`Sesi "${title}" telah dihapus`);
@@ -667,37 +994,76 @@ async function deleteSessionPrompt(id, title) {
         resetComparisonState();
         els.messages.innerHTML = "";
         setWelcomeVisible(true);
-        renderSessionsList();
+        await renderSessionsList();
       }
     } else {
-      renderSessionsList();
+      await renderSessionsList();
     }
   } catch (err) {
     console.warn("Gagal menghapus sesi:", err);
   }
 }
 
-async function renameSessionPrompt(id, currentTitle) {
-  const newTitle = prompt("Masukkan nama baru untuk sesi ini:", currentTitle);
-  if (newTitle === null) return;
-  const cleaned = sanitizeSessionTitle(newTitle);
-  if (!cleaned) return;
+function deleteSessionPrompt(id, title, triggerEl = null) {
+  const safeTitle = title || "Obrolan Baru";
+  openSessionActionModal({
+    mode: "confirm",
+    isDanger: true,
+    title: "Hapus Sesi Obrolan",
+    description: `Hapus sesi obrolan "${safeTitle}"?`,
+    subnote: "Riwayat percakapan pada sesi ini akan dihapus permanen dari browser dan tidak memengaruhi daftar Wishlist.",
+    confirmLabel: "Hapus Sesi",
+    triggerEl,
+    announceText: `Dialog konfirmasi hapus sesi ${safeTitle} dibuka`,
+    onConfirm: async () => {
+      await performDeleteSession(id, safeTitle);
+      return true;
+    },
+    getPostActionFocusEl: () =>
+      isSessionsDrawerOpen ? els.drawerNewSessionBtn : els.newSessionBtn || els.input,
+  });
+}
 
-  try {
-    const sess = await getSession(id);
-    if (!sess) return;
-    sess.title = cleaned;
-    await saveSession(sess);
-    if (id === currentSessionId) {
-      currentSessionTitle = cleaned;
-    }
-    await renderSessionsList();
-    announceMessage(`Nama sesi berhasil diubah menjadi "${cleaned}"`);
-    showToast(`Nama sesi diubah: ${cleaned}`);
-  } catch (err) {
-    console.warn("Gagal mengubah nama sesi:", err);
-    showToast("Gagal mengubah nama sesi");
-  }
+function renameSessionPrompt(id, currentTitle, triggerEl = null) {
+  const editableInitial = prepareEditableSessionTitle(currentTitle || "");
+  openSessionActionModal({
+    mode: "rename",
+    isDanger: false,
+    title: "Ubah Nama Sesi",
+    description: "Beri nama baru agar riwayat obrolan ini lebih mudah dikenali.",
+    initialValue: editableInitial,
+    confirmLabel: "Simpan Nama",
+    triggerEl,
+    announceText: "Dialog ubah nama sesi dibuka",
+    onConfirm: async (newTitle) => {
+      const cleaned = sanitizeSessionTitle(newTitle);
+      if (!cleaned) {
+        setSessionActionError("Nama sesi tidak boleh kosong.");
+        return false;
+      }
+      try {
+        const sess = await getSession(id);
+        if (!sess) return true;
+        sess.title = cleaned;
+        await saveSession(sess);
+        if (id === currentSessionId) {
+          currentSessionTitle = cleaned;
+        }
+        await renderSessionsList();
+        announceMessage(`Nama sesi berhasil diubah menjadi "${cleaned}"`);
+        showToast(`Nama sesi diubah: ${cleaned}`);
+        return true;
+      } catch (err) {
+        console.warn("Gagal mengubah nama sesi:", err);
+        showToast("Gagal mengubah nama sesi");
+        return true;
+      }
+    },
+    getPostActionFocusEl: () => {
+      const listContainer = isSessionsDrawerOpen ? els.drawerSessionsList : els.sessionsList;
+      return listContainer?.querySelector(`.session-item[data-id="${CSS.escape(id)}"] .btn-session-rename`) || null;
+    },
+  });
 }
 
 function openSessionsDrawer() {
@@ -783,6 +1149,8 @@ async function initChatSessions() {
     }
   } catch (err) {
     console.warn("Gagal inisialisasi sesi obrolan IndexedDB:", err);
+    if (els.sessionsSidebarEmpty) els.sessionsSidebarEmpty.hidden = true;
+    if (els.sessionsSidebarError) els.sessionsSidebarError.hidden = false;
     history = loadHistoryFromStorage();
     if (history.length > 0) {
       setWelcomeVisible(false);
@@ -860,7 +1228,20 @@ function renderQuickPrompts() {
 }
 
 function setWelcomeVisible(visible) {
-  if (els.welcome) els.welcome.hidden = !visible;
+  const showWelcome = Boolean(visible);
+  if (els.welcome) els.welcome.hidden = !showWelcome;
+  if (els.chips) els.chips.hidden = !showWelcome;
+  if (els.toolbarDivider) els.toolbarDivider.hidden = !showWelcome;
+  if (els.quickToolbar) {
+    els.quickToolbar.setAttribute(
+      "aria-label",
+      showWelcome ? "Filter preferensi dan saran cepat" : "Filter preferensi"
+    );
+    if (!showWelcome) {
+      els.quickToolbar.scrollLeft = 0;
+    }
+  }
+  requestAnimationFrame(updateToolbarScrollEdges);
 }
 
 /* Parser Markdown aman (escape HTML dan link sanitasi) */
@@ -1089,16 +1470,25 @@ function formatBotContent(raw) {
           });
         }
         const isCompared = isGameInComparison(selectedComparisonGames, { appId, title: g.title });
+        const thumbImgHtml = !isUnverified && headerImg
+          ? renderCoverImage(headerImg, `Sampul ${g.title || "Game Steam"}`, "game-card-thumb-img")
+          : "";
+        const thumbHtml = !isUnverified && headerImg
+          ? `<div class="game-card-thumb" data-header-image="${headerImg}" data-game-title="${title}">${thumbImgHtml}</div>`
+          : "";
 
         html += `
           <div class="game-card${isUnverified ? " is-unverified" : ""}">
             <div class="game-card-inner">
               <div class="game-card-head">
-                <div class="game-card-title-group">
-                  <h4 class="game-card-title">${title}</h4>
-                  ${unverifiedBadgeHtml}
+                ${thumbHtml}
+                <div class="game-card-head-text">
+                  <div class="game-card-title-group">
+                    <h4 class="game-card-title">${title}</h4>
+                    ${unverifiedBadgeHtml}
+                  </div>
+                  ${metaStr ? `<span class="game-card-meta">${metaStr}</span>` : ""}
                 </div>
-                ${metaStr ? `<span class="game-card-meta">${metaStr}</span>` : ""}
               </div>
               ${priceHtml}
               ${tagsHtml}
@@ -1412,6 +1802,7 @@ try {
   window.createTypingIndicator = createTypingIndicator;
   window.addMessage = addMessage;
   window.renameSessionPrompt = renameSessionPrompt;
+  window.deleteSessionPrompt = deleteSessionPrompt;
   window.copyTextToClipboard = copyTextToClipboard;
   window.updateWishlistUI = updateWishlistUI;
 } catch {}
@@ -1858,10 +2249,7 @@ els.form.addEventListener("submit", (e) => {
   sendMessage(els.input.value);
 });
 
-/* Reset chat */
-els.resetBtn.addEventListener("click", () => {
-  if (history.length > 0 && !confirm("Hapus seluruh obrolan dan mulai pencarian baru?")) return;
-
+function executeResetChat() {
   // Batalkan stream aktif jika pengguna menekan Reset chat
   if (currentRequestController) {
     currentRequestController.abort("user_cancelled");
@@ -1894,6 +2282,30 @@ els.resetBtn.addEventListener("click", () => {
 
   els.chat.scrollTo({ top: 0 });
   els.input.focus({ preventScroll: true });
+}
+
+/* Reset chat */
+els.resetBtn.addEventListener("click", () => {
+  if (history.length === 0) {
+    executeResetChat();
+    return;
+  }
+
+  openSessionActionModal({
+    mode: "confirm",
+    isDanger: true,
+    title: "Reset Obrolan",
+    description: "Hapus seluruh obrolan aktif dan mulai pencarian baru?",
+    subnote: "Daftar Wishlist dan riwayat sesi lain yang sudah tersimpan tidak ikut terhapus.",
+    confirmLabel: "Reset Obrolan",
+    triggerEl: els.resetBtn,
+    announceText: "Dialog konfirmasi reset obrolan dibuka",
+    onConfirm: () => {
+      executeResetChat();
+      return true;
+    },
+    getPostActionFocusEl: () => els.input,
+  });
 });
 
 /* Logika dan UI Wishlist Lokal */
@@ -2798,6 +3210,17 @@ function applyDataSaverMode(enabled) {
     els.dataSaverBtn.setAttribute("aria-checked", isEnabled ? "true" : "false");
     els.dataSaverBtn.classList.toggle("is-active", isEnabled);
   }
+  if (!isEnabled) {
+    document.querySelectorAll(".game-card-thumb[data-header-image]").forEach((thumb) => {
+      if (thumb.querySelector(".cover-placeholder") && thumb.dataset.headerImage) {
+        thumb.innerHTML = renderCoverImage(
+          thumb.dataset.headerImage,
+          `Sampul ${thumb.dataset.gameTitle || "Game Steam"}`,
+          "game-card-thumb-img"
+        );
+      }
+    });
+  }
   if (els.comparisonDialog && !els.comparisonDialog.hidden && activeComparisonData) {
     renderComparisonContent(activeComparisonData);
   }
@@ -3109,6 +3532,12 @@ if (els.newSessionBtn) {
   els.newSessionBtn.addEventListener("click", handleNewSession);
 }
 
+if (els.sessionsRetryBtn) {
+  els.sessionsRetryBtn.addEventListener("click", () => {
+    renderSessionsList();
+  });
+}
+
 if (els.drawerNewSessionBtn) {
   els.drawerNewSessionBtn.addEventListener("click", handleNewSession);
 }
@@ -3211,7 +3640,7 @@ document.addEventListener(
       const src = target.src || "";
       // Cegah perulangan jika placeholder lokal pun mengalami kegagalan atau fallback sudah diterapkan
       if (target.dataset.fallbackApplied === "true" || src.endsWith("/icon.svg") || src.endsWith("icon.svg")) {
-        const banner = target.closest(".game-card-banner");
+        const banner = target.closest(".game-card-banner, .game-card-thumb");
         if (banner) {
           banner.style.display = "none";
         } else if (target.classList.contains("comparison-hero-img")) {

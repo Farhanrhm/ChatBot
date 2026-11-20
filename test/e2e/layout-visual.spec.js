@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { viewports } from './helpers/viewports.js';
 import { visualFixtures } from './helpers/visualFixtures.js';
+import { renderMockChatRecommendation } from './helpers/mockChat.js';
 import { installNetworkGuards } from './helpers/network.js';
 import { waitForFontsReady } from './helpers/fonts.js';
 
@@ -14,78 +15,6 @@ const STABILIZE_CSS = `
     caret-color: transparent !important;
   }
 `;
-
-/**
- * Menyuntikkan kartu rekomendasi chat deterministik dari fixture.
- * @param {import('@playwright/test').Page} page
- */
-async function renderMockChatRecommendation(page) {
-  await page.evaluate((fixture) => {
-    const messages = document.getElementById('messages');
-    const welcome = document.getElementById('welcome');
-    if (welcome) welcome.hidden = true;
-
-    const botMsg = document.createElement('div');
-    botMsg.className = 'msg bot';
-    botMsg.innerHTML = `
-      <div class="avatar">AI</div>
-      <div class="bubble">
-        <p class="bot-intro">${fixture.text}</p>
-        <div class="game-cards">
-          ${fixture.games
-            .map(
-              (g) => `
-            <div class="game-card">
-              <div class="game-card-inner">
-                <div class="game-card-head">
-                  <div class="game-card-title-group"><h4 class="game-card-title">${g.title}</h4></div>
-                  <span class="game-card-meta">${g.year} • ${g.developer}</span>
-                </div>
-                <div class="game-price-row">
-                  ${g.pricing.onSale ? `<del class="price-original">${g.pricing.initialFormatted}</del>` : ''}
-                  <span class="price-current">${g.pricing.finalFormatted}</span>
-                </div>
-                <div class="game-card-tags">
-                  ${g.genres.map((t) => `<span class="game-tag">${t}</span>`).join('')}
-                </div>
-                <div class="game-card-body">
-                  <p><strong>Kenapa cocok:</strong> ${g.whyFit}</p>
-                  <p><strong>Spek & budget:</strong> ${g.specsAndBudget}</p>
-                </div>
-                <div class="game-card-actions">
-                  <a href="${g.storeUrl}" class="steam-store-card-btn">Buka di Steam Store</a>
-                  <button type="button" class="btn-wishlist-toggle"><span class="wishlist-btn-text">Wishlist</span></button>
-                  <button
-                    type="button"
-                    class="btn-compare-toggle"
-                    data-key="app:${g.appId}"
-                    data-appid="${g.appId}"
-                    data-title="${g.title}"
-                    data-store-url="${g.storeUrl}"
-                    data-header-image="${g.headerImage}"
-                    data-year="${g.year}"
-                    data-developer="${g.developer}"
-                    data-genres="${g.genres.join(',')}"
-                    data-whyfit="${g.whyFit}"
-                    data-specs="${g.specsAndBudget}"
-                    aria-pressed="false"
-                    aria-label="Bandingkan ${g.title}"
-                  >
-                    <span class="compare-btn-text">Bandingkan</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          `
-            )
-            .join('')}
-        </div>
-        <p class="bot-followup">${fixture.followUp}</p>
-      </div>
-    `;
-    messages.appendChild(botMsg);
-  }, visualFixtures.chatRecommendation);
-}
 
 /**
  * Menyiapkan tampilan chat default (Kondisi 1).
