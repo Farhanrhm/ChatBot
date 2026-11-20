@@ -1,4 +1,5 @@
 import { getRedisClient } from './redisClient.js';
+import { sanitizeLogMessage } from './logSanitizer.js';
 
 /**
  * Limiter kuota harian untuk membatasi konsumsi API di lingkungan serverless dan demo publik.
@@ -159,7 +160,7 @@ export class DailyCapLimiter {
 
       return { allowed: true };
     } catch (err) {
-      console.warn('[DailyCapLimiter] Redis error, mengalihkan ke fallback in-memory:', err?.message || err);
+      console.warn('[DailyCapLimiter] Redis error, mengalihkan ke fallback in-memory:', sanitizeLogMessage(err));
       return this._localConsume(ip);
     }
   }
@@ -214,7 +215,7 @@ export class DailyCapLimiter {
         }
         next();
       } catch (err) {
-        console.error('[DailyCapLimiter Middleware Error]', err?.message || err);
+        console.error('[DailyCapLimiter Middleware Error]', sanitizeLogMessage(err));
         const fallbackResult = this._localConsume(clientIp);
         if (!fallbackResult.allowed) {
           return res.status(429).json({

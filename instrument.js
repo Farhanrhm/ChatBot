@@ -1,5 +1,8 @@
 import 'dotenv/config';
 import * as Sentry from '@sentry/node';
+import { redactSecretsInText } from './services/logSanitizer.js';
+
+export { redactSecretsInText };
 
 const SENSITIVE_HEADER_NAMES = new Set([
   'authorization',
@@ -13,21 +16,6 @@ const SENSITIVE_HEADER_NAMES = new Set([
   'cf-connecting-ip',
   'forwarded',
 ]);
-
-/**
- * Menyamarkan fragmen rahasia (kunci Gemini, Bearer token, parameter query key)
- * dari string pesan atau log sebelum dikirim ke telemetri.
- *
- * @param {string} str
- * @returns {string}
- */
-export function redactSecretsInText(str) {
-  if (typeof str !== 'string') return str;
-  return str
-    .replace(/AIza[0-9A-Za-z-_]{20,}/g, '[REDACTED_GEMINI_KEY]')
-    .replace(/Bearer\s+[0-9A-Za-z._~+/=-]{10,}/gi, 'Bearer [REDACTED_TOKEN]')
-    .replace(/([?&](?:key|api_key|token)=)[^&\s]+/gi, '$1[REDACTED]');
-}
 
 /**
  * Membersihkan event Sentry dari data PII (prompt, IP, cookie, header sensitif)

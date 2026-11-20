@@ -10,6 +10,7 @@ import { SYSTEM_INSTRUCTION } from './prompts/systemPrompt.js';
 import { getSteamGameDetails, enrichGamesWithSteam, MAX_ENRICH_GAMES } from './services/steamStore.js';
 import { defaultDailyCap } from './services/dailyCap.js';
 import { defaultGeminiKeyPool, GeminiKeyPool } from './services/geminiKeyPool.js';
+import { sanitizeLogMessage } from './services/logSanitizer.js';
 
 // Deteksi mode pengujian unit agar tidak memblokir CI saat tanpa API key
 const isTestMode =
@@ -48,10 +49,30 @@ if (rawTrustProxy !== undefined && rawTrustProxy.trim() !== '') {
   app.set('trust proxy', false);
 }
 
+/**
+ * Mengurai angka dari variabel lingkungan dengan aman dan menghormati nilai 0.
+ * Mengembalikan defaultValue jika kosong/null/undefined atau di luar rentang.
+ *
+ * @param {unknown} raw
+ * @param {number} defaultValue
+ * @param {{ min?: number, max?: number }} [bounds]
+ * @returns {number}
+ */
+export function parseEnvNumber(raw, defaultValue, { min = -Infinity, max = Infinity } = {}) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') {
+    return defaultValue;
+  }
+  const parsed = Number(String(raw).trim());
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+    return defaultValue;
+  }
+  return parsed;
+}
+
 // Konfigurasi model dan parameter dari environment
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3-flash-preview';
-const GEMINI_TEMPERATURE = Number(process.env.GEMINI_TEMPERATURE) || 0.75;
+const GEMINI_TEMPERATURE = parseEnvNumber(process.env.GEMINI_TEMPERATURE, 0.75, { min: 0, max: 2 });
 const PORT = process.env.PORT || 3000;
 
 /**
@@ -658,7 +679,7 @@ async function callGeminiWithRetry(
 
       if (isRetriable && attempt < maxAttempts) {
         const nextModel = models[(attempt + 1) % models.length];
-        const reasonStr = isTimeout ? 'timeout 15 detik' : (err.status || err.message);
+        const reasonStr = isTimeout ? 'timeout 15 detik' : sanitizeLogMessage(err?.status || err);
         console.warn(`[SobatSteam] Model '${currentModel}' kendala (${reasonStr}). Beralih ke model '${nextModel}' (Percobaan ${attempt + 1}/${maxAttempts})...`);
         
         // Jeda backoff dengan proteksi pembatalan klien
@@ -724,6 +745,15 @@ app.post(
     res.on('close', handleClientClose);
 
     try {
+      if (!isTestMode && !defaultGeminiKeyPool.isConfigured) {
+        return sendApiError(
+          res,
+          503,
+          'SERVICE_UNAVAILABLE',
+          'Layanan AI belum dikonfigurasi di server. Silakan coba lagi nanti.'
+        );
+      }
+
       const validatedPrefs = req.validatedChat?.validatedPrefs || validatePreferences(req.body?.preferences);
       const rawContents = req.validatedChat?.contents || toContents(req.body?.conversation);
       const contents = secureConversationContents(rawContents, validatedPrefs);
@@ -775,8 +805,8 @@ app.post(
         return sendApiError(res, 400, 'BAD_REQUEST', err.message);
       }
 
-      // Catat error di server tanpa membocorkan API key atau data user
-      console.error('[SobatSteam Error]', err?.name || 'Error', err?.message || err);
+      // Catat error di server dengan redaksi rahasia dan pembersihan kontrol ASCII
+      console.error('[SobatSteam Error]', err?.name || 'Error', sanitizeLogMessage(err));
 
       if (err?.message === 'REQUEST_TIMEOUT') {
         return sendApiError(
@@ -876,6 +906,15 @@ app.post(
     };
 
     try {
+      if (!isTestMode && !defaultGeminiKeyPool.isConfigured) {
+        return sendApiError(
+          res,
+          503,
+          'SERVICE_UNAVAILABLE',
+          'Layanan AI belum dikonfigurasi di server. Silakan coba lagi nanti.'
+        );
+      }
+
       const validatedPrefs = req.validatedChat?.validatedPrefs || validatePreferences(req.body?.preferences);
       const rawContents = req.validatedChat?.contents || toContents(req.body?.conversation);
       const contents = secureConversationContents(rawContents, validatedPrefs);
@@ -963,7 +1002,7 @@ app.post(
             streamErr?.message?.includes('overloaded');
 
           if (isRetriable && attempt < maxStreamAttempts - 1) {
-            const reasonStr = isTimeout ? 'timeout 15 detik' : (streamErr.status || streamErr.message);
+            const reasonStr = isTimeout ? 'timeout 15 detik' : sanitizeLogMessage(streamErr?.status || streamErr);
             console.warn(`[SobatSteam Stream] Model '${modelToAttempt}' kendala (${reasonStr}). Beralih otomatis ke model cadangan...`);
             continue;
           }
@@ -1065,7 +1104,7 @@ app.post(
         })}\n\n`);
         return res.end();
       }
-      console.error('[SobatSteam Stream Error]', err?.name || 'Error', err?.message || err);
+      console.error('[SobatSteam Stream Error]', err?.name || 'Error', sanitizeLogMessage(err));
       res.write(`data: ${JSON.stringify({
         success: false,
         error: {
@@ -1102,7 +1141,7 @@ app.use((err, req, res, next) => {
   if (res.headersSent) {
     return next(err);
   }
-  console.error('[SobatSteam Express Error]', err?.name || 'Error', err?.message || err);
+  console.error('[SobatSteam Express Error]', err?.name || 'Error', sanitizeLogMessage(err));
   const status = err?.status || err?.statusCode || 500;
   const isDev = process.env.NODE_ENV === 'development';
   const safeMessage =

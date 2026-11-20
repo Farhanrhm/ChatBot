@@ -25,6 +25,7 @@ const ROMAN_NUMERALS = {
 };
 
 import { getRedisClient } from './redisClient.js';
+import { sanitizeLogMessage } from './logSanitizer.js';
 
 /**
  * Cache terdistribusi berbatas waktu (TTL) berbasis Upstash Redis / Vercel KV REST
@@ -140,7 +141,7 @@ export class DistributedCache {
             return cached;
           }
         } catch (err) {
-          console.warn('[DistributedCache] Redis get error, fallback ke lokal:', err?.message || err);
+          console.warn('[DistributedCache] Redis get error, fallback ke lokal:', sanitizeLogMessage(err));
         }
         return this._getLocal(key);
       })();
@@ -166,7 +167,7 @@ export class DistributedCache {
           const redisKey = this._formatKey(key);
           await this.redis.set(redisKey, value, { ex: seconds });
         } catch (err) {
-          console.warn('[DistributedCache] Redis set error, fallback ke lokal:', err?.message || err);
+          console.warn('[DistributedCache] Redis set error, fallback ke lokal:', sanitizeLogMessage(err));
         }
         return true;
       })();
@@ -477,7 +478,7 @@ export async function getAppDetails(appId, { signal, fetchFn = globalThis.fetch,
     await appDetailsCache.set(appId, appData, TTL_SUCCESS_MS);
     return { status: 'success', data: appData };
   } catch (err) {
-    console.error(`[Steam AppDetails Error] AppID ${appId}:`, err?.message || err);
+    console.error(`[Steam AppDetails Error] AppID ${appId}:`, sanitizeLogMessage(err));
     return { status: 'network_error', data: null };
   }
 }
@@ -694,7 +695,7 @@ export async function getSteamGameDetails(
     await titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
     return fallback;
   } catch (err) {
-    console.error(`[Steam StoreSearch Error] ${cleanTitle}:`, err?.message || err);
+    console.error(`[Steam StoreSearch Error] ${sanitizeLogMessage(cleanTitle, 120)}:`, sanitizeLogMessage(err));
     const fallback = makeFallback(cleanTitle, null, 'network_error');
     await titleCache.set(cacheKey, fallback, TTL_UNKNOWN_MS);
     return fallback;
@@ -760,7 +761,7 @@ export async function enrichGamesWithSteam(
           matchStatus: steamDetails.matchStatus ?? 'network_error',
         };
       } catch (err) {
-        console.error(`[Steam Game Enrichment Error] ${title}:`, err?.message || err);
+        console.error(`[Steam Game Enrichment Error] ${sanitizeLogMessage(title, 120)}:`, sanitizeLogMessage(err));
         return {
           ...game,
           appId: null,
